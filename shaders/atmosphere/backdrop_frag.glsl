@@ -2,16 +2,16 @@
 
 layout(location = 0) out vec4 outValue;
 in vec4 ndc;
-uniform mat4 invView, invViewProj;
+uniform mat4 invWorldViewMat, invWorldViewProjMat;
 
 void main()
 {
     const vec3 lightDir = normalize(vec3(1, 1, 1));
     
-    const vec3 dir = normalize(vec3(invViewProj * ndc));
-    const vec3 ori = vec3(invView * vec4(0, 0, 0, 1));
+    const vec3 ori = vec3(invWorldViewMat * vec4(0, 0, 0, 1));
+    const vec3 dir = normalize(vec3(invWorldViewProjMat * ndc));
     
-    const vec3 center = vec3(0, 0, -3);
+    const vec3 center = vec3(0, 0, 0);
     const float radius = 1.0;
     const float radius2 = radius*radius;
     

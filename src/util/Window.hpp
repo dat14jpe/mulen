@@ -33,11 +33,14 @@ public:
 
     bool IsKeyPressed(int key)
     {
-        return (glfwGetKey(window, key) == GLFW_PRESS);
+        return glfwGetKey(window, key) == GLFW_PRESS;
     }
-
     bool IsKeyReleased(int key)
     {
-        return (glfwGetKey(window, key) == GLFW_RELEASE);
+        return glfwGetKey(window, key) == GLFW_RELEASE;
+    }
+    bool IsMouseButtonPressed(int key)
+    {
+        return glfwGetMouseButton(window, key) == GLFW_PRESS;
     }
 };

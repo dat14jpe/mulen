@@ -26,20 +26,35 @@ namespace Mulen {
         // Update:
         Util::Texture brickUploadTexture;
         size_t maxToUpload; // maximum per frame
-        Util::Buffer gpuUpload;
-        struct UploadNode
+        Util::Buffer gpuUploadNodes, gpuUploadBricks;
+        enum class UploadType
         {
-            enum class Type : uint8_t
-            {
-                Split, Merge, Update
-            };
-            NodeIndex nodeIndex;
-            uint32_t genData; // Type or'ed into the highest byte
-            Node node;
+            Split, Merge, Update
         };
-        std::vector<UploadNode> nodesToUpload;
+        struct UploadNodeGroup
+        {
+            NodeIndex groupIndex;
+            uint32_t genData;
+            NodeGroup nodeGroup;
+        };
+        std::vector<UploadNodeGroup> nodesToUpload;
+        struct UploadBrick
+        {
+            NodeIndex nodeIndex, brickIndex;
+            uint32_t genData;
+            uint32_t padding0;
+            glm::vec4 nodeLocation;
+        };
+        std::vector<UploadBrick> bricksToUpload;
         Util::Shader updateShader, updateBricksShader;
-        void StageNode(UploadNode::Type, NodeIndex);
+        void StageNode(UploadType, NodeIndex ni);
+        void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
+
+
+        // - to do: position and orientation management in some general "object" class
+        glm::vec3 position;
+
+        void SetUniforms(Util::Shader&);
 
 
     public:
@@ -51,6 +66,6 @@ namespace Mulen {
         bool ReloadShaders(const std::string& shaderPath);
 
         void Update(const Camera&);
-        void Render(const Camera&);
+        void Render(double time, const Camera&);
     };
 }

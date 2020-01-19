@@ -26,5 +26,7 @@ namespace Mulen {
         bool Reload();
         void OnFrame() override;
         void OnKey(int key, int scancode, int action, int mods) override;
+
+        bool draggingView = false;
     };
 }

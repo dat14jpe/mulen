@@ -41,7 +41,6 @@ namespace Mulen {
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
         {
             static float f = 0.0f;
             static int counter = 0;
@@ -75,11 +74,16 @@ namespace Mulen {
                 accel = glm::vec3(camera.GetViewMatrix() * glm::vec4(accel, 0.0f));
                 camera.Accelerate(glm::normalize(accel) * force);
             }
+
+            if (window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT))
+            {
+                // - to do: camera rotation
+            }
         }
         camera.Update(dt);
 
         atmosphere.Update(camera);
-        atmosphere.Render(camera);
+        atmosphere.Render(glfwGetTime(), camera);
     }
 
     void App::OnKey(int key, int scancode, int action, int mods)

@@ -84,6 +84,7 @@ namespace Mulen {
             firstFree = i;
             ++numFree;
         }
+        Index GetSize() const { return data.size(); }
         Index GetNumFree() const { return numFree; }
         Data& operator[](Index i) { return data[i]; }
         const Data& operator[](Index i) const { return data[i]; }

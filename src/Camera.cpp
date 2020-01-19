@@ -20,6 +20,6 @@ namespace Mulen {
     {
         auto rotate = glm::toMat4(orientation);
         auto translate = glm::translate(Matrix{ 1.f }, -position);
-        return rotate * translate;
+        return translate * rotate;
     }
 }

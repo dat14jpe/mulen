@@ -26,10 +26,13 @@ namespace Util {
 		void Destroy()
 		{
 			if (!id) return;
-			//GLDestroy(); // - crashing on destructor. What did we do wrong? Might be that it's too late and the GLFW window is gone already.
+			GLDestroy();
 			id = Invalid;
 		}
-		~GLObject() { Destroy(); }
+		~GLObject() 
+		{ 
+			//Destroy(); // - crashing on destructor. What did we do wrong? Might be that it's too late and the GLFW window is gone already.
+		}
 		Id GetId() const { return id; }
 	};
 }

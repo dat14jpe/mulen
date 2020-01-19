@@ -28,5 +28,10 @@ namespace Util {
         {
             glBindBufferBase(target, index, id);
         }
+
+        void BindRange(GLenum target, GLuint index, GLintptr offset, GLsizeiptr size)
+        {
+            glBindBufferRange(target, index, id, offset, size);
+        }
     };
 }
