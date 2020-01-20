@@ -5,6 +5,7 @@
 #include "util/Buffer.hpp"
 #include "util/Texture.hpp"
 #include "util/Shader.hpp"
+#include "util/Framebuffer.hpp"
 #include "Octree.hpp"
 
 namespace Mulen {
@@ -16,12 +17,17 @@ namespace Mulen {
         NodeIndex rootGroupIndex;
 
         // Render:
+        Util::Shader postShader;
+        Util::Framebuffer fbo;
+        Util::Texture depthTexture, lightTexture; // - to do: maybe go full deferred (i.e. add at least colour)
+
         Util::Buffer gpuNodes;
         Util::Texture brickTexture;
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader;
         glm::uvec3 texMap;
-        static const auto BrickFormat = GL_RG8; // - maybe needs to be 16 bits. Let's find out
+        // Two channels since bricks store both last and next values, to let rendering interpolate between them.
+        static const auto BrickFormat = GL_RG8; // - might need to be 16 bits. Let's find out
         
         // Update:
         Util::Texture brickUploadTexture;
@@ -66,6 +72,6 @@ namespace Mulen {
         bool ReloadShaders(const std::string& shaderPath);
 
         void Update(const Camera&);
-        void Render(double time, const Camera&);
+        void Render(const glm::ivec2& res, double time, const Camera&);
     };
 }

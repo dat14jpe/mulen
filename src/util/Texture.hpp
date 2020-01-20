@@ -8,7 +8,7 @@ namespace Util {
 
 	protected:
 		void GLDestroy() override {	glDeleteTextures(1, &id); }
-		Dim width, height, depth;
+		Dim width = 0u, height = 0u, depth = 0u;
 
 	public:
 		Dim GetWidth () const { return width; }

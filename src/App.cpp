@@ -83,7 +83,7 @@ namespace Mulen {
         camera.Update(dt);
 
         atmosphere.Update(camera);
-        atmosphere.Render(glfwGetTime(), camera);
+        atmosphere.Render(size, glfwGetTime(), camera);
     }
 
     void App::OnKey(int key, int scancode, int action, int mods)

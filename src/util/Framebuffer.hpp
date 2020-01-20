@@ -1,5 +1,6 @@
 #pragma once
 #include "GLObject.hpp"
+#include "Texture.hpp"
 
 namespace Util {
 	class Framebuffer : public GLObject {
@@ -13,9 +14,23 @@ namespace Util {
 			glCreateFramebuffers(1, &id);
 		}
 
-		void Bind(GLenum target)
+		void Bind()
 		{
-			glBindFramebuffer(target, id);
+			glBindFramebuffer(GL_FRAMEBUFFER, id);
+		}
+		static void BindBackbuffer()
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, 0u);
+		}
+
+		void SetColorBuffer(unsigned index, Texture& tex, unsigned level)
+		{
+			glNamedFramebufferTexture(id, GL_COLOR_ATTACHMENT0 + index, tex.GetId(), level);
+		}
+
+		void SetDepthBuffer(Texture& tex, unsigned level)
+		{
+			glNamedFramebufferTexture(id, GL_DEPTH_ATTACHMENT, tex.GetId(), level);
 		}
 	};
 }

@@ -17,10 +17,15 @@ void main()
     
     float dist = 0.0;
     // - to do: generate or copy data
-    //vec3 m = fract(p * 2.0);
+    
+    vec3 m = fract(p * 2.0);
     //dist = m.x < 0.5 && m.y < 0.5 && m.z < 0.5 ? 0.5 : 0.0;
+    
     uvec3 loc = uvec3(gl_LocalInvocationID) % uvec3(3.0);
     if (loc.x < 1u && loc.y < 1u && loc.z < 1u) dist = 0.5;
+    //dist = clamp(1.0 - length(p), 0.0, 1.0);
+    
+    dist = clamp(1.0 - length(lp), 0.0, 1.0);
     
     imageStore(brickImage, ivec3(writeOffs), vec4(dist, 0, 0, 0));
 }

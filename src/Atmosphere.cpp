@@ -1,5 +1,6 @@
 #include "Atmosphere.hpp"
 #include "Camera.hpp"
+#include <math.h>
 
 namespace Mulen {
     bool Atmosphere::Init(const Atmosphere::Params& p)
@@ -56,6 +57,13 @@ namespace Mulen {
         shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
         shader.Uniform3f("bricksRes", glm::vec3{ texMap });
         shader.Uniform1i("brickTexture", glm::ivec1{ 0 });
+
+        // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
+        // - to do: use actual far plane (parameter from outside the Atmosphere class?)
+        const double farplane = 1e4;
+        const double Fcoef = 2.0 / log2(farplane + 1.0);
+        shader.Uniform1f("Fcoef", glm::vec1{ float(Fcoef) });
+        shader.Uniform1f("Fcoef_half", glm::vec1{ float(0.5 * Fcoef) });
     }
 
     bool Atmosphere::ReloadShaders(const std::string& path)
@@ -69,6 +77,7 @@ namespace Mulen {
             else
                 return shader.Create({ "", "", base + ".glsl" });
         };
+        if (!loadShader(postShader, "../post", false)) return false;
         if (!loadShader(backdropShader, "backdrop", false)) return false;
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
@@ -121,13 +130,25 @@ namespace Mulen {
         }
     }
 
-    void Atmosphere::Render(double time, const Camera& camera)
+    void Atmosphere::Render(const glm::ivec2& res, double time, const Camera& camera)
     {
+        // Resize the render targets if resolution has changed.
+        if (depthTexture.GetWidth() != res.x || depthTexture.GetHeight() != res.y)
+        {
+            depthTexture.Create(GL_TEXTURE_2D, 1u, GL_DEPTH24_STENCIL8, res.x, res.y);
+            lightTexture.Create(GL_TEXTURE_2D, 1u, GL_RGB16F, res.x, res.y);
+            fbo.Create();
+            fbo.SetDepthBuffer(depthTexture, 0u);
+            fbo.SetColorBuffer(0u, lightTexture, 0u);
+            // - also need glNamedFramebufferDrawBuffers?
+        }
+
         const auto worldMat = glm::translate(glm::mat4{ 1.f }, position);
         const auto worldViewMat = camera.GetViewMatrix() * worldMat;
+        const auto worldViewProjMat = camera.GetProjectionMatrix() * worldViewMat;
         const auto invWorldViewMat = glm::inverse(worldViewMat);
-        const auto invWorldViewProjMat = glm::inverse(camera.GetProjectionMatrix() * worldViewMat);
-        
+        const auto invWorldViewProjMat = glm::inverse(worldViewProjMat);
+        const auto invViewProjMat = glm::inverse(camera.GetProjectionMatrix() * camera.GetViewMatrix());
 
         auto setUpShader = [&](Util::Shader& shader) -> Util::Shader&
         {
@@ -135,28 +156,50 @@ namespace Mulen {
             shader.Uniform1f("time", glm::vec1(static_cast<float>(time)));
             shader.UniformMat4("invWorldViewMat", invWorldViewMat);
             shader.UniformMat4("invWorldViewProjMat", invWorldViewProjMat);
+            shader.UniformMat4("invViewProjMat", invViewProjMat);
+            shader.UniformMat4("worldViewProjMat", worldViewProjMat);
             // - to do: object transform
             SetUniforms(shader);
             return shader;
         };
 
-        glDisable(GL_DEPTH_TEST);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        fbo.Bind();
+
         { // "planet" background (to do: spruce this up, maybe move elsewhere)
             // (and also make it render to a logarithmic depth buffer so the atmosphere can test against that)
+            glEnable(GL_DEPTH_TEST);
+            glDisable(GL_BLEND);
+            glDepthMask(GL_TRUE);
+            glClearDepth(1.0);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
             vao.Bind();
             auto& shader = setUpShader(backdropShader);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
         
         { // atmosphere render
+            glDisable(GL_DEPTH_TEST);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
             vao.Bind();
             auto& shader = setUpShader(renderShader);
             SetUniforms(shader);
             auto ssboIndex = 0u, texUnit = 0u;
             gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
             brickTexture.Bind(texUnit++);
+            shader.Uniform1i("depthTexture", glm::ivec1{ int(texUnit) });
+            depthTexture.Bind(texUnit++);
+            glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
+        }
+
+        { // postprocessing
+            Util::Framebuffer::BindBackbuffer();
+            auto& shader = postShader;
+            shader.Bind();
+            shader.Uniform1i("lightTexture", glm::ivec1{ 0 });
+            lightTexture.Bind(0u);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
     }

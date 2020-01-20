@@ -3,10 +3,12 @@
 
 layout(location = 0) out vec4 outValue;
 in vec4 clip_coords;
-uniform mat4 invWorldViewMat, invWorldViewProjMat;
+uniform mat4 invWorldViewMat, invWorldViewProjMat, invViewProjMat;
 uniform uint rootGroupIndex;
 uniform sampler3D brickTexture;
 uniform float time;
+uniform sampler2D depthTexture;
+uniform float Fcoef_half;
     
 vec3 boxHitToNormal(vec3 ori, vec3 dir, float t)
 {
@@ -40,12 +42,29 @@ uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize)
     return ni;
 }
 
+float GetDepth()
+{
+    float d = texture(depthTexture, clip_coords.xy * 0.5 + 0.5).x;
+    d = exp2(d / Fcoef_half) - 1.0;
+    return d;
+}
+
 void main()
 {
     const vec3 lightDir = normalize(vec3(1, 0.6, 0.4));
     
     const vec3 ori = vec3(invWorldViewMat * vec4(0, 0, 0, 1));
     vec3 dir = normalize(vec3(invWorldViewProjMat * clip_coords));
+    
+    const float depth = GetDepth();
+    vec4 depthPos4 = invViewProjMat * vec4(clip_coords.xy, depth, 1.0);
+    vec3 ddir = depthPos4.xyz / depthPos4.w;
+    const float distance = length(depth);
+    const float solidDepth = length(ddir); // - to do: transform to object space
+    //outValue = vec4(vec3(depth), 1.0);
+    //if (distance > 2.01) discard; // - debugging
+    
+    #ifndef Testing
     
     vec3 diffuseColor = vec3(0.0);
     
@@ -55,7 +74,7 @@ void main()
     if (!IsIntersection(tmin, tmax)) discard;
     const vec3 hit = ori + dir * tmin;
     
-    const float stepFactor = 0.1; // - arbitrary factor (to-be-tuned)
+    const float stepFactor = 0.2;//0.1; // - arbitrary factor (to-be-tuned)
     
     const vec3 globalStart = hit;
     vec3 nodeCenter;
@@ -72,6 +91,7 @@ void main()
     // (large differences in depth could make the former necessary, no?)
     
     
+    float alpha = 0.0;
     //diffuseColor = globalStart * 0.5 + 0.5;
     {
         
@@ -92,12 +112,15 @@ void main()
             float count = 0;
             while (!any(greaterThan(abs(lc), vec3(1.0))))
             {
+                if (dist > solidDepth) break;
                 //count += 1.0; // - to-be-removed
                 vec3 tc = BrickSampleCoordinates(brickOffs, lc * 0.5 + 0.5);
                 vec4 voxelData = texture(brickTexture, tc);
                 // - to do: use sample
                 float density = voxelData.x;
-                if (density > 0.0) count += 2.0; // - not yet seeming to do anything
+                //if (density > 0.0) count += 2.0;
+                count += density; // - to do: threshold correctly, as if distance field
+                alpha += 0.5 * density; // - to do: do this correctly, not ad hoc
                 
                 dist += step;
                 lc = localStart + dist / nodeSize * dir;
@@ -109,6 +132,7 @@ void main()
             
             const uint old = ni;
             vec3 p = hit + dist * dir;
+            if (dist > solidDepth) break;
             if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
             ni = OctreeDescend(hit + dist * dir, nodeCenter, nodeSize);
             localStart = (globalStart - nodeCenter) / nodeSize;
@@ -125,8 +149,8 @@ void main()
     //color = mix(color, vec3(max(0, dot(boxHitToNormal(ori, dir, tmax), lightDir))), 0.25);
     color *= diffuseColor;
     
-    color = pow(color, vec3(1.0 / 2.2)); // gamma correction
-    outValue = vec4(color, 0.5);
+    outValue = vec4(color, min(1.0, alpha));
     
     //outValue = vec4(dir * 0.5 + 0.5, 1.0);
+    #endif
 }

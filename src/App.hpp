@@ -17,7 +17,7 @@ namespace Mulen {
         const std::string shaderPath = "shaders/";
 
         bool vsync = true;
-        ImVec4 clear_color = ImVec4(0.04f, 0.06f, 0.08f, 1.00f);
+        ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
         Camera camera;
         Atmosphere atmosphere;

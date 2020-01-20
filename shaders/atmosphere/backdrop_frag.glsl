@@ -2,7 +2,9 @@
 
 layout(location = 0) out vec4 outValue;
 in vec4 ndc;
-uniform mat4 invWorldViewMat, invWorldViewProjMat;
+in float flogz;
+uniform mat4 invWorldViewMat, invWorldViewProjMat, worldViewProjMat;
+uniform float Fcoef_half;
 
 void main()
 {
@@ -31,8 +33,8 @@ void main()
     vec3 diffuseColor = vec3(1.0);
     color *= diffuseColor;
     
-    color = pow(color, vec3(1.0 / 2.2)); // gamma correction
     outValue = vec4(color, 1);
-    
-    //outValue = vec4(dir * 0.5 + 0.5, 1.0);
+    //gl_FragDepth = 0.0; // - to do: correct
+    float flogz = 1.0 + (worldViewProjMat * vec4(hitp, 1.0)).w;
+    gl_FragDepth = log2(flogz) * Fcoef_half;
 }
