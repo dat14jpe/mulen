@@ -32,5 +32,11 @@ namespace Mulen {
 
         Matrix GetViewMatrix() const;
         Matrix GetProjectionMatrix() const { return projectionMatrix; }
+
+        const Orientation& GetOrientation() const { return orientation; }
+        void ApplyRotation(const Orientation& q)
+        {
+            orientation = glm::normalize(q * orientation);
+        }
     };
 }

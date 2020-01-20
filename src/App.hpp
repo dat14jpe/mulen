@@ -16,9 +16,11 @@ namespace Mulen {
 
         const std::string shaderPath = "shaders/";
 
-        bool vsync = true;
+        bool showGui = true, vsync = true;
+        float mouseSensitivity = 0.25f;
         ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
+        glm::vec2 lastCursorPos;
         Camera camera;
         Atmosphere atmosphere;
 

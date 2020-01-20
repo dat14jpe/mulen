@@ -41,6 +41,7 @@ namespace Mulen {
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        if (showGui)
         {
             static float f = 0.0f;
             static int counter = 0;
@@ -60,6 +61,7 @@ namespace Mulen {
             ImGui::End();
         }
 
+        // Camera controls
         {
             glm::vec3 accel{ 0.0f };
             if (window.IsKeyPressed(GLFW_KEY_A)) accel.x -= 1;
@@ -68,17 +70,37 @@ namespace Mulen {
             if (window.IsKeyPressed(GLFW_KEY_S)) accel.z += 1;
             if (window.IsKeyPressed(GLFW_KEY_F)) accel.y -= 1;
             if (window.IsKeyPressed(GLFW_KEY_R)) accel.y += 1;
-            if (glm::length(accel))
+            if (accel != glm::vec3(0.0f))
             {
-                const float force = 10.0f;
-                accel = glm::vec3(camera.GetViewMatrix() * glm::vec4(accel, 0.0f));
+                const float force = 10.0f; // - to do: make configurable
+                accel = glm::vec3(glm::inverse(camera.GetViewMatrix()) * glm::vec4(accel, 0.0f));
                 camera.Accelerate(glm::normalize(accel) * force);
             }
 
+            auto cursorPos = glm::vec2(window.GetCursorPosition());
+            cursorPos = cursorPos / glm::vec2(size) * 2.0f - 1.0f;
+            cursorPos.x *= aspect;
             if (window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT))
             {
-                // - to do: camera rotation
+                // - to do: enable smooth rotation
+
+                auto arcballPosition = [&](glm::vec2 p)
+                {
+                    p *= mouseSensitivity;
+                    auto length = glm::length(p);
+                    p.y = -p.y;
+                    if (length >= 1.0f) return glm::vec3{1.0f * p / sqrt(length), 0.0f};
+                    else                return glm::vec3{p, sqrt(1.0f - length)};
+                };
+                auto c0 = glm::vec2(0.0f), c1 = cursorPos - lastCursorPos;
+                auto a0 = arcballPosition(c0), a1 = arcballPosition(c1);
+                auto cross = glm::cross(a0, a1);
+                if (glm::length(cross) > 1e-5) // needs to be non-zero
+                {
+                    camera.ApplyRotation(glm::quat{ dot(a0, a1), cross });
+                }
             }
+            lastCursorPos = cursorPos;
         }
         camera.Update(dt);
 
@@ -102,6 +124,9 @@ namespace Mulen {
             break;
         case GLFW_KEY_F11:
             window.IsMaximized() ? window.Maximize() : window.Restore();
+            break;
+        case GLFW_KEY_F6:
+            showGui = !showGui;
             break;
         }
     }

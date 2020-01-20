@@ -140,7 +140,6 @@ namespace Mulen {
             fbo.Create();
             fbo.SetDepthBuffer(depthTexture, 0u);
             fbo.SetColorBuffer(0u, lightTexture, 0u);
-            // - also need glNamedFramebufferDrawBuffers?
         }
 
         const auto worldMat = glm::translate(glm::mat4{ 1.f }, position);
@@ -162,8 +161,6 @@ namespace Mulen {
             shader.UniformMat4("worldViewProjMat", worldViewProjMat);
             shader.UniformMat4("invViewMat", glm::inverse(viewMat));
             shader.UniformMat4("invProjMat", glm::inverse(projMat));
-
-            // - to do: object transform
             SetUniforms(shader);
             return shader;
         };

@@ -118,8 +118,10 @@ void main()
                 // - to do: use sample
                 float density = voxelData.x; // - to do: threshold correctly, as if distance field
                 //density = smoothstep(0.1, 0.75, density); // - testing
-                diffuseColor += vec3(1.0) * density * step; 
-                alpha += density * step; // - to do: do this correctly, not ad hoc
+                const float visibility = 1.0 - alpha;
+                vec3 cloudColor = vec3(1.0);
+                diffuseColor += visibility * cloudColor * density * step; 
+                alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
                 
                 dist += step;
                 lc = localStart + dist / nodeSize * dir;

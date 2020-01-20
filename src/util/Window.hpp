@@ -43,4 +43,10 @@ public:
     {
         return glfwGetMouseButton(window, key) == GLFW_PRESS;
     }
+    glm::dvec2 GetCursorPosition()
+    {
+        glm::dvec2 pos;
+        glfwGetCursorPos(window, &pos.x, &pos.y);
+        return pos;
+    }
 };
