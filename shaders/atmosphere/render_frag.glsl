@@ -3,7 +3,7 @@
 
 layout(location = 0) out vec4 outValue;
 in vec4 clip_coords;
-uniform mat4 invWorldViewMat, invWorldViewProjMat, invViewProjMat;
+uniform mat4 invWorldViewMat, invWorldViewProjMat, invViewMat, invProjMat, invViewProjMat;
 uniform uint rootGroupIndex;
 uniform sampler3D brickTexture;
 uniform float time;
@@ -49,20 +49,21 @@ float GetDepth()
     return d;
 }
 
+vec3 ViewspaceFromDepth(float depth)
+{
+    vec4 cs = vec4(clip_coords.xy * depth, -depth, depth);
+    vec4 vs = invProjMat * cs;
+    return vs.xyz;
+}
+
 void main()
 {
     const vec3 lightDir = normalize(vec3(1, 0.6, 0.4));
     
     const vec3 ori = vec3(invWorldViewMat * vec4(0, 0, 0, 1));
     vec3 dir = normalize(vec3(invWorldViewProjMat * clip_coords));
+    const float solidDepth = length(ViewspaceFromDepth(GetDepth()));
     
-    const float depth = GetDepth();
-    vec4 depthPos4 = invViewProjMat * vec4(clip_coords.xy, depth, 1.0);
-    vec3 ddir = depthPos4.xyz / depthPos4.w;
-    const float distance = length(depth);
-    const float solidDepth = length(ddir); // - to do: transform to object space
-    //outValue = vec4(vec3(depth), 1.0);
-    //if (distance > 2.01) discard; // - debugging
     
     #ifndef Testing
     
@@ -80,8 +81,7 @@ void main()
     vec3 nodeCenter;
     float nodeSize;
     uint ni = OctreeDescend(globalStart, nodeCenter, nodeSize);
-    vec3 localStart = (globalStart - nodeCenter) / nodeSize;
-    float dist = 0.0;
+    float dist = 0.0; // - to do: make it so this can be set to tmin?
     dist += 1e-5;// don't start at a face/edge/corner
     vec2 randTimeOffs = vec2(cos(time), sin(time));
     //randTimeOffs = vec2(0); // - testing
@@ -101,6 +101,7 @@ void main()
             const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
             vec3 color = vec3(1.0);//localStart * 0.5 + 0.5;
             //diffuseColor += color * 0.0625;
+            vec3 localStart = (globalStart - nodeCenter) / nodeSize;
             vec3 lc = localStart + dist / nodeSize * dir;
     
             // - to do: add random offset here (again), or only on depth change? Let's see
@@ -109,33 +110,29 @@ void main()
             // (which would also simplify depth-testing)
             
             const float step = nodeSize * stepFactor;
-            float count = 0;
             while (!any(greaterThan(abs(lc), vec3(1.0))))
             {
-                if (dist > solidDepth) break;
-                //count += 1.0; // - to-be-removed
+                if (dist + tmin > solidDepth) break;
                 vec3 tc = BrickSampleCoordinates(brickOffs, lc * 0.5 + 0.5);
                 vec4 voxelData = texture(brickTexture, tc);
                 // - to do: use sample
-                float density = voxelData.x;
-                //if (density > 0.0) count += 2.0;
-                count += density; // - to do: threshold correctly, as if distance field
-                alpha += 0.5 * density; // - to do: do this correctly, not ad hoc
+                float density = voxelData.x; // - to do: threshold correctly, as if distance field
+                //density = smoothstep(0.1, 0.75, density); // - testing
+                diffuseColor += vec3(1.0) * density * step; 
+                alpha += density * step; // - to do: do this correctly, not ad hoc
                 
                 dist += step;
                 lc = localStart + dist / nodeSize * dir;
             } 
-            diffuseColor += color * count / 64.0;
             
             // - to do: try traversal via neighbours, possibly going down/up one level
             // (need to pass through 1-3 neighbours here)
             
             const uint old = ni;
             vec3 p = hit + dist * dir;
-            if (dist > solidDepth) break;
+            if (dist + tmin > solidDepth) break;
             if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
             ni = OctreeDescend(hit + dist * dir, nodeCenter, nodeSize);
-            localStart = (globalStart - nodeCenter) / nodeSize;
             if (old == ni) break; // - error (but can this even happen?)
         }
     }

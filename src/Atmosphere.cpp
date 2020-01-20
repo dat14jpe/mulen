@@ -144,11 +144,13 @@ namespace Mulen {
         }
 
         const auto worldMat = glm::translate(glm::mat4{ 1.f }, position);
-        const auto worldViewMat = camera.GetViewMatrix() * worldMat;
-        const auto worldViewProjMat = camera.GetProjectionMatrix() * worldViewMat;
+        const auto viewMat = camera.GetViewMatrix();
+        const auto projMat = camera.GetProjectionMatrix();
+        const auto worldViewMat = viewMat * worldMat;
+        const auto worldViewProjMat = projMat * worldViewMat;
         const auto invWorldViewMat = glm::inverse(worldViewMat);
         const auto invWorldViewProjMat = glm::inverse(worldViewProjMat);
-        const auto invViewProjMat = glm::inverse(camera.GetProjectionMatrix() * camera.GetViewMatrix());
+        const auto invViewProjMat = glm::inverse(projMat * viewMat);
 
         auto setUpShader = [&](Util::Shader& shader) -> Util::Shader&
         {
@@ -158,6 +160,9 @@ namespace Mulen {
             shader.UniformMat4("invWorldViewProjMat", invWorldViewProjMat);
             shader.UniformMat4("invViewProjMat", invViewProjMat);
             shader.UniformMat4("worldViewProjMat", worldViewProjMat);
+            shader.UniformMat4("invViewMat", glm::inverse(viewMat));
+            shader.UniformMat4("invProjMat", glm::inverse(projMat));
+
             // - to do: object transform
             SetUniforms(shader);
             return shader;
