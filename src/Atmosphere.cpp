@@ -1,6 +1,7 @@
 #include "Atmosphere.hpp"
 #include "Camera.hpp"
 #include <math.h>
+#include <functional>
 
 namespace Mulen {
     bool Atmosphere::Init(const Atmosphere::Params& p)
@@ -52,14 +53,20 @@ namespace Mulen {
         rootGroupIndex = octree.RequestRoot();
         stageSplit(rootGroupIndex);
 
-        { // - test: "manual" splits, one level indiscriminately
+        // - test: "manual" splits, indiscriminately to a chosen level
+        std::function<void(NodeIndex, unsigned)> testSplit = [&](NodeIndex gi, unsigned depth)
+        {
+            if (!depth) return;
             for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
             {
-                const auto ni = Octree::GroupAndChildToNode(rootGroupIndex, ci);
+                const auto ni = Octree::GroupAndChildToNode(gi, ci);
                 octree.Split(ni);
-                stageSplit(octree.GetNode(ni).children);
+                const auto children = octree.GetNode(ni).children;
+                stageSplit(children);
+                testSplit(children, depth - 1u);
             }
-        }
+        };
+        testSplit(rootGroupIndex, 2u); // - can't be higher than 2 with current simple upload setup
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
         return true;

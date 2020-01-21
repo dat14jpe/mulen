@@ -138,7 +138,7 @@ void main()
         //if (old == ni) break; // - error (but can this even happen?)
         
         ++numBricks;
-        if (numBricks >= 16u) break; // - testing
+        if (numBricks >= 32u) break; // - testing
     }
     
     outValue = vec4(color, min(1.0, alpha));
