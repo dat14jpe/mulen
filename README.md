@@ -5,4 +5,6 @@ For now, the necessary libraries (GLFW, Glad, GLM, ImGui) have to be manually co
 
 To do: more sensible CMake-employing dependency management.
 
+Ray-tracing a 16^3 voxel volume (i.e. the lowest octree level of detail):
+
 ![Ray-tracing a 16^3 voxel volume](img/20200121_Mulen_019.png)
