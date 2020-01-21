@@ -40,10 +40,11 @@ layout(std430, binding = SSBO_VOXEL_UPLOAD_BRICKS) buffer uploadBricksBuffer
     UploadBrick uploadBricks[];
 };
 
+uniform uvec3 uBricksRes;
 uniform vec3 bricksRes;
 uvec3 BrickIndexTo3D(uint brickIndex)
 {
-    const uvec3 bres = uvec3(bricksRes);
+    const uvec3 bres = uBricksRes;
     uvec3 p;
     p.z = brickIndex / (bres.x * bres.y);
     p.y = (brickIndex / bres.x) % bres.y;

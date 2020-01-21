@@ -16,17 +16,28 @@ void main()
     vec3 p = upload.nodeLocation.xyz + upload.nodeLocation.w * lp;
     
     float dist = 0.0;
+    
     // - to do: generate or copy data
-    
-    vec3 m = fract(p * 2.0);
-    //dist = m.x < 0.5 && m.y < 0.5 && m.z < 0.5 ? 0.5 : 0.0;
-    //dist = 1.0 - distance(m, vec3(0.5));
-    
-    uvec3 loc = uvec3(gl_LocalInvocationID) % uvec3(3.0);
-    if (loc.x < 1u && loc.y < 1u && loc.z < 1u) dist = 0.5;
-    //dist = 1.0 - length(p);
-    
-    dist = 1.0 - length(lp);
+    {
+        vec3 m = fract((p * 0.5 + 0.5) * 1.0);
+        //dist = m.x < 0.5 && m.y < 0.5 && m.z < 0.5 ? 0.5 : 0.0;
+        //dist = 1.0 - 2.0 * distance(m, vec3(0.5));
+        
+        uvec3 loc = uvec3(gl_LocalInvocationID) % uvec3(3.0);
+        if (loc.x < 1u && loc.y < 1u && loc.z < 1u) dist = 0.5;
+        //dist = 1.0 - length(p);
+        
+        //dist = 1.0 - length(lp);
+        
+        dist = 0.0;
+        for (float z = -1.0; z <= 1.0; z += 2.0)
+        for (float y = -1.0; y <= 1.0; y += 2.0)
+        for (float x = -1.0; x <= 1.0; x += 2.0)
+        {
+            float d = 1.0 - length(2 * (p - vec3(x, y, z) * 0.5));
+            dist = max(dist, d);
+        }
+    }
     
     dist = clamp(dist, 0.0, 1.0);
     imageStore(brickImage, ivec3(writeOffs), vec4(dist, 0, 0, 0));

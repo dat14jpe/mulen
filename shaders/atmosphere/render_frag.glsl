@@ -24,18 +24,22 @@ vec3 boxHitToNormal(vec3 ori, vec3 dir, float t)
 // p components in [-1, 1] range
 uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize)
 {
+    uint depth = 0u;
     uint ni = InvalidIndex;
     uint gi = rootGroupIndex;
     vec3 center = vec3(0.0);
     float size = 1.0;
     while (InvalidIndex != gi)
     {
-        ivec3 ioffs = clamp(ivec3(p + 1.0), ivec3(0), ivec3(1));
+        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
         uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
         ni = gi * NodeArity + child;
         size *= 0.5;
         center += (vec3(ioffs) * 2.0 - 1.0) * size;
         gi = nodeGroups[gi].nodes[child].children;
+        ++depth;
+        //if (gi == 0u) return InvalidIndex; // - should not happen, but currently it is (20200121)
+        //if (depth > 1u) break; // - testing (this test shouldn't be needed)
     }
     nodeCenter = center;
     nodeSize = size;
@@ -92,8 +96,10 @@ void main()
     float alpha = 0.0;
     
     // Trace through bricks:
+    uint numBricks = 0u;
     while (InvalidIndex != ni)
     {
+        //if (ni < 8u) break; // - testing
         const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
         vec3 localStart = (globalStart - nodeCenter) / nodeSize;
         vec3 lc = localStart + dist / nodeSize * dir;
@@ -129,7 +135,10 @@ void main()
         if (dist + tmin > solidDepth) break;
         if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
         ni = OctreeDescend(p, nodeCenter, nodeSize);
-        if (old == ni) break; // - error (but can this even happen?)
+        //if (old == ni) break; // - error (but can this even happen?)
+        
+        ++numBricks;
+        if (numBricks >= 16u) break; // - testing
     }
     
     outValue = vec4(color, min(1.0, alpha));

@@ -42,6 +42,7 @@ namespace Mulen {
         {
             NodeIndex groupIndex;
             uint32_t genData;
+            //uint32_t padding[2];
             NodeGroup nodeGroup;
         };
         std::vector<UploadNodeGroup> nodesToUpload;
@@ -54,7 +55,7 @@ namespace Mulen {
         };
         std::vector<UploadBrick> bricksToUpload;
         Util::Shader updateShader, updateBricksShader;
-        void StageNode(UploadType, NodeIndex ni);
+        void StageNodeGroup(UploadType, NodeIndex ni);
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
 
         void SetUniforms(Util::Shader&);

@@ -12,6 +12,6 @@ void main()
     
     nodeGroups[upload.groupIndex] = upload.nodeGroup;
     
+    // - to do: handle linkage correctly
     // - if type == Split, update node group but not any one node (nor any bricks)
-    // - to do: store node, proceed to create layers for brick copy if type == SplitChild
 }

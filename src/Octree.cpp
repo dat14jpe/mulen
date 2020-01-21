@@ -1,5 +1,6 @@
 #include "Octree.hpp"
 #include <functional>
+#include <iostream>
 
 namespace Mulen {
     bool Octree::Init(size_t numNodes, size_t numBricks)
@@ -34,6 +35,7 @@ namespace Mulen {
 
         // - if we're going to stick to requiring nodes have same-depth neighbours before being split,
         // this doesn't actually require recursion. But better safe than sorry.
+        unsigned callDepth = 0u;
         std::function<void(NodeIndex)> setNeighbour = [&](NodeIndex ni)
         {
             auto& node = GetNode(ni);
@@ -47,7 +49,9 @@ namespace Mulen {
                 for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
                 {
                     if (0u == (ci & dirBit)) continue; // wrong half (not on the right face)
+                    ++callDepth;
                     setNeighbour(GroupAndChildToNode(node.children, ci));
+                    --callDepth;
                 }
             }
         };
@@ -67,6 +71,7 @@ namespace Mulen {
         {
             auto childIndex = GroupAndChildToNode(parent.children, ci);
             auto& node = group.nodes[ci];
+            node.children = InvalidIndex;
             for (auto d = 0u; d < 3u; ++d) // iterate over the axes to set up neighbours
             {
                 const auto bit = 1u << d;
@@ -75,6 +80,8 @@ namespace Mulen {
                 neighbourIndex = test == 0u
                     ? neighbourIndex = parent.neighbours[d] // neighbour outside parent group
                     : neighbourIndex = index ^ bit; // neighbour within parent group
+
+                if (InvalidIndex == neighbourIndex) continue;
 
                 // Is the neighbour too low-depth to link back to the new nodes?
                 if (GetGroup(NodeToGroup(neighbourIndex)).GetDepth() < parentDepth) continue;

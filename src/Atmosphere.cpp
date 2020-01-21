@@ -32,19 +32,33 @@ namespace Mulen {
         glTextureParameteri(brickTexture.GetId(), GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         // - to do: also create second texture (for double-buffering updates)
 
-        maxToUpload = numNodeGroups; // - arbitrary (to do: take care to make it high enough for timely updates)
+        maxToUpload = numNodeGroups / 8u; // - arbitrary (to do: take care to make it high enough for timely updates)
         nodesToUpload.reserve(maxToUpload);
         gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload, GL_DYNAMIC_STORAGE_BIT);
         gpuUploadBricks.Create(sizeof(UploadBrick) * maxToUpload, GL_DYNAMIC_STORAGE_BIT);
         // - to do: also create brick upload buffer/texture
 
+        auto stageSplit = [&](NodeIndex gi)
+        {
+            StageNodeGroup(UploadType::Split, gi);
+            for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
+            {
+                const auto ni = Octree::GroupAndChildToNode(gi, ci);
+                StageBrick(UploadType::Split, ni);
+            }
+        };
+
         // For this particular atmosphere:
         rootGroupIndex = octree.RequestRoot();
-        StageNode(UploadType::Split, rootGroupIndex);
-        for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
-        {
-            const auto ni = rootGroupIndex * NodeArity + ci;
-            StageBrick(UploadType::Split, ni);
+        stageSplit(rootGroupIndex);
+
+        { // - test: "manual" splits, one level indiscriminately
+            for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
+            {
+                const auto ni = Octree::GroupAndChildToNode(rootGroupIndex, ci);
+                octree.Split(ni);
+                stageSplit(octree.GetNode(ni).children);
+            }
         }
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
@@ -55,6 +69,7 @@ namespace Mulen {
     {
         // - to do: use a UBO instead
         shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
+        shader.Uniform3u("uBricksRes", glm::uvec3{ texMap });
         shader.Uniform3f("bricksRes", glm::vec3{ texMap });
         shader.Uniform1i("brickTexture", glm::ivec1{ 0 });
 
@@ -102,6 +117,10 @@ namespace Mulen {
         // Update GPU data:
         if (nodesToUpload.size())
         {
+            for (auto& uploadGroup : nodesToUpload)
+            {
+                uploadGroup.nodeGroup = octree.GetGroup(uploadGroup.groupIndex);
+            }
             gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * nodesToUpload.size(), nodesToUpload.data());
             gpuUploadBricks.Upload(0, sizeof(UploadBrick) * bricksToUpload.size(), bricksToUpload.data());
 
@@ -117,11 +136,14 @@ namespace Mulen {
             glBindImageTexture(imgUnit++, brickTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickFormat);
 
             updateShader.Bind();
+            SetUniforms(updateShader);
             glDispatchCompute((GLuint)nodesToUpload.size(), 1u, 1u);
+            std::cout << "Uploading " << nodesToUpload.size() << " nodes\n";
 
             updateBricksShader.Bind();
             SetUniforms(updateBricksShader);
             glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
+            std::cout << "Generating " << bricksToUpload.size() << " bricks\n";
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
@@ -206,13 +228,18 @@ namespace Mulen {
         }
     }
 
-    void Atmosphere::StageNode(UploadType type, NodeIndex groupIndex)
+    void Atmosphere::StageNodeGroup(UploadType type, NodeIndex groupIndex)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         uint32_t genData = 0u;
         genData |= uint32_t(type) << 24u;
-        nodesToUpload.push_back({ groupIndex, genData, octree.GetGroup(groupIndex) });
+        UploadNodeGroup upload{};
+        upload.groupIndex = groupIndex;
+        upload.genData = genData;
+        upload.nodeGroup = octree.GetGroup(groupIndex);
+        nodesToUpload.push_back(upload);
     }
+
     void Atmosphere::StageBrick(UploadType type, NodeIndex nodeIndex)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
@@ -231,7 +258,13 @@ namespace Mulen {
         nodeCenter /= nodeSize;
         nodeSize = 1.0f / nodeSize;
 
+        UploadBrick upload{};
+        upload.nodeIndex = nodeIndex;
+        upload.brickIndex = brickIndex;
+        upload.genData = genData;
+        upload.nodeLocation = glm::vec4(glm::vec3(nodeCenter), (float)nodeSize);
+
         // - to do: add various generation parameters (e.g. wind vector/temperature/humidity)
-        bricksToUpload.push_back({ nodeIndex, brickIndex, genData, 0, glm::vec4(glm::vec3(nodeCenter), (float)nodeSize) });
+        bricksToUpload.push_back(upload);
     }
 }

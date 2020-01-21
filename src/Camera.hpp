@@ -6,7 +6,6 @@ namespace Mulen {
     {
         Matrix projectionMatrix;
         Position acceleration{ 0.0f }, velocity{ 0.0f };
-        Orientation orientation = glm::identity<Orientation>();
 
     public:
         void Update(float dt);
