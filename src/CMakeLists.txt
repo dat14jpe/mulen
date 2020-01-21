@@ -8,6 +8,8 @@ add_executable(${CMAKE_PROJECT_NAME}
     Octree.cpp
     Camera.hpp
     Camera.cpp
+    Object.hpp
+    Object.cpp
 )
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 

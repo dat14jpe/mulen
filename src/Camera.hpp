@@ -1,17 +1,11 @@
 #pragma once
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include "Object.hpp"
 
 namespace Mulen {
-    class Camera
+    class Camera : public Object
     {
-        typedef glm::vec3 Position;
-        typedef glm::quat Orientation;
-        typedef glm::mat4 Matrix;
-
         Matrix projectionMatrix;
-        Position acceleration{ 0.0f }, velocity{ 0.0f }, position{ 0.0f };
+        Position acceleration{ 0.0f }, velocity{ 0.0f };
         Orientation orientation = glm::identity<Orientation>();
 
     public:
@@ -22,21 +16,9 @@ namespace Mulen {
             projectionMatrix = glm::perspective(fovy, aspect, near, far);
         }
 
-        const Position& GetPosition() const { 
-            return position;
-        }
-        void SetPosition(const Position& p) {
-            position = p;
-        }
         void Accelerate(const Position&);
 
         Matrix GetViewMatrix() const;
         Matrix GetProjectionMatrix() const { return projectionMatrix; }
-
-        const Orientation& GetOrientation() const { return orientation; }
-        void ApplyRotation(const Orientation& q)
-        {
-            orientation = glm::normalize(q * orientation);
-        }
     };
 }

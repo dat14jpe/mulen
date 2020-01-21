@@ -43,19 +43,15 @@ namespace Mulen {
 
         if (showGui)
         {
-            static float f = 0.0f;
-            static int counter = 0;
-
             ImGui::Begin("Atmosphere");
 
-            ImGui::Text("This is some useful text.");
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+            /*ImGui::Text("This is some useful text.");
+            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);*/
             ImGui::ColorEdit3("clear color", (float*)&clear_color);
 
-            if (ImGui::Button("Button")) counter++;
+            /*if (ImGui::Button("Button")) counter++;
             ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
+            ImGui::Text("counter = %d", counter);*/
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();
@@ -80,7 +76,10 @@ namespace Mulen {
             auto cursorPos = glm::vec2(window.GetCursorPosition());
             cursorPos = cursorPos / glm::vec2(size) * 2.0f - 1.0f;
             cursorPos.x *= aspect;
-            if (window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT))
+            const bool
+                rotateView = window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT),
+                rotateOrbit = window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+            if (rotateView || rotateOrbit)
             {
                 // - to do: enable smooth rotation
 
@@ -97,7 +96,14 @@ namespace Mulen {
                 auto cross = glm::cross(a0, a1);
                 if (glm::length(cross) > 1e-5) // needs to be non-zero
                 {
-                    camera.ApplyRotation(glm::quat{ dot(a0, a1), cross });
+                    if (rotateView)
+                    {
+                        camera.ApplyRotation(glm::quat{ dot(a0, a1), cross });
+                    }
+                    if (rotateOrbit)
+                    {
+                        // - to do
+                    }
                 }
             }
             lastCursorPos = cursorPos;

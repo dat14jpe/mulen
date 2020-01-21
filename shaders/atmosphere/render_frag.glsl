@@ -65,9 +65,7 @@ void main()
     const float solidDepth = length(ViewspaceFromDepth(GetDepth()));
     
     
-    #ifndef Testing
-    
-    vec3 diffuseColor = vec3(0.0);
+    vec3 color = vec3(0.0);
     
     float tmin, tmax;
     AabbIntersection(tmin, tmax, vec3(-1), vec3(1), ori, dir);
@@ -92,64 +90,47 @@ void main()
     
     
     float alpha = 0.0;
-    //diffuseColor = globalStart * 0.5 + 0.5;
-    {
-        
-        // - to do: trace through bricks
-        while (InvalidIndex != ni)
-        {
-            const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
-            vec3 color = vec3(1.0);//localStart * 0.5 + 0.5;
-            //diffuseColor += color * 0.0625;
-            vec3 localStart = (globalStart - nodeCenter) / nodeSize;
-            vec3 lc = localStart + dist / nodeSize * dir;
     
-            // - to do: add random offset here (again), or only on depth change? Let's see
-            
-            // - to do: try calculating the end dist and then just iterating with that one float condition
-            // (which would also simplify depth-testing)
-            
-            const float step = nodeSize * stepFactor;
-            while (!any(greaterThan(abs(lc), vec3(1.0))))
-            {
-                if (dist + tmin > solidDepth) break;
-                vec3 tc = BrickSampleCoordinates(brickOffs, lc * 0.5 + 0.5);
-                vec4 voxelData = texture(brickTexture, tc);
-                // - to do: use sample
-                float density = voxelData.x; // - to do: threshold correctly, as if distance field
-                //density = smoothstep(0.1, 0.75, density); // - testing
-                const float visibility = 1.0 - alpha;
-                vec3 cloudColor = vec3(1.0);
-                diffuseColor += visibility * cloudColor * density * step; 
-                alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
-                
-                dist += step;
-                lc = localStart + dist / nodeSize * dir;
-            } 
-            
-            // - to do: try traversal via neighbours, possibly going down/up one level
-            // (need to pass through 1-3 neighbours here)
-            
-            const uint old = ni;
-            vec3 p = hit + dist * dir;
+    // Trace through bricks:
+    while (InvalidIndex != ni)
+    {
+        const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
+        vec3 localStart = (globalStart - nodeCenter) / nodeSize;
+        vec3 lc = localStart + dist / nodeSize * dir;
+
+        // - to do: add random offset here (again), or only on depth change? Let's see
+        
+        // - to do: try calculating the end dist and then just iterating with that one float condition
+        // (which would also simplify depth-testing)
+        
+        const float step = nodeSize * stepFactor;
+        while (!any(greaterThan(abs(lc), vec3(1.0))))
+        {
             if (dist + tmin > solidDepth) break;
-            if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
-            ni = OctreeDescend(hit + dist * dir, nodeCenter, nodeSize);
-            if (old == ni) break; // - error (but can this even happen?)
-        }
+            vec3 tc = BrickSampleCoordinates(brickOffs, lc * 0.5 + 0.5);
+            vec4 voxelData = texture(brickTexture, tc);
+            
+            float density = voxelData.x; // - to do: threshold correctly, as if distance field
+            //density = smoothstep(0.1, 0.75, density); // - testing
+            const float visibility = 1.0 - alpha;
+            vec3 cloudColor = vec3(1.0);
+            color += visibility * cloudColor * density * step; 
+            alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
+            
+            dist += step;
+            lc = localStart + dist / nodeSize * dir;
+        } 
+        
+        // - to do: try traversal via neighbours, possibly going down/up one level
+        // (need to pass through 1-3 neighbours here)
+        
+        const uint old = ni;
+        vec3 p = hit + dist * dir;
+        if (dist + tmin > solidDepth) break;
+        if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
+        ni = OctreeDescend(p, nodeCenter, nodeSize);
+        if (old == ni) break; // - error (but can this even happen?)
     }
     
-    vec3 normal = boxHitToNormal(ori, dir, tmin);
-    //normal = vec3(0, 0, 1); // - debugging
-    
-    vec3 color;// = normal * 0.5 + 0.5; // test
-    color = vec3(max(0.0, dot(normal, lightDir))); // Lambertian
-    color = vec3(1.0);
-    //color = mix(color, vec3(max(0, dot(boxHitToNormal(ori, dir, tmax), lightDir))), 0.25);
-    color *= diffuseColor;
-    
     outValue = vec4(color, min(1.0, alpha));
-    
-    //outValue = vec4(dir * 0.5 + 0.5, 1.0);
-    #endif
 }

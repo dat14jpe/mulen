@@ -7,11 +7,12 @@
 #include "util/Shader.hpp"
 #include "util/Framebuffer.hpp"
 #include "Octree.hpp"
+#include "Object.hpp"
 
 namespace Mulen {
     class Camera;
 
-    class Atmosphere
+    class Atmosphere : public Object
     {
         Octree octree;
         NodeIndex rootGroupIndex;
@@ -55,10 +56,6 @@ namespace Mulen {
         Util::Shader updateShader, updateBricksShader;
         void StageNode(UploadType, NodeIndex ni);
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
-
-
-        // - to do: position and orientation management in some general "object" class
-        glm::vec3 position;
 
         void SetUniforms(Util::Shader&);
 

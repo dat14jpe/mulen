@@ -10,8 +10,10 @@ void main()
     ndc = vec4(coords[gl_VertexID] * 2 - 1, 1, 1);
     gl_Position = ndc;
     
+    /*
     // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
+    // - if this had been ordinary triangle rendering:
     gl_Position.z = log2(max(1e-6, 1.0 + gl_Position.w)) * Fcoef - 1.0;
-    flogz = 1.0 + gl_Position.w;
+    flogz = 1.0 + gl_Position.w;*/
 }
 
