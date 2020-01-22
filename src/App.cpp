@@ -60,22 +60,22 @@ namespace Mulen {
 
         // Camera controls
         {
-            glm::vec3 accel{ 0.0f };
+            Object::Position accel{ 0.0 };
             if (window.IsKeyPressed(GLFW_KEY_A)) accel.x -= 1;
             if (window.IsKeyPressed(GLFW_KEY_D)) accel.x += 1;
             if (window.IsKeyPressed(GLFW_KEY_W)) accel.z -= 1;
             if (window.IsKeyPressed(GLFW_KEY_S)) accel.z += 1;
             if (window.IsKeyPressed(GLFW_KEY_F)) accel.y -= 1;
             if (window.IsKeyPressed(GLFW_KEY_R)) accel.y += 1;
-            if (accel != glm::vec3(0.0f))
+            if (accel != Object::Position(0.0))
             {
-                const float force = 10.0f; // - to do: make configurable
-                accel = glm::vec3(glm::inverse(camera.GetViewMatrix()) * glm::vec4(accel, 0.0f));
+                const auto force = 10.0; // - to do: make configurable
+                accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
                 camera.Accelerate(glm::normalize(accel) * force);
             }
 
-            auto cursorPos = glm::vec2(window.GetCursorPosition());
-            cursorPos = cursorPos / glm::vec2(size) * 2.0f - 1.0f;
+            auto cursorPos = glm::dvec2(window.GetCursorPosition());
+            cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
             cursorPos.x *= aspect;
             const bool
                 rotateView = window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT),
@@ -84,21 +84,21 @@ namespace Mulen {
             {
                 // - to do: enable smooth rotation
 
-                auto arcballPosition = [&](glm::vec2 p)
+                auto arcballPosition = [&](glm::dvec2 p)
                 {
                     p *= mouseSensitivity;
                     auto length = glm::length(p);
                     p.y = -p.y;
-                    if (length >= 1.0f) return glm::vec3{1.0f * p / sqrt(length), 0.0f};
-                    else                return glm::vec3{p, -sqrt(1.0f - length)};
+                    if (length >= 1.0f) return glm::dvec3{1.0 * p / sqrt(length), 0.0};
+                    else                return glm::dvec3{p, -sqrt(1.0 - length)};
                 };
-                auto c0 = glm::vec2(0.0f), c1 = cursorPos - lastCursorPos;
+                auto c0 = glm::dvec2(0.0), c1 = cursorPos - lastCursorPos;
                 auto a0 = arcballPosition(c0), a1 = arcballPosition(c1);
                 auto cross = glm::cross(a0, a1);
-                const float epsilon = 1e-5f;
+                const auto epsilon = 1e-5;
                 if (glm::length(cross) > epsilon)
                 {
-                    auto q = glm::quat{ dot(a0, a1), cross };
+                    auto q = Object::Orientation{ dot(a0, a1), cross };
                     if (rotateView)
                     {
                         camera.ApplyRotation(glm::conjugate(q));
@@ -106,24 +106,24 @@ namespace Mulen {
                     if (rotateOrbit)
                     {
                         auto viewMatInv = glm::inverse(camera.GetViewMatrix());
-                        a0 = (viewMatInv * glm::vec4(a0, 0.0f));
-                        a1 = (viewMatInv * glm::vec4(a1, 0.0f));
+                        a0 = (viewMatInv * glm::dvec4(a0, 0.0));
+                        a1 = (viewMatInv * glm::dvec4(a1, 0.0));
                         cross = glm::cross(a0, a1);
-                        auto q = glm::quat{ dot(a0, a1), cross };
+                        auto q = Object::Orientation{ dot(a0, a1), cross };
 
                         auto ap = atmosphere.GetPosition();
                         auto cp = camera.GetPosition();
 
-                        auto planetVS0 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::vec4(ap, 1.0f)));
-                        camera.SetPosition(ap + Object::Position{ glm::rotate(q, glm::vec4(cp - ap, 1.0f)) }); // rotate camera position around planet
-                        auto planetVS1 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::vec4(ap, 1.0f)));
+                        auto planetVS0 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::dvec4(ap, 1.0f)));
+                        camera.SetPosition(ap + Object::Position{ glm::rotate(q, glm::dvec4(cp - ap, 1.0)) }); // rotate camera position around planet
+                        auto planetVS1 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::dvec4(ap, 1.0f)));
 
                         auto p0 = planetVS1, p1 = planetVS0;
                         auto cross = glm::cross(p0, p1);
                         if (glm::length(cross) > epsilon)
                         {
-                            auto q = glm::quat{ dot(p0, p1), cross };
-                            camera.ApplyRotation(glm::pow(q, 0.5f));
+                            auto q = Object::Orientation{ dot(p0, p1), cross };
+                            camera.ApplyRotation(glm::pow(q, 0.5));
                         }
                     }
                 }

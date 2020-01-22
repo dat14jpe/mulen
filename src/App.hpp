@@ -20,7 +20,7 @@ namespace Mulen {
         float mouseSensitivity = 0.25f;
         ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
-        glm::vec2 lastCursorPos;
+        glm::dvec2 lastCursorPos;
         Camera camera;
         Atmosphere atmosphere;
 

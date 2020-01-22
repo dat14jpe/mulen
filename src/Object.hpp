@@ -6,9 +6,9 @@
 
 struct Object
 {
-    typedef glm::vec3 Position;
-    typedef glm::quat Orientation;
-    typedef glm::mat4 Matrix;
+    typedef glm::dvec3 Position;
+    typedef glm::dquat Orientation;
+    typedef glm::dmat4 Mat4;
 
     const Position& GetPosition() const 
     {

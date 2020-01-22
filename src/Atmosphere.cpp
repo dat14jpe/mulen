@@ -172,7 +172,7 @@ namespace Mulen {
             fbo.SetColorBuffer(0u, lightTexture, 0u);
         }
 
-        const auto worldMat = glm::translate(glm::mat4{ 1.f }, position);
+        const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position);
         const auto viewMat = camera.GetViewMatrix();
         const auto projMat = camera.GetProjectionMatrix();
         const auto worldViewMat = viewMat * worldMat;

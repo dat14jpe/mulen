@@ -4,20 +4,20 @@
 namespace Mulen {
     class Camera : public Object
     {
-        Matrix projectionMatrix;
-        Position acceleration{ 0.0f }, velocity{ 0.0f };
+        Mat4 projectionMatrix;
+        Position acceleration{ 0.0 }, velocity{ 0.0 };
 
     public:
-        void Update(float dt);
+        void Update(double dt);
 
-        void SetPerspectiveProjection(float fovy, float aspect, float near, float far)
+        void SetPerspectiveProjection(double fovy, double aspect, double near, double far)
         {
             projectionMatrix = glm::perspective(fovy, aspect, near, far);
         }
 
         void Accelerate(const Position&);
 
-        Matrix GetViewMatrix() const;
-        Matrix GetProjectionMatrix() const { return projectionMatrix; }
+        Mat4 GetViewMatrix() const;
+        Mat4 GetProjectionMatrix() const { return projectionMatrix; }
     };
 }
