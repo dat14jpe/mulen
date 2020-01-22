@@ -33,10 +33,10 @@ namespace Mulen {
         glTextureParameteri(brickTexture.GetId(), GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         // - to do: also create second texture (for double-buffering updates)
 
-        maxToUpload = numNodeGroups / 8u; // - arbitrary (to do: take care to make it high enough for timely updates)
+        maxToUpload = numNodeGroups / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
         nodesToUpload.reserve(maxToUpload);
-        gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload, GL_DYNAMIC_STORAGE_BIT);
-        gpuUploadBricks.Create(sizeof(UploadBrick) * maxToUpload, GL_DYNAMIC_STORAGE_BIT);
+        gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload * (NodeArity + 1u), GL_DYNAMIC_STORAGE_BIT);
+        gpuUploadBricks.Create(sizeof(UploadBrick) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         // - to do: also create brick upload buffer/texture
 
         auto stageSplit = [&](NodeIndex gi)
@@ -79,6 +79,7 @@ namespace Mulen {
         shader.Uniform3u("uBricksRes", glm::uvec3{ texMap });
         shader.Uniform3f("bricksRes", glm::vec3{ texMap });
         shader.Uniform1i("brickTexture", glm::ivec1{ 0 });
+        shader.Uniform1f("stepSize", glm::vec1{ 1 });
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
         // - to do: use actual far plane (parameter from outside the Atmosphere class?)

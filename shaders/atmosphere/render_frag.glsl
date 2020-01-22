@@ -9,6 +9,7 @@ uniform sampler3D brickTexture;
 uniform float time;
 uniform sampler2D depthTexture;
 uniform float Fcoef_half;
+uniform float stepSize;
     
 vec3 boxHitToNormal(vec3 ori, vec3 dir, float t)
 {
@@ -77,7 +78,7 @@ void main()
     if (!IsIntersection(tmin, tmax)) discard;
     const vec3 hit = ori + dir * tmin;
     
-    const float stepFactor = 0.2;//0.1; // - arbitrary factor (to-be-tuned)
+    const float stepFactor = 0.2 * stepSize;//0.1; // - arbitrary factor (to-be-tuned)
     
     const vec3 globalStart = hit;
     vec3 nodeCenter;
@@ -96,7 +97,7 @@ void main()
     float alpha = 0.0;
     
     // Trace through bricks:
-    uint numBricks = 0u;
+    uint numBricks = 0u, numSteps = 0u;
     while (InvalidIndex != ni)
     {
         //if (ni < 8u) break; // - testing
@@ -125,6 +126,7 @@ void main()
             
             dist += step;
             lc = localStart + dist / nodeSize * dir;
+            ++numSteps;
         } 
         
         // - to do: try traversal via neighbours, possibly going down/up one level
@@ -140,6 +142,7 @@ void main()
         ++numBricks;
         if (numBricks >= 32u) break; // - testing
     }
+    //if (numSteps > 30) color.r = 1.0; // - performance visualisation
     
     outValue = vec4(color, min(1.0, alpha));
 }

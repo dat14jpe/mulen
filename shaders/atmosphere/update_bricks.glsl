@@ -1,5 +1,6 @@
 #version 450
 
+#include "../noise.glsl"
 #include "common.glsl"
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"

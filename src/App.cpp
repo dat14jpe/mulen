@@ -1,4 +1,5 @@
 #include "App.hpp"
+#include <glm/gtx/quaternion.hpp>
 
 // - for testing:
 std::ostream& operator<<(std::ostream& os, const glm::vec4& m) {
@@ -89,20 +90,41 @@ namespace Mulen {
                     auto length = glm::length(p);
                     p.y = -p.y;
                     if (length >= 1.0f) return glm::vec3{1.0f * p / sqrt(length), 0.0f};
-                    else                return glm::vec3{p, sqrt(1.0f - length)};
+                    else                return glm::vec3{p, -sqrt(1.0f - length)};
                 };
                 auto c0 = glm::vec2(0.0f), c1 = cursorPos - lastCursorPos;
                 auto a0 = arcballPosition(c0), a1 = arcballPosition(c1);
                 auto cross = glm::cross(a0, a1);
-                if (glm::length(cross) > 1e-5) // needs to be non-zero
+                const float epsilon = 1e-5f;
+                if (glm::length(cross) > epsilon)
                 {
+                    auto q = glm::quat{ dot(a0, a1), cross };
                     if (rotateView)
                     {
-                        camera.ApplyRotation(glm::quat{ dot(a0, a1), cross });
+                        camera.ApplyRotation(glm::conjugate(q));
                     }
                     if (rotateOrbit)
                     {
-                        // - to do
+                        auto viewMatInv = glm::inverse(camera.GetViewMatrix());
+                        a0 = (viewMatInv * glm::vec4(a0, 0.0f));
+                        a1 = (viewMatInv * glm::vec4(a1, 0.0f));
+                        cross = glm::cross(a0, a1);
+                        auto q = glm::quat{ dot(a0, a1), cross };
+
+                        auto ap = atmosphere.GetPosition();
+                        auto cp = camera.GetPosition();
+
+                        auto planetVS0 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::vec4(ap, 1.0f)));
+                        camera.SetPosition(ap + Object::Position{ glm::rotate(q, glm::vec4(cp - ap, 1.0f)) }); // rotate camera position around planet
+                        auto planetVS1 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::vec4(ap, 1.0f)));
+
+                        auto p0 = planetVS1, p1 = planetVS0;
+                        auto cross = glm::cross(p0, p1);
+                        if (glm::length(cross) > epsilon)
+                        {
+                            auto q = glm::quat{ dot(p0, p1), cross };
+                            camera.ApplyRotation(glm::pow(q, 0.5f));
+                        }
                     }
                 }
             }
