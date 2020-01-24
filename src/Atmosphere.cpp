@@ -3,18 +3,17 @@
 #include <math.h>
 #include <functional>
 
+
 namespace Mulen {
     bool Atmosphere::Init(const Atmosphere::Params& p)
     {
-        position = glm::vec3(0, 0, -3);
-
         vao.Create();
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
         const size_t numNodeGroups = 16384u;
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
-        gpuNodes.Create(sizeof(Node) * numNodeGroups, 0u);
+        gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
 
         Util::Texture::Dim maxWidth, brickRes, width, height, depth;
         maxWidth = 4096u; // - to do: retrieve actual system-dependent limit programmatically
@@ -33,9 +32,9 @@ namespace Mulen {
         glTextureParameteri(brickTexture.GetId(), GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         // - to do: also create second texture (for double-buffering updates)
 
-        maxToUpload = numNodeGroups / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
+        maxToUpload = numNodeGroups;// / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
         nodesToUpload.reserve(maxToUpload);
-        gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload * (NodeArity + 1u), GL_DYNAMIC_STORAGE_BIT);
+        gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         gpuUploadBricks.Create(sizeof(UploadBrick) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         // - to do: also create brick upload buffer/texture
 
@@ -54,19 +53,42 @@ namespace Mulen {
         stageSplit(rootGroupIndex);
 
         // - test: "manual" splits, indiscriminately to a chosen level
-        std::function<void(NodeIndex, unsigned)> testSplit = [&](NodeIndex gi, unsigned depth)
+        std::function<void(NodeIndex, unsigned, glm::dvec4)> testSplit = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
         {
             if (!depth) return;
             for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
             {
                 const auto ni = Octree::GroupAndChildToNode(gi, ci);
+
+                auto childPos = pos;
+                childPos.w *= 0.5;
+                childPos += (glm::dvec4(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u, 0.5) * 2.0 - 1.0) * childPos.w;
+                if (false)
+                {
+                    // - to do: simple test to not split those not in spherical atmosphere shell
+                    auto lp = glm::dvec3(childPos) * scale;
+                    const auto height = 0.05; // - to do: fix
+                    if (glm::length(lp) + sqrt(3) * 0.5 * childPos.w < 1.0 + height) continue; // - too far outside
+                }
+
                 octree.Split(ni);
                 const auto children = octree.GetNode(ni).children;
                 stageSplit(children);
-                testSplit(children, depth - 1u);
+                testSplit(children, depth - 1u, childPos);
             }
         };
-        testSplit(rootGroupIndex, 2u); // - can't be higher than 2 with current simple upload setup
+        auto testSplitRoot = [&](unsigned depth)
+        {
+            testSplit(rootGroupIndex, depth, glm::dvec4{ 0, 0, 0, 1 });
+        };
+        testSplitRoot(4u); // - can't be higher than 2 with current simple upload setup
+
+        {
+            // - debugging:
+            const unsigned values[] = { 100000u };
+            glClearNamedBufferSubData(gpuNodes.GetId(), GL_R32I, 0u, gpuNodes.GetSize(), GL_RED_INTEGER, GL_UNSIGNED_INT, values);
+            glClearNamedBufferSubData(gpuUploadNodes.GetId(), GL_R32I, 0u, gpuUploadNodes.GetSize(), GL_RED_INTEGER, GL_UNSIGNED_INT, values);
+        }
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
         return true;
@@ -80,6 +102,9 @@ namespace Mulen {
         shader.Uniform3f("bricksRes", glm::vec3{ texMap });
         shader.Uniform1i("brickTexture", glm::ivec1{ 0 });
         shader.Uniform1f("stepSize", glm::vec1{ 1 });
+        shader.Uniform1f("planetRadius", glm::vec1{ (float)planetRadius });
+        shader.Uniform1f("atmosphereRadius", glm::vec1{ (float)(planetRadius * scale) });
+        shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
         // - to do: use actual far plane (parameter from outside the Atmosphere class?)
@@ -127,6 +152,7 @@ namespace Mulen {
         {
             for (auto& uploadGroup : nodesToUpload)
             {
+                const auto old = uploadGroup.nodeGroup;
                 uploadGroup.nodeGroup = octree.GetGroup(uploadGroup.groupIndex);
             }
             gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * nodesToUpload.size(), nodesToUpload.data());
@@ -146,7 +172,7 @@ namespace Mulen {
             updateShader.Bind();
             SetUniforms(updateShader);
             glDispatchCompute((GLuint)nodesToUpload.size(), 1u, 1u);
-            std::cout << "Uploading " << nodesToUpload.size() << " nodes\n";
+            std::cout << "Uploading " << nodesToUpload.size() << " node groups\n";
 
             updateBricksShader.Bind();
             SetUniforms(updateBricksShader);
@@ -198,7 +224,6 @@ namespace Mulen {
         fbo.Bind();
 
         { // "planet" background (to do: spruce this up, maybe move elsewhere)
-            // (and also make it render to a logarithmic depth buffer so the atmosphere can test against that)
             glEnable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
             glDepthMask(GL_TRUE);
@@ -210,7 +235,7 @@ namespace Mulen {
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
         
-        { // atmosphere render
+        { // atmosphere
             glDisable(GL_DEPTH_TEST);
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -230,7 +255,6 @@ namespace Mulen {
             Util::Framebuffer::BindBackbuffer();
             auto& shader = postShader;
             shader.Bind();
-            shader.Uniform1i("lightTexture", glm::ivec1{ 0 });
             lightTexture.Bind(0u);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }

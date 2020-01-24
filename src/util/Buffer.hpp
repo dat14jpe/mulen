@@ -4,17 +4,27 @@
 namespace Util {
     class Buffer : public GLObject {
     protected:
-        void GLDestroy() { glDeleteBuffers(1, &id); }
+        void GLDestroy() 
+        { 
+            size = 0u;
+            glDeleteBuffers(1, &id); 
+        }
+
+        typedef GLsizeiptr Size;
+        Size size = 0u;
 
     public:
-        void Create(GLsizeiptr size, GLbitfield flags)
+        Size GetSize() const { return size; }
+
+        void Create(Size size, GLbitfield flags)
         {
             Destroy();
             glCreateBuffers(1, &id);
             glNamedBufferStorage(id, size, nullptr, flags);
+            this->size = size;
         }
 
-        void Upload(GLintptr offset, GLsizeiptr size, const void* data)
+        void Upload(GLintptr offset, Size size, const void* data)
         {
             glNamedBufferSubData(id, offset, size, data);
         }
@@ -29,7 +39,7 @@ namespace Util {
             glBindBufferBase(target, index, id);
         }
 
-        void BindRange(GLenum target, GLuint index, GLintptr offset, GLsizeiptr size)
+        void BindRange(GLenum target, GLuint index, GLintptr offset, Size size)
         {
             glBindBufferRange(target, index, id, offset, size);
         }

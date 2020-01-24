@@ -5,7 +5,7 @@ float random(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233)))*43758
 
 layout(location = 0) out vec4 outValue;
 in vec4 ndc;
-uniform sampler2D lightTexture;
+uniform layout(location = 0) sampler2D lightTexture;
 
 void main()
 {
@@ -16,7 +16,7 @@ void main()
     // Gamma correction:
     color = pow(color, vec3(1.0 / 2.2));
     
-    // Dither (remove colour banding due to limited output bit depth):
+    // Dithering (remove colour banding due to limited output bit depth):
     const float invColorDepth = 1.0 / 256.0;
     color += vec3(random(gl_FragCoord.xy)) * invColorDepth;
     

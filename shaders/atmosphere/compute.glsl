@@ -8,6 +8,6 @@ uint GetWorkGroupIndex()
 
 uint GetGlobalIndex()
 {
-    const uint groupSize = udot(gl_WorkGroupSize, uvec3(1, 1, 1));
-    return udot(gl_GlobalInvocationID, uvec3(1, groupSize, groupSize * groupSize));
+    const uint groupSize = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+    return udot(gl_GlobalInvocationID, uvec3(1, groupSize * gl_NumWorkGroups.x, groupSize * gl_NumWorkGroups.x * gl_NumWorkGroups.y));
 }

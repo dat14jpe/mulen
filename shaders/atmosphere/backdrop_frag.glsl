@@ -5,6 +5,7 @@ in vec4 ndc;
 //in float flogz;
 uniform mat4 invWorldViewMat, invWorldViewProjMat, worldViewProjMat;
 uniform float Fcoef_half;
+uniform float planetRadius;
 
 void main()
 {
@@ -14,7 +15,7 @@ void main()
     const vec3 dir = normalize(vec3(invWorldViewProjMat * ndc));
     
     const vec3 center = vec3(0, 0, 0);
-    const float radius = 1.0;
+    const float radius = planetRadius;
     const float radius2 = radius*radius;
     
     float a = dot(dir, dir);

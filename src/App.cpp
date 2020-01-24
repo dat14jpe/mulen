@@ -17,6 +17,8 @@ namespace Mulen {
         // - to do: configurable values, not hardcoded
         const size_t budget = 256u * (1u << 20u);
         atmosphere.Init({ budget, budget });
+
+        camera.SetPosition(Object::Position(0, 0, atmosphere.GetPlanetRadius() * 2.25));
     }
 
     void App::SetVSync(bool vsync)
@@ -33,7 +35,7 @@ namespace Mulen {
     void App::OnFrame()
     {
         const auto dt = 1.0f / ImGui::GetIO().Framerate;
-        const auto size = window.GetSize();
+        const auto size = glm::max(glm::ivec2(1), window.GetSize());
         const float aspect = float(size.x) / float(size.y);
         const float fovy = 45.0f;
         const float near = 0.01f, far = 1e3f;
@@ -49,6 +51,7 @@ namespace Mulen {
             /*ImGui::Text("This is some useful text.");
             ImGui::SliderFloat("float", &f, 0.0f, 1.0f);*/
             ImGui::ColorEdit3("clear color", (float*)&clear_color);
+            ImGui::Text("Altitude: %f", glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius());
 
             /*if (ImGui::Button("Button")) counter++;
             ImGui::SameLine();
@@ -69,7 +72,11 @@ namespace Mulen {
             if (window.IsKeyPressed(GLFW_KEY_R)) accel.y += 1;
             if (accel != Object::Position(0.0))
             {
-                const auto force = 10.0; // - to do: make configurable
+                const auto r = atmosphere.GetPlanetRadius();
+                auto force = 10.0; // - to do: make configurable?
+                force *= r;
+                const auto dist = glm::distance(atmosphere.GetPosition(), camera.GetPosition());
+                force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 14.0)); // - to do: find nicer speed profile
                 accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
                 camera.Accelerate(glm::normalize(accel) * force);
             }

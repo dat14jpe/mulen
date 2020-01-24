@@ -8,7 +8,7 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main()
 {
     const uint loadId = GetGlobalIndex();
-    const UploadNodeGroup upload = uploadNodes[loadId];
+    UploadNodeGroup upload = uploadNodes[loadId];
     
     nodeGroups[upload.groupIndex] = upload.nodeGroup;
     

@@ -14,6 +14,12 @@ namespace Mulen {
 
     class Atmosphere : public Object
     {
+        // - to do: make all values physically plausible (for Earth, initially)
+        double planetRadius = 10.0;
+        double scale = 1.1;
+        double height = 0.1;
+
+
         Octree octree;
         NodeIndex rootGroupIndex;
 
@@ -71,5 +77,7 @@ namespace Mulen {
 
         void Update(const Camera&);
         void Render(const glm::ivec2& res, double time, const Camera&);
+
+        double GetPlanetRadius() const { return planetRadius; }
     };
 }

@@ -1,4 +1,16 @@
 
+
+// - to do: UBO
+uniform mat4 invWorldViewMat, invWorldViewProjMat, invViewMat, invProjMat, invViewProjMat;
+uniform uint rootGroupIndex;
+uniform sampler3D brickTexture;
+uniform float time;
+uniform sampler2D depthTexture;
+uniform float Fcoef_half;
+uniform float stepSize;
+uniform float atmosphereRadius, planetRadius, atmosphereScale;
+
+
 #define SSBO_VOXEL_NODES         0
 #define SSBO_VOXEL_UPLOAD        1
 #define SSBO_VOXEL_UPLOAD_BRICKS 2
@@ -15,6 +27,9 @@ struct NodeGroup
     uint info, parent;
     Node nodes[NodeArity];
 };
+
+uint DepthFromInfo(uint info) { return info & ((1u << 5u) - 1u); }
+
 struct UploadNodeGroup
 {
     uint groupIndex, genData;

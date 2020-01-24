@@ -18,8 +18,6 @@ namespace Mulen {
 
     Camera::Mat4 Camera::GetViewMatrix() const 
     {
-        auto rotate = glm::toMat4(orientation);
-        auto translate = glm::translate(Mat4{ 1.0 }, -position);
-        return rotate * translate;
+        return glm::translate(glm::toMat4(orientation), -position);
     }
 }

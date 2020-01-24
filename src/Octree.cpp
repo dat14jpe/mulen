@@ -1,6 +1,7 @@
 #include "Octree.hpp"
 #include <functional>
 #include <iostream>
+#include <cassert>
 
 namespace Mulen {
     bool Octree::Init(size_t numNodes, size_t numBricks)
@@ -63,6 +64,7 @@ namespace Mulen {
         const auto parentDepth = GetGroup(NodeToGroup(index)).GetDepth();
         auto& parent = GetNode(index);
         parent.children = nodes.Allocate();
+        assert(parent.children != InvalidIndex);
         auto& group = GetGroup(parent.children);
         group.info = 0u;
         group.SetDepth(parentDepth + 1u);
