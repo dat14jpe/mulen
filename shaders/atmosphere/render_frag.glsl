@@ -16,9 +16,9 @@ vec3 boxHitToNormal(vec3 ori, vec3 dir, float t)
 
 // - to do: add "desired size" parameter to allow early stop
 // p components in [-1, 1] range
-uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize)
+uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
 {
-    uint depth = 0u;
+    uint depth = 0u - 1u;
     uint ni = InvalidIndex;
     uint gi = rootGroupIndex;
     vec3 center = vec3(0.0);
@@ -32,10 +32,11 @@ uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize)
         center += (vec3(ioffs) * 2.0 - 1.0) * size;
         gi = nodeGroups[gi].nodes[child].children;
         ++depth;
-        if (depth > 4u) break; // - testing (this test shouldn't be needed)
+        if (depth > 10u) break; // - testing (this test shouldn't be needed)
     }
     nodeCenter = center;
     nodeSize = size;
+    nodeDepth = depth;
     return ni;
 }
 
@@ -75,15 +76,17 @@ void main()
     const float stepFactor = 0.2 * stepSize;//0.1; // - arbitrary factor (to-be-tuned)
     
     const vec3 globalStart = hit;
+    uint depth;
     vec3 nodeCenter;
     float nodeSize;
-    uint ni = OctreeDescend(globalStart / atmScale, nodeCenter, nodeSize);
+    uint ni = OctreeDescend(globalStart / atmScale, nodeCenter, nodeSize, depth);
     float dist = 0.0; // - to do: make it so this can be set to tmin?
     dist += 1e-5;// don't start at a face/edge/corner
     vec2 randTimeOffs = vec2(cos(time), sin(time));
     //randTimeOffs = vec2(0); // - testing
-    dist += (random(gl_FragCoord.xy + randTimeOffs) * 0.5 + 0.5) * 2 * stepFactor * nodeSize; // - experiment (should the factor be proportional to step size?)
-    dist *= atmScale;
+    // - experiment (should the factor be proportional to step size?)
+    const float randOffs = (random(gl_FragCoord.xy + randTimeOffs) * 0.5 + 0.5) * 2 * stepFactor;
+    dist += randOffs * nodeSize * atmScale;
     
     // - to do: think about whether randomness needs to be applied per-brick or just once
     // (large differences in depth could make the former necessary, no?)
@@ -99,20 +102,35 @@ void main()
     uint numBricks = 0u, numSteps = 0u;
     while (InvalidIndex != ni)
     {
+        // - debugging (structure visualisation)
+        if (false)
+        if (depth < 6)
+        {
+            alpha += 0.05;
+            color += vec3(1, 0, 0) * 1e-2;
+            if (depth == 1u) color += vec3(0, 1, 0) * 1e-2;
+            if (depth == 2u) color += vec3(0, 0, 1) * 1e-2;
+        }
+        
         nodeCenter *= atmScale;
         nodeSize *= atmScale;
+        const float step = nodeSize / atmScale * stepFactor;
+        const float atmStep = step * atmScale;
         
-        //if (ni < 8u) break; // - testing
+        AabbIntersection(tmin, tmax, vec3(-nodeSize) + nodeCenter, vec3(nodeSize) + nodeCenter, hit, dir);
+        tmax = min(tmax, solidDepth - outerMin);
+        
+        const float randStep = randOffs * nodeSize;
+        // - causing glitches. Hmm.
+        //dist = ceil((tmin - randStep) / atmStep) * atmStep + randStep; // - try to avoid banding even in multi-LOD
+        //dist += randOffs * nodeSize; // - to do: do this, but only when changing depth (or initially)?
+        
         const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
         vec3 localStart = (globalStart - nodeCenter) / nodeSize;
         vec3 lc = localStart + dist / nodeSize * dir;
 
         // - to do: add random offset here (again), or only on depth change? Let's see
         
-        AabbIntersection(tmin, tmax, vec3(-nodeSize) + nodeCenter, vec3(nodeSize) + nodeCenter, hit, dir);
-        tmax = min(tmax, solidDepth - outerMin);
-        
-        const float step = nodeSize / atmScale * stepFactor;
         while (dist < tmax && numSteps < maxSteps)
         {
             if (alpha > 0.999) break; // - to do: tune
@@ -127,10 +145,11 @@ void main()
             color += visibility * cloudColor * density * step; 
             alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
             
-            dist += step * atmScale;
+            dist += atmStep;
             lc = localStart + dist / nodeSize * dir;
             ++numSteps;
         }
+        //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
         
         // - to do: try traversal via neighbours, possibly going down/up one level
         // (need to pass through 1-3 neighbours here)
@@ -139,11 +158,11 @@ void main()
         vec3 p = (hit + dist * dir) / atmScale;
         if (dist + outerMin > solidDepth) break;
         if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
-        ni = OctreeDescend(p, nodeCenter, nodeSize);
+        ni = OctreeDescend(p, nodeCenter, nodeSize, depth);
         //if (old == ni) break; // - error (but can this even happen?)
         
         ++numBricks;
-        if (numBricks >= 32u) break; // - testing
+        if (numBricks >= 64u) break; // - testing
     }
     //if (numSteps > 30) { color.r = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     //if (numBricks > 15) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation

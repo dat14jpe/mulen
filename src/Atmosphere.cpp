@@ -63,12 +63,15 @@ namespace Mulen {
                 auto childPos = pos;
                 childPos.w *= 0.5;
                 childPos += (glm::dvec4(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u, 0.5) * 2.0 - 1.0) * childPos.w;
-                if (false)
+                //if (false)
                 {
-                    // - to do: simple test to not split those not in spherical atmosphere shell
-                    auto lp = glm::dvec3(childPos) * scale;
-                    const auto height = 0.05; // - to do: fix
-                    if (glm::length(lp) + sqrt(3) * 0.5 * childPos.w < 1.0 + height) continue; // - too far outside
+                    // - simple test to only split those in spherical atmosphere shell:
+                    auto p = glm::dvec3(childPos) * scale;
+                    const auto height = 0.05, radius = 1.0; // - to do: check/correct these values
+                    const auto dist = glm::length(p);
+                    const auto margin = sqrt(3) * childPos.w * scale;
+                    if (dist - margin - (radius + height) > 0.0) continue; // outside
+                    if (dist + margin - radius < 0.0) continue; // inside
                 }
 
                 octree.Split(ni);
@@ -81,14 +84,7 @@ namespace Mulen {
         {
             testSplit(rootGroupIndex, depth, glm::dvec4{ 0, 0, 0, 1 });
         };
-        testSplitRoot(4u); // - can't be higher than 2 with current simple upload setup
-
-        {
-            // - debugging:
-            const unsigned values[] = { 100000u };
-            glClearNamedBufferSubData(gpuNodes.GetId(), GL_R32I, 0u, gpuNodes.GetSize(), GL_RED_INTEGER, GL_UNSIGNED_INT, values);
-            glClearNamedBufferSubData(gpuUploadNodes.GetId(), GL_R32I, 0u, gpuUploadNodes.GetSize(), GL_RED_INTEGER, GL_UNSIGNED_INT, values);
-        }
+        testSplitRoot(5u); // - can't be higher than 5 with current memory constraints and waste
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
         return true;

@@ -36,8 +36,11 @@ void main()
         dist = 0.0;
         vec3 np = p;
         float a = 1.0;
+        // - to do: find actual good frequency
         np *= 2.5;
         np *= 4.0;
+        np *= 4.0;
+        np *= 2.0;
         for (uint i = 0u; i < 8u; ++i)
         {
             dist += a * noise(np);
