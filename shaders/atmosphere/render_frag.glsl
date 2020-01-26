@@ -119,6 +119,7 @@ void main()
         
         AabbIntersection(tmin, tmax, vec3(-nodeSize) + nodeCenter, vec3(nodeSize) + nodeCenter, hit, dir);
         tmax = min(tmax, solidDepth - outerMin);
+        //if (isinf(tmin)) continue; // - testing
         
         const float randStep = randOffs * nodeSize;
         // - causing glitches. Hmm.
@@ -139,6 +140,8 @@ void main()
             vec4 voxelData = texture(brickTexture, tc);
             
             float density = voxelData.x; // - to do: threshold correctly, as if distance field
+            //density *= 4.0; // - more normal
+            density *= 100.0; // - testing
             //density = smoothstep(0.1, 0.75, density); // - testing
             const float visibility = 1.0 - alpha;
             vec3 cloudColor = vec3(1.0);
@@ -149,6 +152,7 @@ void main()
             lc = localStart + dist / nodeSize * dir;
             ++numSteps;
         }
+        ++numBricks;
         //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
         
         // - to do: try traversal via neighbours, possibly going down/up one level
@@ -161,11 +165,10 @@ void main()
         ni = OctreeDescend(p, nodeCenter, nodeSize, depth);
         //if (old == ni) break; // - error (but can this even happen?)
         
-        ++numBricks;
         if (numBricks >= 64u) break; // - testing
     }
     //if (numSteps > 30) { color.r = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
-    //if (numBricks > 15) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
+    //if (numBricks > 0) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     
     outValue = vec4(color, min(1.0, alpha));
 }

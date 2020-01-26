@@ -32,7 +32,7 @@ void main()
     vec3 color = normal * 0.5 + 0.5; // test
     color = vec3(max(0.0, dot(normal, lightDir))); // Lambertian
     vec3 diffuseColor = vec3(1.0);
-    //diffuseColor = vec3(0.01, 0.05, 0.1); // - testing
+    diffuseColor = vec3(0.01, 0.05, 0.1); // - testing
     color *= diffuseColor;
     
     outValue = vec4(color, 1);

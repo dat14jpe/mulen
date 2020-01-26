@@ -2,6 +2,7 @@
 #include "Camera.hpp"
 #include <math.h>
 #include <functional>
+#include "util/Timer.hpp"
 
 
 namespace Mulen {
@@ -48,6 +49,8 @@ namespace Mulen {
             }
         };
 
+        auto timer = Util::Timer{ "Initial atmosphere splits" };
+
         // For this particular atmosphere:
         rootGroupIndex = octree.RequestRoot();
         stageSplit(rootGroupIndex);
@@ -67,13 +70,31 @@ namespace Mulen {
                 {
                     // - simple test to only split those in spherical atmosphere shell:
                     auto p = glm::dvec3(childPos) * scale;
+                    const auto size = childPos.w * scale;
+                    const Object::Position sphereCenter{ 0.0 };
                     const auto height = 0.05, radius = 1.0; // - to do: check/correct these values
-                    const auto dist = glm::length(p);
-                    const auto margin = sqrt(3) * childPos.w * scale;
+                    const auto atmRadius2 = (radius + height) * (radius + height);
+
+                    /*const auto dist = glm::length(p - sphereCenter);
+                    const auto margin = sqrt(3) * size;
                     if (dist - margin - (radius + height) > 0.0) continue; // outside
-                    if (dist + margin - radius < 0.0) continue; // inside
+                    if (dist + margin - radius < 0.0) continue; // inside*/
+
+                    // - alternative:
+                    auto bmin = p - size, bmax = p + size;
+                    const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
+                    if (dist2 > atmRadius2) continue; // outside
+                    bool anyOutside = false;
+                    for (int z = -1; z <= 1; z += 2)
+                    for (int y = -1; y <= 1; y += 2)
+                    for (int x = -1; x <= 1; x += 2)
+                    {
+                        if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) anyOutside = true;
+                    }
+                    if (!anyOutside) continue;
                 }
 
+                if (!octree.nodes.GetNumFree()) return;
                 octree.Split(ni);
                 const auto children = octree.GetNode(ni).children;
                 stageSplit(children);

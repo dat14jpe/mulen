@@ -34,7 +34,7 @@ namespace Mulen {
         Util::Shader backdropShader, renderShader;
         glm::uvec3 texMap;
         // Two channels since bricks store both last and next values, to let rendering interpolate between them.
-        static const auto BrickFormat = GL_RG8; // - might need to be 16 bits. Let's find out
+        static const auto BrickFormat = GL_RG16; // - might need to be 16 bits. Let's find out
         
         // Update:
         Util::Texture brickUploadTexture;

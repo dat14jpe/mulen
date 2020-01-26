@@ -10,6 +10,8 @@ add_library(${LIB_NAME}
     VertexArray.hpp
     Window.hpp
     Window.cpp
+    Timer.hpp
+    Timer.cpp
 )
 set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 17)
 
