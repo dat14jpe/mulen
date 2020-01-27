@@ -19,6 +19,7 @@ namespace Mulen {
         atmosphere.Init({ budget, budget });
 
         camera.SetPosition(Object::Position(0, 0, atmosphere.GetPlanetRadius() * 2.25));
+        camera.radius = glm::distance(camera.GetPosition(), atmosphere.GetPosition());
     }
 
     void App::SetVSync(bool vsync)
@@ -79,6 +80,8 @@ namespace Mulen {
                 force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 14.0)); // - to do: find nicer speed profile
                 accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
                 camera.Accelerate(glm::normalize(accel) * force);
+
+                // - to do: restrict by radius, when implementing planet-locked camera
             }
 
             auto cursorPos = glm::dvec2(window.GetCursorPosition());
@@ -122,7 +125,10 @@ namespace Mulen {
                         auto cp = camera.GetPosition();
 
                         auto planetVS0 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::dvec4(ap, 1.0f)));
-                        camera.SetPosition(ap + Object::Position{ glm::rotate(q, glm::dvec4(cp - ap, 1.0)) }); // rotate camera position around planet
+                        auto camPos = ap + glm::normalize(Object::Position{ glm::rotate(q, glm::dvec4(cp - ap, 1.0)) }) * camera.radius;
+
+                        camera.SetPosition(camPos); // rotate camera position around planet
+                        
                         auto planetVS1 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::dvec4(ap, 1.0f)));
 
                         auto p0 = planetVS1, p1 = planetVS0;
@@ -136,8 +142,12 @@ namespace Mulen {
                 }
             }
             lastCursorPos = cursorPos;
+            camera.Update(dt);
+            if (camera.GetVelocity() != Object::Position{ 0.0 })
+            {
+                camera.radius = glm::distance(camera.GetPosition(), atmosphere.GetPosition());
+            }
         }
-        camera.Update(dt);
 
         atmosphere.Update(camera);
         atmosphere.Render(size, glfwGetTime(), camera);

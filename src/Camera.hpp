@@ -8,6 +8,8 @@ namespace Mulen {
         Position acceleration{ 0.0 }, velocity{ 0.0 };
 
     public:
+        double radius;
+
         void Update(double dt);
 
         void SetPerspectiveProjection(double fovy, double aspect, double near, double far)
@@ -19,5 +21,7 @@ namespace Mulen {
 
         Mat4 GetViewMatrix() const;
         Mat4 GetProjectionMatrix() const { return projectionMatrix; }
+
+        const Position& GetVelocity() const { return velocity;  }
     };
 }

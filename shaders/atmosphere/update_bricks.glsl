@@ -5,7 +5,7 @@
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"
 
-uniform layout(binding=0, rg16) writeonly image3D brickImage;
+uniform layout(binding=0, rg8) writeonly image3D brickImage;
 
 float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
 {
@@ -84,15 +84,9 @@ void main()
         np *= 4.0;
         np *= 2.0;
         d = fBm(8u, np, 0.5, 2.0);
-        /*for (uint i = 0u; i < 8u; ++i)
-        {
-            d += a * (noise(np) * 2.0 - 1.0);
-            np *= 2.0;
-            a *= 0.5;
-        }*/
         
         
-        float mask = smoothstep(0.0, 0.5, fBm(5u, p * 4.0, 0.5, 2.0));
+        float mask = smoothstep(0.0, 0.5, fBm(5u, p * 8.0, 0.5, 2.0));
         mask *= smoothstep(height * 0.75, height, shellDist); 
         
         dist += shellFactor * max(0.0, d) * mask * 0.75;

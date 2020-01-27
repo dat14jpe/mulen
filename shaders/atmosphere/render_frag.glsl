@@ -1,5 +1,6 @@
 #version 450
 #include "common.glsl"
+#include "../geometry.glsl"
 
 layout(location = 0) out vec4 outValue;
 in vec4 clip_coords;
@@ -32,7 +33,7 @@ uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nod
         center += (vec3(ioffs) * 2.0 - 1.0) * size;
         gi = nodeGroups[gi].nodes[child].children;
         ++depth;
-        if (depth > 10u) break; // - testing (this test shouldn't be needed)
+        if (depth > 16u) break; // - testing (this test shouldn't be needed)
     }
     nodeCenter = center;
     nodeSize = size;
@@ -61,15 +62,27 @@ void main()
     
     const vec3 ori = vec3(invWorldViewMat * vec4(0, 0, 0, 1));
     vec3 dir = normalize(vec3(invWorldViewProjMat * clip_coords));
-    const float solidDepth = length(ViewspaceFromDepth(GetDepth()));
-    
-    
-    vec3 color = vec3(0.0);
+    float solidDepth = length(ViewspaceFromDepth(GetDepth()));
     
     float tmin, tmax;
     AabbIntersection(tmin, tmax, vec3(-atmScale), vec3(atmScale), ori, dir);
     if (tmin < 0.0 && tmax > 0.0) tmin = 0.0; // ray starting inside the box
     if (!IsIntersection(tmin, tmax)) discard;
+    
+    {
+        float t0, t1;
+        float R = planetRadius + atmosphereHeight;
+        if (!IntersectSphere(ori, dir, vec3(0.0), R, t0, t1)) discard;
+        // - to do: start point and max depth from t0 and t1
+        tmin = t0;
+        tmax = t1;
+        solidDepth = min(solidDepth, tmax);
+        //solidDepth = tmax;
+    }
+    
+    
+    vec3 color = vec3(0.0);
+    
     const float outerMin = tmin;
     const vec3 hit = ori + dir * tmin;
     
@@ -92,7 +105,7 @@ void main()
     // (large differences in depth could make the former necessary, no?)
     
     
-    const uint maxSteps = 256u; // - arbitrary, for testing
+    const uint maxSteps = 512u; // - arbitrary, for testing
     
     float alpha = 0.0;
     
@@ -104,12 +117,15 @@ void main()
     {
         // - debugging (structure visualisation)
         if (false)
-        if (depth < 6)
         {
-            alpha += 0.05;
-            color += vec3(1, 0, 0) * 1e-2;
-            if (depth == 1u) color += vec3(0, 1, 0) * 1e-2;
-            if (depth == 2u) color += vec3(0, 0, 1) * 1e-2;
+            if (depth < 6)
+            {
+                alpha += 0.05;
+                color += vec3(1, 0, 0) * 1e-2;
+                if (depth == 1u) color += vec3(0, 1, 0) * 1e-2;
+                if (depth == 2u) color += vec3(0, 0, 1) * 1e-2;
+            }
+            if (depth == 6) { alpha += 0.05; color += vec3(0, 1, 0) * 1e-3; }
         }
         
         nodeCenter *= atmScale;
@@ -136,7 +152,9 @@ void main()
         {
             if (alpha > 0.999) break; // - to do: tune
             
-            vec3 tc = BrickSampleCoordinates(brickOffs, lc * 0.5 + 0.5);
+            vec3 tc = lc * 0.5 + 0.5;
+            tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
+            tc = BrickSampleCoordinates(brickOffs, tc);
             vec4 voxelData = texture(brickTexture, tc);
             
             float density = voxelData.x; // - to do: threshold correctly, as if distance field

@@ -1,5 +1,6 @@
 #version 450
 
+#include "../geometry.glsl"
 layout(location = 0) out vec4 outValue;
 in vec4 ndc;
 //in float flogz;
@@ -14,19 +15,11 @@ void main()
     const vec3 ori = vec3(invWorldViewMat * vec4(0, 0, 0, 1));
     const vec3 dir = normalize(vec3(invWorldViewProjMat * ndc));
     
-    const vec3 center = vec3(0, 0, 0);
-    const float radius = planetRadius;
-    const float radius2 = radius*radius;
-    
-    float a = dot(dir, dir);
-    float b = 2.0 * dot(dir, ori - center);
-    float c = dot(center, center) + dot(ori, ori) - 2.0 * dot(center, ori) - radius2;
-    float test = b*b - 4.0*a*c;
-
-    if (test < 0.0) discard; // miss
-    float u = (-b - sqrt(test)) / (2.0 * a);
-    if (u < 0.0) discard; // miss
-    vec3 hitp = ori + u * dir;
+    const vec3 center = vec3(0.0);
+    float t0, t1;
+    if (!IntersectSphere(ori, dir, center, planetRadius, t0, t1)) discard;
+    if (t0 <= 0.0) discard; // don't block if we're inside the planet (since it's fun to look out into the atmosphere shell)
+    vec3 hitp = ori + t0 * dir;
     vec3 normal = normalize(hitp - center);
     
     vec3 color = normal * 0.5 + 0.5; // test

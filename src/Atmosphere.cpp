@@ -21,10 +21,10 @@ namespace Mulen {
         brickRes = BrickRes;
         width = maxWidth - (maxWidth % brickRes);
         texMap.x = width / brickRes;
-        texMap.y = (numBricks + texMap.x - 1u) / texMap.x;
-        texMap.z = 1u;
+        texMap.y = glm::min(maxWidth / brickRes, unsigned(numBricks + texMap.x - 1u) / texMap.x);
+        texMap.z = (unsigned(numBricks) + texMap.x * texMap.y - 1u) / (texMap.x * texMap.y);
         height = texMap.y * brickRes;
-        depth = brickRes; // - to do: overflow into this when one layer of bricks is not enough
+        depth = texMap.z * brickRes;
         std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, " 
             << width << "*" << height << "*" << depth << " texels (multiple of "
             << (width * height * depth / (1024 * 1024)) << " MB)\n";
@@ -75,12 +75,6 @@ namespace Mulen {
                     const auto height = 0.05, radius = 1.0; // - to do: check/correct these values
                     const auto atmRadius2 = (radius + height) * (radius + height);
 
-                    /*const auto dist = glm::length(p - sphereCenter);
-                    const auto margin = sqrt(3) * size;
-                    if (dist - margin - (radius + height) > 0.0) continue; // outside
-                    if (dist + margin - radius < 0.0) continue; // inside*/
-
-                    // - alternative:
                     auto bmin = p - size, bmax = p + size;
                     const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
                     if (dist2 > atmRadius2) continue; // outside
@@ -91,7 +85,7 @@ namespace Mulen {
                     {
                         if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) anyOutside = true;
                     }
-                    if (!anyOutside) continue;
+                    if (!anyOutside) continue; // inside
                 }
 
                 if (!octree.nodes.GetNumFree()) return;
@@ -122,6 +116,7 @@ namespace Mulen {
         shader.Uniform1f("planetRadius", glm::vec1{ (float)planetRadius });
         shader.Uniform1f("atmosphereRadius", glm::vec1{ (float)(planetRadius * scale) });
         shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
+        shader.Uniform1f("atmosphereHeight", glm::vec1{ (float)height });
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
         // - to do: use actual far plane (parameter from outside the Atmosphere class?)

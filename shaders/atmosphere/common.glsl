@@ -8,7 +8,7 @@ uniform float time;
 uniform sampler2D depthTexture;
 uniform float Fcoef_half;
 uniform float stepSize;
-uniform float atmosphereRadius, planetRadius, atmosphereScale;
+uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
 
 
 #define SSBO_VOXEL_NODES         0
