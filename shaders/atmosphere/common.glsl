@@ -1,14 +1,17 @@
 
 
 // - to do: UBO
-uniform mat4 invWorldViewMat, invWorldViewProjMat, invViewMat, invProjMat, invViewProjMat;
+//uniform mat4 invWorldViewMat, invWorldViewProjMat, invViewMat, invProjMat, invViewProjMat;
+uniform mat4 viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat, invWorldViewMat, invWorldViewProjMat, worldViewProjMat;
 uniform uint rootGroupIndex;
-uniform sampler3D brickTexture;
+uniform sampler3D brickTexture, brickLightTexture;
 uniform float time;
 uniform sampler2D depthTexture;
 uniform float Fcoef_half;
 uniform float stepSize;
 uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
+uniform vec3 planetLocation;
+uniform vec3 lightDir;
 
 
 #define SSBO_VOXEL_NODES         0
@@ -82,24 +85,6 @@ vec3 BrickSampleCoordinates(vec3 brick3D, vec3 localCoords)
 float min_component(vec3 v) { return min(v.x, min(v.y, v.z)); }
 float max_component(vec3 v) { return max(v.x, max(v.y, v.z)); }
 
-/*void AabbIntersection(out float tmin, out float tmax, vec3 bmin, vec3 bmax, vec3 o, vec3 d)
-{
-    vec3 dinv = vec3(1) / d;
-    
-    float t1 = (bmin[0] - o[0]) * dinv[0];
-    float t2 = (bmax[0] - o[0]) * dinv[0];
-
-    tmin = min(t1, t2);
-    tmax = max(t1, t2);
-
-    for (int i = 1; i < 3; ++i)
-    {
-        t1 = (bmin[i] - o[i]) * dinv[i];
-        t2 = (bmax[i] - o[i]) * dinv[i];
-        tmin = max(tmin, min(t1, t2));
-        tmax = min(tmax, max(t1, t2));
-    }
-}*/
 void AabbIntersection(out float tmin_out, out float tmax_out, vec3 bmin, vec3 bmax, vec3 o, vec3 d)
 {
     vec3 dinv = 1.0 / d; // - problem when d components are zero?
@@ -114,6 +99,34 @@ bool IsIntersection(float tmin, float tmax)
 {
     return tmax >= max(tmin, float(0.0));
 }
+
+
+// - to do: add "desired size" parameter to allow early stop
+// p components in [-1, 1] range
+uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
+{
+    uint depth = 0u - 1u;
+    uint ni = InvalidIndex;
+    uint gi = rootGroupIndex;
+    vec3 center = vec3(0.0);
+    float size = 1.0;
+    while (InvalidIndex != gi)
+    {
+        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
+        uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
+        ni = gi * NodeArity + child;
+        size *= 0.5;
+        center += (vec3(ioffs) * 2.0 - 1.0) * size;
+        gi = nodeGroups[gi].nodes[child].children;
+        ++depth;
+        if (depth > 16u) break; // - testing (this test shouldn't be needed)
+    }
+    nodeCenter = center;
+    nodeSize = size;
+    nodeDepth = depth;
+    return ni;
+}
+
 
 
 // - to do: move to noise.glsl?

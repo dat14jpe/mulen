@@ -45,7 +45,7 @@ void main()
         }
     }
     
-    const float height = 0.02; // - to do: aim for approximately 0.02 (Earth-like)
+    const float height = 0.01; // - to do: aim for approximately 0.02 (Earth-like)
     const float shellDist = 1.0 + height - length(p);
     float shellFactor = 0.0;
     { // noisy

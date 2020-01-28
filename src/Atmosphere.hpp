@@ -14,9 +14,8 @@ namespace Mulen {
 
     class Atmosphere : public Object
     {
-        // - to do: make all values physically plausible (for Earth, initially)
-        double planetRadius = 10.0;
-        double height = 0.2;
+        double planetRadius = 6371000.0;
+        double height = 50000.0; // - to do: correct
         double scale = 1.1;
 
 
@@ -29,12 +28,14 @@ namespace Mulen {
         Util::Texture depthTexture, lightTexture; // - to do: maybe go full deferred (i.e. add at least colour)
 
         Util::Buffer gpuNodes;
-        Util::Texture brickTexture;
+        Util::Texture brickTexture, brickLightTexture;
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader;
         glm::uvec3 texMap;
         // Two channels since bricks store both last and next values, to let rendering interpolate between them.
-        static const auto BrickFormat = GL_RG8; // - might need to be 16 bits. Let's find out
+        static const auto
+            BrickFormat = GL_RG16, // - visible banding if only 8 bits per channel. Maybe can be resolved with generation dithering?
+            BrickLightFormat = GL_RGBA16F;
         
         // Update:
         Util::Texture brickUploadTexture;
@@ -60,7 +61,7 @@ namespace Mulen {
             glm::vec4 nodeLocation;
         };
         std::vector<UploadBrick> bricksToUpload;
-        Util::Shader updateShader, updateBricksShader;
+        Util::Shader updateShader, updateBricksShader, updateLightShader;
         void StageNodeGroup(UploadType, NodeIndex ni);
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
 

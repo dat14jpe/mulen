@@ -39,8 +39,8 @@ namespace Mulen {
         const auto size = glm::max(glm::ivec2(1), window.GetSize());
         const float aspect = float(size.x) / float(size.y);
         const float fovy = 45.0f;
-        const float near = 0.01f, far = 1e3f;
-        camera.SetPerspectiveProjection(fovy, aspect, 0.01f, 1e3f);
+        const float near = 1.0f, far = 1e8f;
+        camera.SetPerspectiveProjection(fovy, aspect, near, far);
         glViewport(0, 0, size.x, size.y);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -52,7 +52,7 @@ namespace Mulen {
             /*ImGui::Text("This is some useful text.");
             ImGui::SliderFloat("float", &f, 0.0f, 1.0f);*/
             ImGui::ColorEdit3("clear color", (float*)&clear_color);
-            ImGui::Text("Altitude: %f", glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius());
+            ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
 
             /*if (ImGui::Button("Button")) counter++;
             ImGui::SameLine();
@@ -77,7 +77,8 @@ namespace Mulen {
                 auto force = 10.0; // - to do: make configurable?
                 force *= r;
                 const auto dist = glm::distance(atmosphere.GetPosition(), camera.GetPosition());
-                force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 14.0)); // - to do: find nicer speed profile
+                force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 16.0)); // - to do: find nicer speed profile
+                //force *= glm::clamp(pow((dist - r) / r, 1.5), 1e-2, 1.0);
                 accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
                 camera.Accelerate(glm::normalize(accel) * force);
 

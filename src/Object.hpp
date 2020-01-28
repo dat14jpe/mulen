@@ -26,6 +26,11 @@ struct Object
         orientation = glm::normalize(q * orientation);
     }
 
+    Mat4 GetOrientationMatrix() const
+    {
+        return glm::toMat4(orientation);
+    }
+
 protected:
     Position position{ 0.0f };
     Orientation orientation = glm::identity<Orientation>();

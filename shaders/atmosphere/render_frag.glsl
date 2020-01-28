@@ -4,42 +4,7 @@
 
 layout(location = 0) out vec4 outValue;
 in vec4 clip_coords;
-    
-vec3 boxHitToNormal(vec3 ori, vec3 dir, float t)
-{
-    vec3 normal = ori + dir * t;
-    const vec3 an = abs(normal);
-    if (an.x > an.y && an.x > an.z) normal = vec3(sign(normal.x), 0, 0);
-    else if (an.y > an.z) normal = vec3(0, sign(normal.y), 0);
-    else normal = vec3(0, 0, sign(normal.z));
-    return normal;
-}
 
-// - to do: add "desired size" parameter to allow early stop
-// p components in [-1, 1] range
-uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
-{
-    uint depth = 0u - 1u;
-    uint ni = InvalidIndex;
-    uint gi = rootGroupIndex;
-    vec3 center = vec3(0.0);
-    float size = 1.0;
-    while (InvalidIndex != gi)
-    {
-        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
-        uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
-        ni = gi * NodeArity + child;
-        size *= 0.5;
-        center += (vec3(ioffs) * 2.0 - 1.0) * size;
-        gi = nodeGroups[gi].nodes[child].children;
-        ++depth;
-        if (depth > 16u) break; // - testing (this test shouldn't be needed)
-    }
-    nodeCenter = center;
-    nodeSize = size;
-    nodeDepth = depth;
-    return ni;
-}
 
 float GetDepth()
 {
@@ -57,34 +22,22 @@ vec3 ViewspaceFromDepth(float depth)
 
 void main()
 {
-    const vec3 lightDir = normalize(vec3(1, 0.6, 0.4));
     const float atmScale = atmosphereRadius;
     
-    const vec3 ori = vec3(invWorldViewMat * vec4(0, 0, 0, 1));
-    vec3 dir = normalize(vec3(invWorldViewProjMat * clip_coords));
+    const vec3 ori = vec3(invViewMat * vec4(0, 0, 0, 1));
+    vec3 dir = normalize(vec3(invViewProjMat * clip_coords));
     float solidDepth = length(ViewspaceFromDepth(GetDepth()));
     
     float tmin, tmax;
-    AabbIntersection(tmin, tmax, vec3(-atmScale), vec3(atmScale), ori, dir);
-    if (tmin < 0.0 && tmax > 0.0) tmin = 0.0; // ray starting inside the box
-    if (!IsIntersection(tmin, tmax)) discard;
-    
-    {
-        float t0, t1;
-        float R = planetRadius + atmosphereHeight;
-        if (!IntersectSphere(ori, dir, vec3(0.0), R, t0, t1)) discard;
-        // - to do: start point and max depth from t0 and t1
-        tmin = t0;
-        tmax = t1;
-        solidDepth = min(solidDepth, tmax);
-        //solidDepth = tmax;
-    }
+    float R = planetRadius + atmosphereHeight;
+    if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) discard;
+    solidDepth = min(solidDepth, tmax);
     
     
     vec3 color = vec3(0.0);
     
     const float outerMin = tmin;
-    const vec3 hit = ori + dir * tmin;
+    const vec3 hit = ori + dir * tmin - planetLocation;
     
     const float stepFactor = 0.2 * stepSize;//0.1; // - arbitrary factor (to-be-tuned)
     
@@ -162,9 +115,11 @@ void main()
             density *= 100.0; // - testing
             //density = smoothstep(0.1, 0.75, density); // - testing
             const float visibility = 1.0 - alpha;
-            vec3 cloudColor = vec3(1.0);
-            color += visibility * cloudColor * density * step; 
+            vec3 newLight = vec3(1.0);
+            newLight *= visibility * density * step;
             alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
+            newLight *= vec3(texture(brickLightTexture, tc)); // - testing performance impact
+            color += newLight;
             
             dist += atmStep;
             lc = localStart + dist / nodeSize * dir;

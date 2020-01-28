@@ -28,9 +28,15 @@ namespace Mulen {
         std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, " 
             << width << "*" << height << "*" << depth << " texels (multiple of "
             << (width * height * depth / (1024 * 1024)) << " MB)\n";
-        brickTexture.Create(GL_TEXTURE_3D, 1u, BrickFormat, width, height, depth);
-        glTextureParameteri(brickTexture.GetId(), GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTextureParameteri(brickTexture.GetId(), GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        auto setUpTexture = [&](Util::Texture& tex, GLenum internalFormat)
+        {
+            tex.Create(GL_TEXTURE_3D, 1u, internalFormat, width, height, depth);
+            glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        };
+        setUpTexture(brickTexture, BrickFormat);
+        setUpTexture(brickLightTexture, BrickLightFormat);
+
         // - to do: also create second texture (for double-buffering updates)
 
         maxToUpload = numNodeGroups;// / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
@@ -107,20 +113,24 @@ namespace Mulen {
 
     void Atmosphere::SetUniforms(Util::Shader& shader)
     {
+        const auto lightDir = glm::normalize(glm::vec3(1, 0.6, 0.4));
+
         // - to do: use a UBO instead
         shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
         shader.Uniform3u("uBricksRes", glm::uvec3{ texMap });
         shader.Uniform3f("bricksRes", glm::vec3{ texMap });
         shader.Uniform1i("brickTexture", glm::ivec1{ 0 });
+        shader.Uniform1i("brickLightTexture", glm::ivec1{ 1 });
         shader.Uniform1f("stepSize", glm::vec1{ 1 });
         shader.Uniform1f("planetRadius", glm::vec1{ (float)planetRadius });
         shader.Uniform1f("atmosphereRadius", glm::vec1{ (float)(planetRadius * scale) });
         shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
         shader.Uniform1f("atmosphereHeight", glm::vec1{ (float)height });
+        shader.Uniform3f("lightDir", lightDir);
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
         // - to do: use actual far plane (parameter from outside the Atmosphere class?)
-        const double farplane = 1e4;
+        const double farplane = 1e8;
         const double Fcoef = 2.0 / log2(farplane + 1.0);
         shader.Uniform1f("Fcoef", glm::vec1{ float(Fcoef) });
         shader.Uniform1f("Fcoef_half", glm::vec1{ float(0.5 * Fcoef) });
@@ -141,6 +151,7 @@ namespace Mulen {
         if (!loadShader(backdropShader, "backdrop", false)) return false;
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
+        if (!loadShader(updateLightShader, "update_lighting", true)) return false;
         if (!loadShader(renderShader, "render", false)) return false;
         return true;
     }
@@ -162,6 +173,9 @@ namespace Mulen {
         // Update GPU data:
         if (nodesToUpload.size())
         {
+            std::cout << "Uploading " << nodesToUpload.size() << " node groups\n";
+            std::cout << "Generating " << bricksToUpload.size() << " bricks\n";
+
             for (auto& uploadGroup : nodesToUpload)
             {
                 const auto old = uploadGroup.nodeGroup;
@@ -178,20 +192,24 @@ namespace Mulen {
             gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
             // - to do: also bind the old texture for reading
             // (initially just testing writing directly to one)
-            GLuint imgUnit = 0u;
-            glBindImageTexture(imgUnit++, brickTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickFormat);
+            glBindImageTexture(0u, brickTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickFormat);
 
             updateShader.Bind();
             SetUniforms(updateShader);
             glDispatchCompute((GLuint)nodesToUpload.size(), 1u, 1u);
-            std::cout << "Uploading " << nodesToUpload.size() << " node groups\n";
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
             updateBricksShader.Bind();
             SetUniforms(updateBricksShader);
             glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
-            std::cout << "Generating " << bricksToUpload.size() << " bricks\n";
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+            glBindImageTexture(0u, brickLightTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickLightFormat);
+            brickTexture.Bind(0u);
+            updateLightShader.Bind();
+            SetUniforms(updateLightShader);
+            glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 
             nodesToUpload.resize(0u);
             bricksToUpload.resize(0u);
@@ -210,11 +228,13 @@ namespace Mulen {
             fbo.SetColorBuffer(0u, lightTexture, 0u);
         }
 
-        const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position);
-        const auto viewMat = camera.GetViewMatrix();
+        const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position - camera.GetPosition());
+        const auto viewMat = camera.GetOrientationMatrix();
         const auto projMat = camera.GetProjectionMatrix();
+        const auto viewProjMat = projMat * viewMat;
         const auto worldViewMat = viewMat * worldMat;
         const auto worldViewProjMat = projMat * worldViewMat;
+        const auto invWorldMat = glm::inverse(worldMat);
         const auto invWorldViewMat = glm::inverse(worldViewMat);
         const auto invWorldViewProjMat = glm::inverse(worldViewProjMat);
         const auto invViewProjMat = glm::inverse(projMat * viewMat);
@@ -229,6 +249,9 @@ namespace Mulen {
             shader.UniformMat4("worldViewProjMat", worldViewProjMat);
             shader.UniformMat4("invViewMat", glm::inverse(viewMat));
             shader.UniformMat4("invProjMat", glm::inverse(projMat));
+            shader.UniformMat4("invWorldMat", invWorldMat);
+            shader.UniformMat4("viewProjMat", viewProjMat);
+            shader.Uniform3f("planetLocation", GetPosition() - camera.GetPosition());
             SetUniforms(shader);
             return shader;
         };
@@ -258,6 +281,7 @@ namespace Mulen {
             auto ssboIndex = 0u, texUnit = 0u;
             gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
             brickTexture.Bind(texUnit++);
+            brickLightTexture.Bind(texUnit++);
             shader.Uniform1i("depthTexture", glm::ivec1{ int(texUnit) });
             depthTexture.Bind(texUnit++);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
