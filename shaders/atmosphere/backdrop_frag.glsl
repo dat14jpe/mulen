@@ -21,6 +21,7 @@ void main()
     vec3 color = vec3(max(0.0, dot(normal, lightDir))); // Lambertian
     vec3 diffuseColor = vec3(1.0);
     diffuseColor = vec3(0.01, 0.05, 0.1);
+    diffuseColor = pow(vec3(0.016, 0.306, 0.482), vec3(2.2));
     color *= diffuseColor;
     
     outValue = vec4(color, 1);

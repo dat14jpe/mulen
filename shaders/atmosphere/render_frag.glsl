@@ -118,7 +118,7 @@ void main()
             vec3 newLight = vec3(1.0);
             newLight *= visibility * density * step;
             alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
-            newLight *= vec3(texture(brickLightTexture, tc)); // - testing performance impact
+            newLight *= vec3(texture(brickLightTexture, tc));
             color += newLight;
             
             dist += atmStep;
@@ -143,5 +143,5 @@ void main()
     //if (numSteps > 30) { color.r = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     //if (numBricks > 0) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     
-    outValue = vec4(color, min(1.0, alpha));
+    outValue = vec4(color * alpha, min(1.0, alpha));
 }

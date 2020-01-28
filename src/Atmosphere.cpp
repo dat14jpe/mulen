@@ -11,7 +11,7 @@ namespace Mulen {
         vao.Create();
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u;
+        const size_t numNodeGroups = 16384u * 4u;
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
         gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
@@ -105,7 +105,7 @@ namespace Mulen {
         {
             testSplit(rootGroupIndex, depth, glm::dvec4{ 0, 0, 0, 1 });
         };
-        testSplitRoot(5u); // - can't be higher than 5 with current memory constraints and waste
+        testSplitRoot(6u); // - can't be higher than 5 with current memory constraints and waste
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
         return true;
@@ -127,6 +127,8 @@ namespace Mulen {
         shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
         shader.Uniform1f("atmosphereHeight", glm::vec1{ (float)height });
         shader.Uniform3f("lightDir", lightDir);
+        shader.Uniform1f("HR", glm::vec1(HR));
+        shader.Uniform3f("betaR", betaR);
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
         // - to do: use actual far plane (parameter from outside the Atmosphere class?)
@@ -273,7 +275,7 @@ namespace Mulen {
         { // atmosphere
             glDisable(GL_DEPTH_TEST);
             glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
             vao.Bind();
             auto& shader = setUpShader(renderShader);

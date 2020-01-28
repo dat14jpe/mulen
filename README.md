@@ -5,6 +5,8 @@ For now, the necessary libraries (GLFW, Glad, GLM, ImGui) have to be manually co
 
 To do: more sensible CMake-employing dependency management.
 
-Ray-tracing a 16^3 voxel volume (i.e. the lowest octree level of detail):
+Ray-tracing an atmosphere volume 512 voxels across (at its widest; only nodes within the atmosphere shell are loaded in the octree, thereby saving most of the memory that would be wasted if a simple 512^3 texture were used instead):
 
-![Ray-tracing a 16^3 voxel volume](img/20200121_Mulen_019.png)
+![Ray-tracing the practical equivalent of a 512^3 voxel volume](img/20200128_Mulen_076.png)
+
+To come: lighting (atmospheric scattering).
