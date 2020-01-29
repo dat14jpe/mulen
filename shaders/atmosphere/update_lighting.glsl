@@ -15,7 +15,11 @@ float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
     
     vec3 offs = planetCenter - ori;
     float d = dot(offs, dir);
-    if (d < 0.0) return 1.0;
+    if (d < 0.0) 
+    {
+        //return 1.0; // wrong? Possibly
+        return (length(ori - planetCenter) - R) / voxelSize + 1.0;
+    }
     offs -= dir * dot(offs, dir);
     // - this should also depend on distance and angular size of the sun, no? To do
     float s = (length(offs) - R) / voxelSize + 1.0;

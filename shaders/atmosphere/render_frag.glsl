@@ -34,12 +34,18 @@ void main()
     solidDepth = min(solidDepth, tmax);
     
     // - intersecting the inner shell for optimising "inner" views (not that those would normally happen... right?)
+    if (false)
     {
         float tmin2, tmax2;
-        float R2 = planetRadius;
+        float R2 = planetRadius * 0.95;
         if (IntersectSphere(ori, dir, planetLocation, R2, tmin2, tmax2))
         {
-            solidDepth = min(solidDepth, tmax2);
+            //if (false)
+            //if (tmin2 == 0.0)
+            {
+                //solidDepth = tmax2;
+                tmin = tmax2;
+            }
         }
     }
     
