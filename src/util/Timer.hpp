@@ -8,21 +8,37 @@ namespace Util {
     {
         // - to do: GPU timing as well
 
-        const std::string text;
         typedef std::chrono::high_resolution_clock Clock;
-        Clock::time_point startTime;
 
     public:
-        Timer(std::string text) : text{ text } 
+        class ActiveTiming
         {
-            startTime = Clock::now();
-        }
-        ~Timer()
+            friend class Timer;
+            Timer& timer;
+            std::string text;
+            Clock::time_point startTime;
+
+            ActiveTiming(Timer& timer, const std::string& text)
+                : timer{ timer }
+                , text { text }
+                , startTime{ Clock::now() }
+            {}
+
+        public:
+            ~ActiveTiming()
+            {
+                auto endTime = Clock::now();
+                auto time = endTime - startTime;
+                auto duration = time / std::chrono::milliseconds(1);
+                std::cout << text << " took " << duration << " ms\n";
+            }
+        };
+
+        ActiveTiming Begin(std::string text)
         {
-            auto endTime = Clock::now();
-            auto time = endTime - startTime;
-            auto duration = time / std::chrono::milliseconds(1);
-            std::cout << text << " took " << duration << " ms\n";
+            return { *this, text };
         }
+
+        void EndFrame();
     };
 }

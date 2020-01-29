@@ -33,6 +33,16 @@ void main()
     if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) discard;
     solidDepth = min(solidDepth, tmax);
     
+    // - intersecting the inner shell for optimising "inner" views (not that those would normally happen... right?)
+    {
+        float tmin2, tmax2;
+        float R2 = planetRadius;
+        if (IntersectSphere(ori, dir, planetLocation, R2, tmin2, tmax2))
+        {
+            solidDepth = min(solidDepth, tmax2);
+        }
+    }
+    
     
     vec3 color = vec3(0.0);
     
@@ -112,13 +122,14 @@ void main()
             
             float density = voxelData.x; // - to do: threshold correctly, as if distance field
             //density *= 4.0; // - more normal
-            density *= 100.0; // - testing
+            //density = 0.4; // - good for testing "light shadows"
+            density *= 200.0; // - testing
             //density = smoothstep(0.1, 0.75, density); // - testing
             const float visibility = 1.0 - alpha;
             vec3 newLight = vec3(1.0);
             newLight *= visibility * density * step;
             alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
-            newLight *= vec3(texture(brickLightTexture, tc));
+            newLight *= max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
             color += newLight;
             
             dist += atmStep;

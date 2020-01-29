@@ -2,7 +2,6 @@
 #include "Camera.hpp"
 #include <math.h>
 #include <functional>
-#include "util/Timer.hpp"
 
 
 namespace Mulen {
@@ -55,7 +54,7 @@ namespace Mulen {
             }
         };
 
-        auto timer = Util::Timer{ "Initial atmosphere splits" };
+        auto t = timer.Begin("Initial atmosphere splits");
 
         // For this particular atmosphere:
         rootGroupIndex = octree.RequestRoot();
@@ -127,7 +126,7 @@ namespace Mulen {
         shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
         shader.Uniform1f("atmosphereHeight", glm::vec1{ (float)height });
         shader.Uniform3f("lightDir", lightDir);
-        shader.Uniform1f("HR", glm::vec1(HR));
+        shader.Uniform1f("HR", glm::vec1((float)HR));
         shader.Uniform3f("betaR", betaR);
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html

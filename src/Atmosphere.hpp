@@ -6,6 +6,7 @@
 #include "util/Texture.hpp"
 #include "util/Shader.hpp"
 #include "util/Framebuffer.hpp"
+#include "util/Timer.hpp"
 #include "Octree.hpp"
 #include "Object.hpp"
 
@@ -71,6 +72,8 @@ namespace Mulen {
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
 
         void SetUniforms(Util::Shader&);
+
+        Util::Timer timer;
 
 
     public:

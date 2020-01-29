@@ -23,6 +23,7 @@ void main()
     diffuseColor = vec3(0.01, 0.05, 0.1);
     diffuseColor = pow(vec3(0.016, 0.306, 0.482), vec3(2.2));
     color *= diffuseColor;
+    //color = vec3(0.0);
     
     outValue = vec4(color, 1);
     //float flogz = 1.0 + (worldViewProjMat * vec4(hitp, 1.0)).w;

@@ -87,7 +87,8 @@ void main()
         
         
         float mask = smoothstep(0.0, 0.5, fBm(5u, p * 8.0, 0.5, 2.0));
-        mask *= smoothstep(height * 0.75, height, shellDist); 
+        const float cloudsTop = 0.75; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
+        mask *= smoothstep(height * cloudsTop, height, shellDist); 
         
         dist += shellFactor * max(0.0, d) * mask * 0.75;
     }

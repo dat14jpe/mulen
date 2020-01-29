@@ -13,6 +13,9 @@ uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
 uniform vec3 planetLocation;
 uniform vec3 lightDir;
 
+uniform vec3 betaR;
+uniform float HR;
+
 
 #define SSBO_VOXEL_NODES         0
 #define SSBO_VOXEL_UPLOAD        1

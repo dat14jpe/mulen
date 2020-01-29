@@ -8,10 +8,20 @@ layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes
 
 uniform layout(binding=0, rgba16f) writeonly image3D brickImage;
 
-float PlanetShadowing(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
+float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
 {
     // - to do: maybe decrease planet radius by approximately one voxel length, to avoid overshadowing?
-    float R = planetRadius - voxelSize; // - possibly remove the subtraction if gradual shadowing is implemented
+    float R = planetRadius;// - voxelSize; // - possibly remove the subtraction if gradual shadowing is implemented
+    
+    vec3 offs = planetCenter - ori;
+    float d = dot(offs, dir);
+    if (d < 0.0) return 1.0;
+    offs -= dir * dot(offs, dir);
+    // - this should also depend on distance and angular size of the sun, no? To do
+    float s = (length(offs) - R) / voxelSize + 1.0;
+    return s;
+    return clamp(s, 0.0, 1.0);
+    
     float t0, t1;
     // - to do: make planet-shadowing gradual instead of absolute
     return IntersectSphere(ori, dir, planetCenter, R, t0, t1) ? 0.0 : 1.0;
@@ -27,25 +37,34 @@ void main()
     vec3 gp = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp);
     vec3 p = gp * atmosphereScale;
     
+    
+    const float stepFactor = 0.2 * stepSize; // - to-be-tuned
+    const float atmScale = atmosphereRadius;
+    float dist = 0.0;
+    
     vec3 light = vec3(0.0);
     {
         const float voxelSize = 1.0 / float(BrickRes - 1u) * 2 * upload.nodeLocation.w * atmosphereScale * planetRadius;
         const vec3 ori = p * planetRadius;
         const vec3 dir = lightDir;
         
-        if (PlanetShadowing(ori, dir, vec3(0.0), voxelSize) > 0.0)
+        float shadow = PlanetShadow(ori, dir, vec3(0.0), voxelSize);
+        //if (shadow > 0.0)
         {
             light = vec3(1.0);
+            {
+                // - should need higher factor than 1 or 2, no?
+                dist += 1 * stepFactor * upload.nodeLocation.w * atmScale;
+            }
             
             float tmin, tmax;
             float R = planetRadius + atmosphereHeight;
             if (IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) // atmosphere intersection
             {
-                const float stepFactor = 0.2 * stepSize; // - to-be-tuned
+                float depthR = 0.0;
+                
                 const uint maxSteps = 512u; // - arbitrary, for testing
-                const float atmScale = atmosphereRadius;
                 const float maxDist = tmax;
-                float dist = 0.0;
                 // - to do: ray march the octree, from current position to tmax distance
              
                 float alpha = 0.0;   
@@ -69,6 +88,7 @@ void main()
                     vec3 localStart = (ori - nodeCenter) / nodeSize;
                     vec3 lc = localStart + dist / nodeSize * dir;
                     
+                    //do // do while to not erroneously miss the first voxel if it's on the border
                     while (dist < tmax && numSteps < maxSteps)
                     {
                         if (alpha > 0.999) break; // - to do: tune
@@ -79,13 +99,15 @@ void main()
                         vec4 voxelData = texture(brickTexture, tc);
                         
                         float density = voxelData.x;
-                        // - to do
-                        //light -= vec3(density); // - testing
+                        // - to do: separate Rayleigh and Mie
+                        depthR += atmStep * exp(voxelData.x);
+                        //shadow -= density * step * 1e2; // - testing
+                        light *= vec3(1.0 - density);
                         
                         dist += atmStep;
                         lc = localStart + dist / nodeSize * dir;
                         ++numSteps;
-                    }
+                    } //while (dist < tmax && numSteps < maxSteps);
                     ++numBricks;
                     
                     const uint old = ni;
@@ -96,10 +118,15 @@ void main()
                     if (numBricks >= 64u) break; // - testing
                 }
                 //if (numBricks == 1) light = vec3(0, 1, 1) * 1e2; // - debugging
+                
+                vec3 transmittance = betaR * exp(-depthR);
+                // - to do: scatter towards camera, then store
             }
+            light *= shadow;
+            //light = vec3(shadow);
         }
     }
     
-    light = clamp(light, vec3(0.0), vec3(1.0));
+    //light = max(light, vec3(0.0));
     imageStore(brickImage, ivec3(writeOffs), vec4(light, 0.0));
 }
