@@ -31,26 +31,17 @@ void main()
     
     float dist = 0.0;
     
-    // - to do: generate or copy data
+    // Generate clouds:
+    // - to do: allow for simulation/update, and parameters from CPU
     
     
-    { // 8 spheres
-        dist = 0.0;
-        for (float z = -1.0; z <= 1.0; z += 2.0)
-        for (float y = -1.0; y <= 1.0; y += 2.0)
-        for (float x = -1.0; x <= 1.0; x += 2.0)
-        {
-            float d = 1.0 - length(2 * (p - vec3(x, y, z) * 0.5));
-            dist = max(dist, d);
-        }
-    }
-    
-    const float height = 0.01; // - to do: aim for approximately 0.02 (Earth-like)
+    const float height = 0.01; // - to do: aim for approximately 0.01 (Earth-like)
     const float shellDist = 1.0 + height - length(p);
+    if (shellDist < 0.0) return; // - early exit if outside atmosphere (to do: check accuracy of this)
     float shellFactor = 0.0;
     { // noisy
         dist = 0.0;
-        vec3 np = p;
+        /*vec3 np = p;
         float a = 1.0;
         // - to do: find actual good frequency
         np *= 2.5;
@@ -63,7 +54,7 @@ void main()
             np *= 2.0;
             a *= 0.5;
         }
-        dist -= 0.5;
+        dist -= 0.5;*/
         
         // Shape into spherical shell:
         dist = 1.0;
@@ -80,16 +71,15 @@ void main()
         float a = 1.0;
         // - to do: find actual good frequency
         np *= 2.5;
-        np *= 4.0;
-        np *= 4.0;
-        np *= 2.0;
-        d = fBm(10u, np, 0.5, 2.0);
+        np *= 16.0;
+        np *= 4.0;//2.0;
+        d = fBm(4u, np, 0.5, 2.0);
         
         
         float mask = smoothstep(0.0, 0.5, fBm(5u, p * 8.0, 0.5, 2.0));
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
-        mask *= 1.0 - smoothstep(height, height * 1.5, shellDist);
+        mask *= 1.0 - smoothstep(height * 0.95, height, shellDist);
         
         dist += shellFactor * max(0.0, d) * mask * 0.75;
     }

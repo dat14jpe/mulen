@@ -200,24 +200,33 @@ namespace Mulen {
             gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
             // - to do: also bind the old texture for reading
             // (initially just testing writing directly to one)
-            glBindImageTexture(0u, brickTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickFormat);
 
-            updateShader.Bind();
-            SetUniforms(updateShader);
-            glDispatchCompute((GLuint)nodesToUpload.size(), 1u, 1u);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            {
+                auto t = timer.Begin("Nodes");
+                updateShader.Bind();
+                SetUniforms(updateShader);
+                glDispatchCompute((GLuint)nodesToUpload.size(), 1u, 1u);
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            }
 
-            updateBricksShader.Bind();
-            SetUniforms(updateBricksShader);
-            glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            {
+                auto t = timer.Begin("Generation");
+                glBindImageTexture(0u, brickTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickFormat);
+                updateBricksShader.Bind();
+                SetUniforms(updateBricksShader);
+                glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
+                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            }
 
-            glBindImageTexture(0u, brickLightTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickLightFormat);
-            brickTexture.Bind(0u);
-            updateLightShader.Bind();
-            SetUniforms(updateLightShader);
-            glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            {
+                auto t = timer.Begin("Lighting");
+                glBindImageTexture(0u, brickLightTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickLightFormat);
+                brickTexture.Bind(0u);
+                updateLightShader.Bind();
+                SetUniforms(updateLightShader);
+                glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
+                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            }
 
             nodesToUpload.resize(0u);
             bricksToUpload.resize(0u);

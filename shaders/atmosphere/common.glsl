@@ -122,7 +122,7 @@ uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nod
         center += (vec3(ioffs) * 2.0 - 1.0) * size;
         gi = nodeGroups[gi].nodes[child].children;
         ++depth;
-        if (depth > 16u) break; // - testing (this test shouldn't be needed)
+        //if (depth > 16u) break; // - testing (this test shouldn't be needed)
     }
     nodeCenter = center;
     nodeSize = size;
