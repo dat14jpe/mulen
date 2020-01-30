@@ -10,8 +10,10 @@ namespace Mulen {
     {
         vao.Create();
 
+        const bool moreMemory = true; // - for quick switching during development
+
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * 4u;
+        const size_t numNodeGroups = 16384u * (moreMemory ? 4u : 1u);
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
         gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
@@ -106,7 +108,10 @@ namespace Mulen {
         {
             testSplit(rootGroupIndex, depth, glm::dvec4{ 0, 0, 0, 1 });
         };
-        testSplitRoot(6u); // - can't be higher than 5 with current memory constraints and waste
+        const auto testDepth = 5u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
+        testSplitRoot(testDepth);
+        const auto res = (2u << testDepth) * (BrickRes - 1u);
+        std::cout << "Voxel resolution: " << res << " (" << 2e-3 * planetRadius * scale / res << " km/voxel)\n";
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
         return true;
