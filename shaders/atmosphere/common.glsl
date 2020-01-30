@@ -22,7 +22,7 @@ uniform float HR;
 #define SSBO_VOXEL_UPLOAD_BRICKS 2
 #define NodeArity 8
 const uint InvalidIndex = 0xffffffffu;
-#define BrickRes 9
+#define BrickRes 8
 
 struct Node
 {

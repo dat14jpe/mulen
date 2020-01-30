@@ -6,9 +6,12 @@
 #include "util/Texture.hpp"
 #include "util/Shader.hpp"
 #include "util/Framebuffer.hpp"
-#include "util/Timer.hpp"
 #include "Octree.hpp"
 #include "Object.hpp"
+
+namespace Util {
+    class Timer;
+}
 
 namespace Mulen {
     class Camera;
@@ -73,10 +76,13 @@ namespace Mulen {
 
         void SetUniforms(Util::Shader&);
 
-        Util::Timer timer;
+
+        Util::Timer& timer;
 
 
     public:
+        Atmosphere(Util::Timer& timer) : timer{ timer } {}
+
         struct Params
         {
             size_t memBudget, gpuMemBudget;

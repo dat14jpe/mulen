@@ -2,6 +2,7 @@
 #include "Camera.hpp"
 #include <math.h>
 #include <functional>
+#include "util/Timer.hpp"
 
 
 namespace Mulen {
@@ -29,9 +30,10 @@ namespace Mulen {
             << (width * height * depth / (1024 * 1024)) << " MB)\n";
         auto setUpTexture = [&](Util::Texture& tex, GLenum internalFormat)
         {
+            const auto filter = GL_LINEAR;
             tex.Create(GL_TEXTURE_3D, 1u, internalFormat, width, height, depth);
-            glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, filter);
+            glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, filter);
         };
         setUpTexture(brickTexture, BrickFormat);
         setUpTexture(brickLightTexture, BrickLightFormat);
@@ -295,6 +297,8 @@ namespace Mulen {
             lightTexture.Bind(0u);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
+
+        timer.EndFrame();
     }
 
     void Atmosphere::StageNodeGroup(UploadType type, NodeIndex groupIndex)

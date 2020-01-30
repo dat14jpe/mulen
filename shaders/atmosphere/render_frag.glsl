@@ -124,18 +124,18 @@ void main()
             vec3 tc = lc * 0.5 + 0.5;
             tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
             tc = BrickSampleCoordinates(brickOffs, tc);
+            
+            vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
             vec4 voxelData = texture(brickTexture, tc);
             
             float density = voxelData.x; // - to do: threshold correctly, as if distance field
-            //density *= 4.0; // - more normal
-            //density = 0.4; // - good for testing "light shadows"
             density *= 200.0; // - testing
             //density = smoothstep(0.1, 0.75, density); // - testing
             const float visibility = 1.0 - alpha;
             vec3 newLight = vec3(1.0);
             newLight *= visibility * density * step;
             alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
-            newLight *= max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+            newLight *= storedLight;
             color += newLight;
             
             dist += atmStep;
@@ -153,12 +153,12 @@ void main()
         if (dist + outerMin > solidDepth) break;
         if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
         ni = OctreeDescend(p, nodeCenter, nodeSize, depth);
-        //if (old == ni) break; // - error (but can this even happen?)
+        if (old == ni) break; // - error (but can this even happen?)
         
         if (numBricks >= 64u) break; // - testing
     }
     //if (numSteps > 30) { color.r = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
-    //if (numBricks > 0) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
+    //if (numBricks > 20) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     
     outValue = vec4(color * alpha, min(1.0, alpha));
 }

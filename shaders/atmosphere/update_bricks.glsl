@@ -83,12 +83,12 @@ void main()
         np *= 4.0;
         np *= 4.0;
         np *= 2.0;
-        d = fBm(8u, np, 0.5, 2.0);
+        d = fBm(10u, np, 0.5, 2.0);
         
         
         float mask = smoothstep(0.0, 0.5, fBm(5u, p * 8.0, 0.5, 2.0));
-        const float cloudsTop = 0.0; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
-        mask *= smoothstep(height * cloudsTop, height * 0.25, shellDist); 
+        const float cloudsTop = 0.25; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
+        mask *= smoothstep(height * cloudsTop, height * 0.5, shellDist); 
         mask *= 1.0 - smoothstep(height, height * 1.5, shellDist);
         
         dist += shellFactor * max(0.0, d) * mask * 0.75;

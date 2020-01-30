@@ -8,6 +8,7 @@
 #include <vector>
 #include "Atmosphere.hpp"
 #include "Camera.hpp"
+#include "util/Timer.hpp"
 
 namespace Mulen {
     class App : public Window::App {
@@ -23,6 +24,7 @@ namespace Mulen {
         glm::dvec2 lastCursorPos;
         Camera camera;
         Atmosphere atmosphere;
+        Util::Timer timer;
 
         void SetVSync(bool);
         bool Reload();

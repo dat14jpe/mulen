@@ -10,6 +10,7 @@ namespace Mulen {
 
     App::App(Window& window)
         : Window::App{ window }
+        , atmosphere{ timer }
     {
         Reload();
         SetVSync(vsync);
