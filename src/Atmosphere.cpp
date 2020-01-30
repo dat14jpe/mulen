@@ -260,6 +260,11 @@ namespace Mulen {
         };
 
         fbo.Bind();
+        auto ssboIndex = 0u, texUnit = 0u;
+        gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
+        brickTexture.Bind(texUnit++);
+        brickLightTexture.Bind(texUnit++);
+        vao.Bind();
 
         { // "planet" background (to do: spruce this up, maybe move elsewhere)
             glEnable(GL_DEPTH_TEST);
@@ -268,7 +273,6 @@ namespace Mulen {
             glClearDepth(1.0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            vao.Bind();
             auto& shader = setUpShader(backdropShader);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
@@ -278,19 +282,15 @@ namespace Mulen {
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-            vao.Bind();
             auto& shader = setUpShader(renderShader);
-            SetUniforms(shader);
-            auto ssboIndex = 0u, texUnit = 0u;
-            gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
-            brickTexture.Bind(texUnit++);
-            brickLightTexture.Bind(texUnit++);
             shader.Uniform1i("depthTexture", glm::ivec1{ int(texUnit) });
             depthTexture.Bind(texUnit++);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
 
         { // postprocessing
+            glDisable(GL_BLEND);
+
             Util::Framebuffer::BindBackbuffer();
             auto& shader = postShader;
             shader.Bind();

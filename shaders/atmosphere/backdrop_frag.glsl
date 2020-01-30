@@ -25,6 +25,26 @@ void main()
     color *= diffuseColor;
     //color = vec3(0.0);
     
+    { // - testing modulation by atmosphere lighting
+        // - the sample position probably needs to be dithered in time... no?
+        vec3 p = (hitp - center) / atmosphereScale / planetRadius;
+        vec3 nodeCenter;
+        float nodeSize;
+        uint depth;
+        uint ni = OctreeDescend(p, nodeCenter, nodeSize, depth);
+        if (ni != InvalidIndex)
+        {
+            const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
+            vec3 lc = (p - nodeCenter) / nodeSize;
+            vec3 tc = lc * 0.5 + 0.5;
+            tc = clamp(tc, vec3(0.0), vec3(1.0));
+            tc = BrickSampleCoordinates(brickOffs, tc);
+            
+            vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+            color *= storedLight;
+        }
+    }
+    
     outValue = vec4(color, 1);
     //float flogz = 1.0 + (worldViewProjMat * vec4(hitp, 1.0)).w;
     float flogz = 1.0 + (viewProjMat * vec4(hitp, 1.0)).w;
