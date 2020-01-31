@@ -24,11 +24,31 @@ float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
     // - this should also depend on distance and angular size of the sun, no? To do
     float s = (length(offs) - R) / voxelSize + 1.0;
     return s;
-    return clamp(s, 0.0, 1.0);
+}
+
+vec3 perpendicular(vec3 v)
+{
+    vec3 a = cross(vec3(1, 0, 0), v), b = cross(vec3(0, 1, 0), v);
+    return dot(a, a) > 1e-5 ? a : b;
+}
+
+vec3 offsetOrigin(vec3 p, vec3 dir, float voxelSize)
+{
+    const float PI = 3.141592653589793;
     
-    float t0, t1;
-    // - to do: make planet-shadowing gradual instead of absolute
-    return IntersectSphere(ori, dir, planetCenter, R, t0, t1) ? 0.0 : 1.0;
+    // - the ray *origin* has to be offset in a plane with normal dir, right? Hmm...
+    vec3 a = perpendicular(dir);
+    vec3 b = cross(dir, a);
+    const float offs = 1.0; // - to do
+    return vec3(0.0);
+    float r = rand3D(p) * 0.5 + 0.5, theta = 2 * PI * (rand3D(p.xyz) * 0.5 + 05);
+    float x = sqrt(r) * cos(theta);
+    float y = sqrt(r) * sin(theta);
+    return 
+        //dir * voxelSize 
+        p * voxelSize
+        + offs * voxelSize * (x * a + y * b)
+        ;
 }
 
 void main()
@@ -42,18 +62,22 @@ void main()
     vec3 p = gp * atmosphereScale;
     
     
+    const float voxelSize = 1.0 / float(BrickRes - 1u) * 2 * upload.nodeLocation.w * atmosphereScale * planetRadius;
     const float stepFactor = 0.2 * stepSize; // - to-be-tuned
     const float atmScale = atmosphereRadius;
     float dist = 0.0;
-    const vec3 ori = p * planetRadius;
     const vec3 dir = lightDir;
+    const vec3 ori = p * planetRadius + offsetOrigin(p, dir, voxelSize);
     
     vec3 light = vec3(0.0);
     if (length(ori - planetLocation) < planetRadius + atmosphereHeight) // only ray trace for voxels within the atmosphere
     {
-        const float voxelSize = 1.0 / float(BrickRes - 1u) * 2 * upload.nodeLocation.w * atmosphereScale * planetRadius;
+        //dist += voxelSize * 1.0 * (rand(gp.xy, gp.z)); // - to do: make this work
         
         float shadow = PlanetShadow(ori, dir, vec3(0.0), voxelSize);
+        //shadow = 1.0; // - debugging banding
+        light = vec3(1.0); // - debugging
+        //if (false)
         //if (shadow > 0.0)
         {
             light = vec3(1.0);
@@ -77,7 +101,6 @@ void main()
                     maxDist = min(maxDist, tmin);
                 }
              
-                float alpha = 0.0;   
                 uint depth; // - to do: initialise correctly
                 vec3 nodeCenter = upload.nodeLocation.xyz;
                 float nodeSize = upload.nodeLocation.w;
@@ -98,11 +121,12 @@ void main()
                     vec3 localStart = (ori - nodeCenter) / nodeSize;
                     vec3 lc = localStart + dist / nodeSize * dir;
                     
+                    const float shadowThreshold = 1e-2;
+                    
                     //do // do while to not erroneously miss the first voxel if it's on the border
                     while (dist < tmax && numSteps < maxSteps)
                     {
-                        if (alpha > 0.999) break; // - to do: tune
-                        
+                        if (shadow < shadowThreshold) break;
                         vec3 tc = lc * 0.5 + 0.5;
                         tc = clamp(tc, vec3(0.0), vec3(1.0));
                         tc = BrickSampleCoordinates(brickOffs, tc);
@@ -119,6 +143,7 @@ void main()
                         ++numSteps;
                     } //while (dist < tmax && numSteps < maxSteps);
                     ++numBricks;
+                    if (shadow < shadowThreshold) break;
                     
                     const uint old = ni;
                     vec3 p = (ori + dist * dir) / atmScale;
@@ -135,9 +160,9 @@ void main()
                 vec3 transmittance = betaR * exp(-depthR);
                 // - to do: scatter towards camera, then store
             }
-            light *= shadow;
             //light = vec3(shadow);
         }
+        light *= shadow;
     }
     
     //light = max(light, vec3(0.0));

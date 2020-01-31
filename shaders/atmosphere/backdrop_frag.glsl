@@ -2,6 +2,7 @@
 
 #include "common.glsl"
 #include "../geometry.glsl"
+
 layout(location = 0) out vec4 outValue;
 in vec4 ndc;
 //in float flogz;
@@ -15,19 +16,34 @@ void main()
     float t0, t1;
     if (!IntersectSphere(ori, dir, center, planetRadius, t0, t1)) discard;
     if (t0 <= 0.0) discard; // don't block if we're inside the planet (since it's fun to look out into the atmosphere shell)
+    
+    // - to do: dither (somehow proportionally to voxel size, of course)
+    const vec2 randTimeOffs = vec2(cos(time), sin(time));
+    float randOffs = rand(gl_FragCoord.xy + randTimeOffs);
+    randOffs *= 0.0 / 512.0 * planetRadius; // - probably not right. To do: tune
+    // - no, offsetting the distance doesn't seem to be a good way... so can we "blur" along the surface?
+    
+    
     vec3 hitp = ori + t0 * dir;
     vec3 normal = normalize(hitp - center);
     
     vec3 color = vec3(max(0.0, dot(normal, lightDir))); // Lambertian
+    //color = vec3(1.0); // - testing only atmosphere lighting
     vec3 diffuseColor = vec3(1.0);
     diffuseColor = vec3(0.01, 0.05, 0.1);
     diffuseColor = pow(vec3(0.016, 0.306, 0.482), vec3(2.2));
     color *= diffuseColor;
     //color = vec3(0.0);
     
+    { // sunglint (specular)
+        vec3 d = reflect(lightDir, normal);
+        float s = pow(max(0.0, dot(d, dir)), 50.0);
+        color += s * vec3(1.0);
+    }
+    
     { // - testing modulation by atmosphere lighting
         // - the sample position probably needs to be dithered in time... no?
-        vec3 p = (hitp - center) / atmosphereScale / planetRadius;
+        vec3 p = (hitp + dir * randOffs - center) / atmosphereScale / planetRadius;
         vec3 nodeCenter;
         float nodeSize;
         uint depth;

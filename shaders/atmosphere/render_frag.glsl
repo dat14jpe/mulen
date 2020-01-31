@@ -67,7 +67,7 @@ void main()
     vec2 randTimeOffs = vec2(cos(time), sin(time));
     //randTimeOffs = vec2(0); // - testing
     // - experiment (should the factor be proportional to step size?)
-    const float randOffs = (random(gl_FragCoord.xy + randTimeOffs) * 0.5 + 0.5) * 2 * stepFactor;
+    const float randOffs = (rand3D(vec3(gl_FragCoord.xy, randTimeOffs)) * 0.5 + 0.5) * 2 * stepFactor;
     dist += randOffs * nodeSize * atmScale;
     
     // - to do: think about whether randomness needs to be applied per-brick or just once

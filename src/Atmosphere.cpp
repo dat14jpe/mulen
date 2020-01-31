@@ -74,7 +74,7 @@ namespace Mulen {
 
                 auto childPos = pos;
                 childPos.w *= 0.5;
-                childPos += (glm::dvec4(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u, 0.5) * 2.0 - 1.0) * childPos.w;
+                childPos += (glm::dvec4(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u, 0.5) * 2.0 - 1.0)* childPos.w;
                 //if (false)
                 {
                     // - simple test to only split those in spherical atmosphere shell:
@@ -89,24 +89,30 @@ namespace Mulen {
                     if (dist2 > atmRadius2) continue; // outside
                     bool anyOutside = false;
                     for (int z = -1; z <= 1; z += 2)
-                    for (int y = -1; y <= 1; y += 2)
-                    for (int x = -1; x <= 1; x += 2)
-                    {
-                        if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) anyOutside = true;
-                    }
+                        for (int y = -1; y <= 1; y += 2)
+                            for (int x = -1; x <= 1; x += 2)
+                            {
+                                if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) anyOutside = true;
+                            }
                     if (!anyOutside) continue; // inside
                 }
 
                 if (!octree.nodes.GetNumFree()) return;
-                octree.Split(ni);
-                const auto children = octree.GetNode(ni).children;
-                stageSplit(children);
+                const auto& children = octree.GetNode(ni).children;
+                if (InvalidIndex == children)
+                {
+                    octree.Split(ni);
+                    stageSplit(children);
+                }
                 testSplit(children, depth - 1u, childPos);
             }
         };
         auto testSplitRoot = [&](unsigned depth)
         {
-            testSplit(rootGroupIndex, depth, glm::dvec4{ 0, 0, 0, 1 });
+            for (auto i = 1u; i <= depth; ++i)
+            {
+                testSplit(rootGroupIndex, i, glm::dvec4{ 0, 0, 0, 1 });
+            }
         };
         const auto testDepth = 5u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
         testSplitRoot(testDepth);

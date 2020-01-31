@@ -63,7 +63,7 @@ void main()
         dist *= 1.0 - smoothstep(height, height + 0.05, shellDist); // inner
         shellFactor = dist;
         
-        dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in lower half of range
+        dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in smaller and lower part of range
     }
     { // new noisy clouds attempt
         float d = 0.0;
@@ -75,8 +75,20 @@ void main()
         np *= 4.0;//2.0;
         d = fBm(4u, np, 0.5, 2.0);
         
+        /*
+        np *= 1.0 / 64.0;
+        for (uint i = 0u; i < 4u; ++i)
+        {
+            d += a * (cos(noise(np)) * 0.5 + 0.5);
+            a *= 0.5;
+            np *= 2.0;
+        }
+        */
+        //d = 1.0; // - testing
+        d = (fBm(4u, np, 0.5, 2.0) * 0.5 + 0.5) * 0.5 + 0.5;
         
-        float mask = smoothstep(0.0, 0.5, fBm(5u, p * 8.0, 0.5, 2.0));
+        
+        float mask = smoothstep(0.0, 0.5, fBm(7u, p * 16.0, 0.5, 2.0));
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
         mask *= 1.0 - smoothstep(height * 0.95, height, shellDist);
