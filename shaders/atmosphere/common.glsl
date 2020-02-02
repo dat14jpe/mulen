@@ -169,8 +169,9 @@ uint OctreeDescendMap(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint 
     float size = 1.0 / nodesAtDepth;
     vec3 center = pn * 2.0 - 1.0 + vec3(size);
     uint ni = InvalidIndex;
-    //if (gi == 1u) return InvalidIndex; // - debugging
-    //while (InvalidIndex != gi)
+    
+    // - maybe have a loopless variant, possibly using a handful of nested low-res map textures? To do
+    while (InvalidIndex != gi)
     {
         ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
         uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
@@ -180,9 +181,6 @@ uint OctreeDescendMap(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint 
         gi = nodeGroups[gi].nodes[child].children;
         ++depth;
     }
-    
-    // - to do: offset to correct child
-    // - to do: descend deeper via structure as usual (OctreeDescend), if needed
     
     nodeCenter = center;
     nodeSize = size;

@@ -95,7 +95,50 @@ void main()
         //d = 1.0; // - testing
         d = (fBm(7u, np, 0.5, 2.0) * 0.5 + 0.5) * 0.5 + 0.5;
         
-        float mask = smoothstep(0.0, 0.5, fBm(9u, p * 16.0, 0.5, 2.0));
+        float mask = 0.0;
+        mask = fBm(9u, p * 16.0, 0.5, 2.0); // simplistic
+        {
+            const float numCells = 3.0; // number on southern/northern hemisphere
+            
+            // - experiment: assign wind direction and compute mask with consideration to it
+            
+            float lat = asin(p.y / length(p));
+            const float PI = 3.141592653589793;
+            float y = lat / PI * 2.0;
+            int cell = int(abs(trunc(y * numCells)));
+            float cm = float(cell % 2) * 2.0 - 1.0;
+            vec2 localWind = vec2(-cm, sign(lat) * cm); // - change x magnitude depending on vertical location in cell? To do
+            // - to do: smooth transition between cells
+            
+            const vec3 up = vec3(0, 1, 0);
+            const vec3 N = normalize(p);
+            const vec3 T = cross(up, N);
+            vec3 wind = localWind.x * T + localWind.y * cross(N, T);
+            
+            float scaleBias = 0.05; // - to do: adjust
+            vec3 scale = sign(wind) / (abs(2.0 * wind) + vec3(scaleBias));
+            //vec3 scale = 4.0 * wind;//vec3(1.0) / (wind + vec3(scaleBias));
+            const uint octaves = 5u;
+            const float persistence = 0.5;
+            const float lacunarity = 2.0;
+            const vec3 op = p;
+            {
+                vec3 p = op * 16.0;
+                float a = 1.0;
+                mask = 0.0;
+                for (uint i = 0u; i < octaves; ++i)
+                {
+                    mask += a * (noise(p) * 2.0 - 1.0);
+                    a *= persistence;
+                    p *= lacunarity * scale;
+                }
+            }
+            //mask = cm; // - debugging
+            
+            // - to do: construct wind-aware mask
+        }
+        mask = smoothstep(0.0, 0.5, mask);
+        
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         // - do these transitions need to depend on voxel size? Maybe. Think about it, and test
         // - they do, yes. Currently these two cause structural banding
