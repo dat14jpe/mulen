@@ -36,6 +36,7 @@ namespace Mulen {
         Util::Framebuffer fbo;
         Util::Texture depthTexture, lightTexture; // - to do: maybe go full deferred (i.e. add at least colour)
 
+        Util::Texture octreeMap;
         Util::Buffer gpuNodes;
         Util::Texture brickTexture, brickLightTexture;
         Util::VertexArray vao;
@@ -70,7 +71,7 @@ namespace Mulen {
             glm::vec4 nodeLocation;
         };
         std::vector<UploadBrick> bricksToUpload;
-        Util::Shader updateShader, updateBricksShader, updateLightShader;
+        Util::Shader updateShader, updateBricksShader, updateLightShader, updateOctreeMapShader;
         void StageNodeGroup(UploadType, NodeIndex ni);
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
 

@@ -29,7 +29,14 @@ void main()
     vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
     vec3 p = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp) * atmosphereScale;
     
-    float dist = 0.0;
+    if (false)
+    {
+        // generation jitter vs banding:
+        // (didn't seem to really work well, unfortunately)
+        p += upload.nodeLocation.w / float(BrickRes - 1u) * vec3(rand3D(p.xyz), rand3D(p.zyx), rand3D(p.yxz));
+    }
+    
+    float rayleigh = 0.0, mie = 0.0;
     
     // Generate clouds:
     // - to do: allow for simulation/update, and parameters from CPU
@@ -40,7 +47,7 @@ void main()
     if (shellDist < 0.0) return; // - early exit if outside atmosphere (to do: check accuracy of this)
     float shellFactor = 0.0;
     { // noisy
-        dist = 0.0;
+        float dist = 0.0;
         /*vec3 np = p;
         float a = 1.0;
         // - to do: find actual good frequency
@@ -63,7 +70,8 @@ void main()
         dist *= 1.0 - smoothstep(height, height + 0.05, shellDist); // inner
         shellFactor = dist;
         
-        dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in smaller and lower part of range
+        //dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in smaller and lower part of range
+        rayleigh = dist;
     }
     { // new noisy clouds attempt
         float d = 0.0;
@@ -85,24 +93,24 @@ void main()
         }
         */
         //d = 1.0; // - testing
-        d = (fBm(4u, np, 0.5, 2.0) * 0.5 + 0.5) * 0.5 + 0.5;
+        d = (fBm(7u, np, 0.5, 2.0) * 0.5 + 0.5) * 0.5 + 0.5;
         
-        
-        float mask = smoothstep(0.0, 0.5, fBm(7u, p * 16.0, 0.5, 2.0));
+        float mask = smoothstep(0.0, 0.5, fBm(9u, p * 16.0, 0.5, 2.0));
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
+        // - do these transitions need to depend on voxel size? Maybe. Think about it, and test
+        // - they do, yes. Currently these two cause structural banding
         mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
-        mask *= 1.0 - smoothstep(height * 0.95, height, shellDist);
+        mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
-        dist += shellFactor * max(0.0, d) * mask * 0.75;
+        mie += shellFactor * max(0.0, d) * mask;
     }
     
     { // zero faces
         for (uint d = 0u; d < 3u; ++d)
         {
-            if (abs(p[d]) == 1.0) dist = 0.0;
+            if (abs(p[d]) == 1.0) rayleigh = mie = 0.0;
         }
     }
     
-    dist = clamp(dist, 0.0, 1.0);
-    imageStore(brickImage, ivec3(writeOffs), vec4(dist, 0, 0, 0));
+    imageStore(brickImage, ivec3(writeOffs), vec4(clamp(vec2(rayleigh, mie), vec2(0.0), vec2(1.0)), 0, 0));
 }

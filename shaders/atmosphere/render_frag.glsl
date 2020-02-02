@@ -61,7 +61,7 @@ void main()
     uint depth;
     vec3 nodeCenter;
     float nodeSize;
-    uint ni = OctreeDescend(globalStart / atmScale, nodeCenter, nodeSize, depth);
+    uint ni = OctreeDescendMap(globalStart / atmScale, nodeCenter, nodeSize, depth);
     float dist = 0.0; // - to do: make it so this can be set to tmin?
     dist += 1e-5;// don't start at a face/edge/corner
     vec2 randTimeOffs = vec2(cos(time), sin(time));
@@ -128,8 +128,12 @@ void main()
             vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
             vec4 voxelData = texture(brickTexture, tc);
             
-            float density = voxelData.x; // - to do: threshold correctly, as if distance field
-            density *= 200.0; // - testing
+            float rayleigh = voxelData.x, mie = voxelData.y;
+            rayleigh *= 200.0 / 32.0;
+            //rayleigh = exp(rayleigh);
+            mie *= 200.0;
+            float density = rayleigh + mie; // - to do: handle correctly/separately
+            //density *= 200.0; // - testing
             //density = smoothstep(0.1, 0.75, density); // - testing
             const float visibility = 1.0 - alpha;
             vec3 newLight = vec3(1.0);
@@ -145,6 +149,8 @@ void main()
         ++numBricks;
         //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
         
+        //if (alpha > 0.999) break;
+        
         // - to do: try traversal via neighbours, possibly going down/up one level
         // (need to pass through 1-3 neighbours here)
         
@@ -152,7 +158,7 @@ void main()
         vec3 p = (hit + dist * dir) / atmScale;
         if (dist + outerMin > solidDepth) break;
         if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
-        ni = OctreeDescend(p, nodeCenter, nodeSize, depth);
+        ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
         if (old == ni) break; // - error (but can this even happen?)
         
         if (numBricks >= 64u) break; // - testing

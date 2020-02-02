@@ -47,7 +47,7 @@ void main()
         vec3 nodeCenter;
         float nodeSize;
         uint depth;
-        uint ni = OctreeDescend(p, nodeCenter, nodeSize, depth);
+        uint ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
         if (ni != InvalidIndex)
         {
             const vec3 brickOffs = vec3(BrickIndexTo3D(ni));

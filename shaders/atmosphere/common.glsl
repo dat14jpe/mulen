@@ -1,12 +1,9 @@
 
 
 // - to do: UBO
-//uniform mat4 invWorldViewMat, invWorldViewProjMat, invViewMat, invProjMat, invViewProjMat;
-uniform mat4 viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat, invWorldViewMat, invWorldViewProjMat, worldViewProjMat;
+uniform mat4 viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat;
 uniform uint rootGroupIndex;
-uniform sampler3D brickTexture, brickLightTexture;
 uniform float time;
-uniform sampler2D depthTexture;
 uniform float Fcoef_half;
 uniform float stepSize;
 uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
@@ -15,6 +12,11 @@ uniform vec3 lightDir;
 
 uniform vec3 betaR;
 uniform float HR;
+
+uniform layout(binding=0) sampler3D brickTexture;
+uniform layout(binding=1) sampler3D brickLightTexture;
+uniform layout(binding=2) usampler3D octreeMapTexture;
+uniform layout(binding=3) sampler2D depthTexture;
 
 
 #define SSBO_VOXEL_NODES         0
@@ -122,8 +124,66 @@ uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nod
         center += (vec3(ioffs) * 2.0 - 1.0) * size;
         gi = nodeGroups[gi].nodes[child].children;
         ++depth;
-        //if (depth > 16u) break; // - testing (this test shouldn't be needed)
     }
+    nodeCenter = center;
+    nodeSize = size;
+    nodeDepth = depth;
+    return ni;
+}
+uint OctreeDescendMaxDepth(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth, uint maxDepth)
+{
+    uint depth = 0u - 1u;
+    uint ni = InvalidIndex;
+    uint gi = rootGroupIndex;
+    vec3 center = vec3(0.0);
+    float size = 1.0;
+    while (InvalidIndex != gi)
+    {
+        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
+        uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
+        ni = gi * NodeArity + child;
+        size *= 0.5;
+        center += (vec3(ioffs) * 2.0 - 1.0) * size;
+        gi = nodeGroups[gi].nodes[child].children;
+        ++depth;
+        if (depth == maxDepth) break;
+    }
+    nodeCenter = center;
+    nodeSize = size;
+    nodeDepth = depth;
+    return ni;
+}
+
+
+const uint DepthBits = 5u, ChildBits = 8u;
+const uint IndexBits = 32u - DepthBits - ChildBits;
+
+uint OctreeDescendMap(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
+{
+    vec3 pp = p * 0.5 + 0.5;
+    uint info = texture(octreeMapTexture, pp).x;
+    uint gi = info & ((1u << IndexBits) - 1u);
+    uint depth = (info >> (IndexBits + ChildBits)) & ((1u << DepthBits) - 1u);
+    float nodesAtDepth = float(1u << (depth + 1u));
+    vec3 pn = vec3(ivec3(pp * nodesAtDepth)) / nodesAtDepth;
+    float size = 1.0 / nodesAtDepth;
+    vec3 center = pn * 2.0 - 1.0 + vec3(size);
+    uint ni = InvalidIndex;
+    //if (gi == 1u) return InvalidIndex; // - debugging
+    //while (InvalidIndex != gi)
+    {
+        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
+        uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
+        ni = gi * NodeArity + child;
+        size *= 0.5;
+        center += (vec3(ioffs) * 2.0 - 1.0) * size;
+        gi = nodeGroups[gi].nodes[child].children;
+        ++depth;
+    }
+    
+    // - to do: offset to correct child
+    // - to do: descend deeper via structure as usual (OctreeDescend), if needed
+    
     nodeCenter = center;
     nodeSize = size;
     nodeDepth = depth;

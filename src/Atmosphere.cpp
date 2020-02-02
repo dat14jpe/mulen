@@ -13,7 +13,7 @@ namespace Mulen {
         const bool moreMemory = true; // - for quick switching during development
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * (moreMemory ? 4u : 1u);
+        const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u);
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
         gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
@@ -39,6 +39,12 @@ namespace Mulen {
         };
         setUpTexture(brickTexture, BrickFormat);
         setUpTexture(brickLightTexture, BrickLightFormat);
+
+        // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
+        const auto mapRes = 64u; // - to do: try different values and measure performance
+        octreeMap.Create(GL_TEXTURE_3D, 1u, GL_R32UI, mapRes, mapRes, mapRes);
+        glTextureParameteri(octreeMap.GetId(), GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(octreeMap.GetId(), GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
         // - to do: also create second texture (for double-buffering updates)
 
@@ -68,8 +74,9 @@ namespace Mulen {
         std::function<void(NodeIndex, unsigned, glm::dvec4)> testSplit = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
         {
             if (!depth) return;
-            for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
+            for (NodeIndex i = 0u; i < NodeArity; ++i)
             {
+                const auto ci = NodeArity - 1u - i;
                 const auto ni = Octree::GroupAndChildToNode(gi, ci);
 
                 auto childPos = pos;
@@ -131,8 +138,6 @@ namespace Mulen {
         shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
         shader.Uniform3u("uBricksRes", glm::uvec3{ texMap });
         shader.Uniform3f("bricksRes", glm::vec3{ texMap });
-        shader.Uniform1i("brickTexture", glm::ivec1{ 0 });
-        shader.Uniform1i("brickLightTexture", glm::ivec1{ 1 });
         shader.Uniform1f("stepSize", glm::vec1{ 1 });
         shader.Uniform1f("planetRadius", glm::vec1{ (float)planetRadius });
         shader.Uniform1f("atmosphereRadius", glm::vec1{ (float)(planetRadius * scale) });
@@ -166,6 +171,7 @@ namespace Mulen {
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
+        if (!loadShader(updateOctreeMapShader, "update_octree_map", true)) return false;
         if (!loadShader(renderShader, "render", false)) return false;
         return true;
     }
@@ -207,29 +213,44 @@ namespace Mulen {
             // - to do: also bind the old texture for reading
             // (initially just testing writing directly to one)
 
+            auto setShader = [&](Util::Shader& shader)
+            {
+                shader.Bind();
+                SetUniforms(shader);
+            };
+
             {
                 auto t = timer.Begin("Nodes");
-                updateShader.Bind();
-                SetUniforms(updateShader);
+                setShader(updateShader);
                 glDispatchCompute((GLuint)nodesToUpload.size(), 1u, 1u);
                 glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             }
 
             {
+                auto t = timer.Begin("Map");
+                setShader(updateOctreeMapShader);
+                const glm::uvec3 resolution{ octreeMap.GetWidth(), octreeMap.GetHeight(), octreeMap.GetDepth() };
+                updateOctreeMapShader.Uniform3f("resolution", glm::vec3(resolution));
+                glBindImageTexture(0u, octreeMap.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32UI);
+                const auto groups = resolution / 8u;
+                glDispatchCompute(groups.x, groups.y, groups.z);
+                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            }
+
+            {
                 auto t = timer.Begin("Generation");
-                glBindImageTexture(0u, brickTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickFormat);
-                updateBricksShader.Bind();
-                SetUniforms(updateBricksShader);
+                glBindImageTexture(0u, brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
+                setShader(updateBricksShader);
                 glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
                 glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
             }
 
             {
                 auto t = timer.Begin("Lighting");
-                glBindImageTexture(0u, brickLightTexture.GetId(), 0, false, 0, GL_WRITE_ONLY, BrickLightFormat);
+                glBindImageTexture(0u, brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
                 brickTexture.Bind(0u);
-                updateLightShader.Bind();
-                SetUniforms(updateLightShader);
+                octreeMap.Bind(2u);
+                setShader(updateLightShader);
                 glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
                 glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
             }
@@ -255,21 +276,14 @@ namespace Mulen {
         const auto viewMat = camera.GetOrientationMatrix();
         const auto projMat = camera.GetProjectionMatrix();
         const auto viewProjMat = projMat * viewMat;
-        const auto worldViewMat = viewMat * worldMat;
-        const auto worldViewProjMat = projMat * worldViewMat;
         const auto invWorldMat = glm::inverse(worldMat);
-        const auto invWorldViewMat = glm::inverse(worldViewMat);
-        const auto invWorldViewProjMat = glm::inverse(worldViewProjMat);
         const auto invViewProjMat = glm::inverse(projMat * viewMat);
 
         auto setUpShader = [&](Util::Shader& shader) -> Util::Shader&
         {
             shader.Bind();
             shader.Uniform1f("time", glm::vec1(static_cast<float>(time)));
-            shader.UniformMat4("invWorldViewMat", invWorldViewMat);
-            shader.UniformMat4("invWorldViewProjMat", invWorldViewProjMat);
             shader.UniformMat4("invViewProjMat", invViewProjMat);
-            shader.UniformMat4("worldViewProjMat", worldViewProjMat);
             shader.UniformMat4("invViewMat", glm::inverse(viewMat));
             shader.UniformMat4("invProjMat", glm::inverse(projMat));
             shader.UniformMat4("invWorldMat", invWorldMat);
@@ -282,8 +296,10 @@ namespace Mulen {
         fbo.Bind();
         auto ssboIndex = 0u, texUnit = 0u;
         gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
-        brickTexture.Bind(texUnit++);
-        brickLightTexture.Bind(texUnit++);
+        brickTexture.Bind(0u);
+        brickLightTexture.Bind(1u);
+        octreeMap.Bind(2u);
+        depthTexture.Bind(3u);
         vao.Bind();
 
         { // "planet" background (to do: spruce this up, maybe move elsewhere)
@@ -292,7 +308,6 @@ namespace Mulen {
             glDepthMask(GL_TRUE);
             glClearDepth(1.0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
             auto& shader = setUpShader(backdropShader);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
@@ -301,16 +316,12 @@ namespace Mulen {
             glDisable(GL_DEPTH_TEST);
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-
             auto& shader = setUpShader(renderShader);
-            shader.Uniform1i("depthTexture", glm::ivec1{ int(texUnit) });
-            depthTexture.Bind(texUnit++);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
 
         { // postprocessing
             glDisable(GL_BLEND);
-
             Util::Framebuffer::BindBackbuffer();
             auto& shader = postShader;
             shader.Bind();

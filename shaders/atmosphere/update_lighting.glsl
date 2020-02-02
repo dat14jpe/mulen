@@ -132,7 +132,10 @@ void main()
                         tc = BrickSampleCoordinates(brickOffs, tc);
                         vec4 voxelData = texture(brickTexture, tc);
                         
-                        float density = voxelData.x;
+                        float rayleigh = voxelData.x, mie = voxelData.y;
+                        rayleigh *= 1.0 / 32.0;
+                        mie *= 1.0;
+                        float density = rayleigh + mie;
                         // - to do: separate Rayleigh and Mie
                         depthR += atmStep * exp(voxelData.x);
                         //shadow -= density * step * 1e2; // - testing
@@ -149,7 +152,7 @@ void main()
                     vec3 p = (ori + dist * dir) / atmScale;
                     //if (length(p * atmScale) < planetRadius * 0.99) break; // - testing (but this should be done accurately and once with a maxDist update)
                     if (dist > maxDist) break;
-                    ni = OctreeDescend(p, nodeCenter, nodeSize, depth);
+                    ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
                     if (old == ni) break; // - error (but can this even happen?)
                     
                     if (numBricks >= 64u) break; // - testing
