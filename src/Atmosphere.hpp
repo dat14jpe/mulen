@@ -22,11 +22,12 @@ namespace Mulen {
         double height = 50000.0; // - to do: correct
         double scale = 1.1;
 
-        // - to do: check these values
         double HR = 8.0e3; // Rayleigh scale height
         glm::dvec3 betaR = { 5.8e-6, 1.35e-5, 3.31e-5 };
         double HM = 1.2e3; // Mie scale height
-        // - to add: Mie values
+        double mieG = 0.76;
+        double betaMEx = 210e-5;
+        double betaMSca = betaMEx / 0.9;
 
 
         Octree octree;

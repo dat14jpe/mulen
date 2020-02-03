@@ -14,10 +14,10 @@ uniform vec3 lightDir;
 
 // Physical values:
 uniform vec3 betaR;
-uniform float HR;
+uniform float HR, HM, betaMEx, betaMSca, mieG;
 
 // Sample scaling:
-uniform float offsetR, scaleR;
+uniform float offsetR, scaleR, offsetM, scaleM;
 
 uniform layout(binding=0) sampler3D brickTexture;
 uniform layout(binding=1) sampler3D brickLightTexture;
@@ -199,10 +199,24 @@ float RayleighDensityFromSample(float v)
 {
     return exp(offsetR + scaleR * v);
 }
+float MieDensityFromSample(float v)
+{
+    return exp(offsetM + scaleM * v);
+}
 
 float PhaseRayleigh(float v)
 {
     return (3.0 / (16.0 * PI)) * (1.0 + v * v);
+}
+
+float PhaseMie(float v)
+{
+    return 1.5 * 1.0 / (4.0 * PI) * (1.0 - mieG*mieG) * pow(1.0 + (mieG*mieG) - 2.0*mieG*v, -3.0/2.0) * (1.0 + v * v) / (2.0 + mieG*mieG);
+    /*return (3.0 / (8.0 * PI))
+        * (1.0 - mieG * mieG)
+        * (1.0 + v * v)
+        * pow(1.0 + mieG * mieG - 2.0 * mieG * v, -1.5)
+        / (2.0 + mieG * mieG);*/
 }
 
 

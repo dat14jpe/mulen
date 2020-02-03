@@ -79,7 +79,9 @@ void main()
     float alpha = 0.0;
     float opticalDepthR = 0.0, opticalDepthM = 0.0;
     vec3 transmittance = vec3(1.0);
-    const float phaseR = PhaseRayleigh(dot(-lightDir, dir));
+    const float mu = dot(lightDir, dir);
+    const float phaseR = PhaseRayleigh(mu);
+    const float phaseM = PhaseMie(mu);
     
     //if (ni > 7u) discard; // - testing. Strangely low nodes used (while splitting 4 levels)
     
@@ -133,9 +135,12 @@ void main()
             
             float rayleigh = voxelData.x, mie = voxelData.y;
             float rayleighDensity = RayleighDensityFromSample(rayleigh);
+            float mieDensity = MieDensityFromSample(mie);
             opticalDepthR += rayleighDensity * atmStep;
+            opticalDepthM += mieDensity * atmStep;
+            // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
             
-            rayleigh *= 200.0 / 32.0;
+            /*rayleigh *= 200.0 / 32.0;
             //rayleigh = exp(rayleigh);
             mie *= 200.0;
             rayleigh = mie = 0.0; // - testing
@@ -149,23 +154,13 @@ void main()
                 const float relativeCloudTop = 0.4; // - to do: tune
                 mie *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
                 //mie *= smoothstep(1.0005, 1.001, length(p)); // - testing bottom hardcode as well (should be avoided)
-            }
+            }*/
             
-            float density = rayleigh + mie; // - to do: handle correctly/separately
-            //density *= 200.0; // - testing
-            //density = smoothstep(0.1, 0.75, density); // - testing
-            //density = 10.0; // - testing
-            const float visibility = 1.0 - alpha;
-            vec3 newLight = vec3(1.0);
-            newLight *= visibility * density * step;
-            alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
-            newLight *= storedLight;
-            //color += newLight;
-            
-            const vec3 lightIntensity = vec3(1e1); // - to do: uniform
-            vec3 transmittance = exp(-opticalDepthR * betaR); // - to do: add Mie
-            // - to do: phase function(s)
-            color += (phaseR * betaR * rayleighDensity) * transmittance * storedLight * lightIntensity * atmStep;
+            const vec3 lightIntensity = vec3(5e0); // - to do: uniform
+            //mieDensity *= 30.0; // - debugging
+            transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+            color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
+                * transmittance * storedLight * lightIntensity * atmStep;
             
             dist += atmStep;
             lc = localStart + dist / nodeSize * dir;

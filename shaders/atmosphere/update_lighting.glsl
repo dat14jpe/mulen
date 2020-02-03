@@ -78,7 +78,7 @@ void main()
         //shadow = 1.0; // - debugging banding
         light = vec3(1.0); // - debugging
         
-        float opticalDepthR = 0.0;
+        float opticalDepthR = 0.0, opticalDepthM = 0.0;
         
         //if (false)
         //if (shadow > 0.0)
@@ -94,8 +94,6 @@ void main()
             float R = planetRadius + atmosphereHeight;
             if (IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) // atmosphere intersection
             {
-                float depthR = 0.0;
-                
                 const uint maxSteps = 512u; // - arbitrary, for testing
                 float maxDist = tmax;
                 
@@ -137,13 +135,13 @@ void main()
                         
                         float rayleigh = voxelData.x, mie = voxelData.y;
                         opticalDepthR += RayleighDensityFromSample(rayleigh) * atmStep;
-                        rayleigh *= 1.0 / 32.0;
+                        opticalDepthM += MieDensityFromSample(mie) * atmStep;
+                        
+                        /*rayleigh *= 1.0 / 32.0;
                         mie *= 1.0;
                         float density = rayleigh + mie;
-                        // - to do: separate Rayleigh and Mie
-                        depthR += atmStep * exp(voxelData.x);
                         //shadow -= density * step * 1e2; // - testing
-                        shadow *= 1.0 - density;
+                        shadow *= 1.0 - density;*/
                         
                         dist += atmStep;
                         lc = localStart + dist / nodeSize * dir;
@@ -167,8 +165,7 @@ void main()
             //light = vec3(shadow);
         }
         
-        vec3 transmittance = exp(-opticalDepthR * betaR);
-        // (to do: phase function(s), making this unfortunately view-dependent)
+        vec3 transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
         light *= transmittance;
         light *= shadow;
     }

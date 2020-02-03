@@ -41,7 +41,7 @@ void main()
     // Generate clouds:
     // - to do: allow for simulation/update, and parameters from CPU
     
-    
+    const float r = (length(p) - 1.0) * planetRadius;
     const float height = 0.01; // - to do: aim for approximately 0.01 (Earth-like)
     const float shellDist = 1.0 + height - length(p);
     if (shellDist < 0.0) return; // - early exit if outside atmosphere (to do: check accuracy of this)
@@ -72,7 +72,9 @@ void main()
         
         //dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in smaller and lower part of range
         rayleigh = dist;
-        rayleigh = -(length(p) - 1.0) * planetRadius / HR;
+        rayleigh = -r / HR;
+        mie = -r / HM;
+        //mie = -20; // - testing
     }
     { // new noisy clouds attempt
         float d = 0.0;
@@ -152,7 +154,7 @@ void main()
         mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
         mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
-        mie += shellFactor * max(0.0, d) * mask;
+        mie = mix(mie, 5.0 * max(0.0, d), shellFactor * mask);
     }
     
     { // zero faces
@@ -163,5 +165,6 @@ void main()
     }
     
     rayleigh = (rayleigh - offsetR) / scaleR;
+    mie = (mie - offsetM) / scaleM;
     imageStore(brickImage, ivec3(writeOffs), vec4(clamp(vec2(rayleigh, mie), vec2(0.0), vec2(1.0)), 0, 0));
 }
