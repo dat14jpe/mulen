@@ -174,12 +174,12 @@ void main()
             ++numSteps;
         }
         ++numBricks;
+        
+        // This optimisation seems highly effective (20200204).
+        // Near-doubling in many cases, and possibly more in others.
+        if (length(transmittance) < 1e-3) break;
+        
         //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
-        
-        //if (alpha > 0.999) break;
-        
-        // - to do: try traversal via neighbours, possibly going down/up one level
-        // (need to pass through 1-3 neighbours here)
         
         const uint old = ni;
         vec3 p = (hit + dist * dir) / atmScale;
