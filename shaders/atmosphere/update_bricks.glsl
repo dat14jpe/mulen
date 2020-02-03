@@ -41,7 +41,7 @@ void main()
     // Generate clouds:
     // - to do: allow for simulation/update, and parameters from CPU
     
-    const float r = (length(p) - 1.0) * planetRadius;
+    const float h = (length(p) - 1.0) * planetRadius;
     const float height = 0.01; // - to do: aim for approximately 0.01 (Earth-like)
     const float shellDist = 1.0 + height - length(p);
     if (shellDist < 0.0) return; // - early exit if outside atmosphere (to do: check accuracy of this)
@@ -72,8 +72,9 @@ void main()
         
         //dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in smaller and lower part of range
         rayleigh = dist;
-        rayleigh = -r / HR;
-        mie = -r / HM;
+        rayleigh = -h / HR;
+        mie = -h / HM; // - too strong now? Check offset/scaling
+        mie = min(0.0, mie); // - testing
         //mie = -20; // - testing
     }
     { // new noisy clouds attempt
@@ -151,10 +152,10 @@ void main()
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         // - do these transitions need to depend on voxel size? Maybe. Think about it, and test
         // - they do, yes. Currently these two cause structural banding
-        mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
-        mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
+        //mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
+        //mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
-        mie = mix(mie, 5.0 * max(0.0, d), shellFactor * mask);
+        mie = mix(mie, 10.0 * max(0.0, d), shellFactor * mask);
     }
     
     { // zero faces

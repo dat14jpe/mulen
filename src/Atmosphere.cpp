@@ -153,7 +153,7 @@ namespace Mulen {
         shader.Uniform1f("mieG", glm::vec1((float)mieG));
 
         shader.Uniform1f("offsetR", glm::vec1{ 0.0f });
-        shader.Uniform1f("scaleR", glm::vec1{ -10.0f });
+        shader.Uniform1f("scaleR", glm::vec1{ -20.0f });
         shader.Uniform1f("offsetM", glm::vec1{ 10.0f });
         shader.Uniform1f("scaleM", glm::vec1{ -30.0f });
 

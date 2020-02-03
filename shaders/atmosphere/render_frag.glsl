@@ -55,7 +55,11 @@ void main()
     const float outerMin = tmin;
     const vec3 hit = ori + dir * tmin - planetLocation;
     
-    const float stepFactor = 0.2 * stepSize;//0.1; // - arbitrary factor (to-be-tuned)
+    // - to do: find a way to not make clouds too dark/noisy without extreme numbers of steps
+    // (maybe try to adaptively decrease step size at cloud boundaries?)
+    
+    const float stepFactor = 0.1 * //0.1; // - arbitrary factor (to-be-tuned)
+        stepSize;
     
     const vec3 globalStart = hit;
     uint depth;
@@ -74,7 +78,7 @@ void main()
     // (large differences in depth could make the former necessary, no?)
     
     
-    const uint maxSteps = 512u; // - arbitrary, for testing
+    const uint maxSteps = 1024u; // - arbitrary, for testing
     
     float alpha = 0.0;
     float opticalDepthR = 0.0, opticalDepthM = 0.0;
@@ -136,14 +140,7 @@ void main()
             float rayleigh = voxelData.x, mie = voxelData.y;
             float rayleighDensity = RayleighDensityFromSample(rayleigh);
             float mieDensity = MieDensityFromSample(mie);
-            opticalDepthR += rayleighDensity * atmStep;
-            opticalDepthM += mieDensity * atmStep;
-            // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
             
-            /*rayleigh *= 200.0 / 32.0;
-            //rayleigh = exp(rayleigh);
-            mie *= 200.0;
-            rayleigh = mie = 0.0; // - testing
             
             { // - test: hardcoded upper cloud boundary
                 // - to do: apply in lighting too, if it's going to be used
@@ -152,9 +149,19 @@ void main()
                 vec3 p = (hit + dir * dist) / planetRadius;
                 const float atmHeight = 0.01;
                 const float relativeCloudTop = 0.4; // - to do: tune
-                mie *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
-                //mie *= smoothstep(1.0005, 1.001, length(p)); // - testing bottom hardcode as well (should be avoided)
-            }*/
+                mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
+                mieDensity *= smoothstep(1.0005, 1.001, length(p)); // - testing bottom hardcode as well (should be avoided)
+            }
+            
+            opticalDepthR += rayleighDensity * atmStep;
+            opticalDepthM += mieDensity * atmStep;
+            // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
+            
+            /*rayleigh *= 200.0 / 32.0;
+            //rayleigh = exp(rayleigh);
+            mie *= 200.0;
+            rayleigh = mie = 0.0; // - testing
+            */
             
             const vec3 lightIntensity = vec3(5e0); // - to do: uniform
             //mieDensity *= 30.0; // - debugging
