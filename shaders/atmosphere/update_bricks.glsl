@@ -72,6 +72,7 @@ void main()
         
         //dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in smaller and lower part of range
         rayleigh = dist;
+        rayleigh = -(length(p) - 1.0) * planetRadius / HR;
     }
     { // new noisy clouds attempt
         float d = 0.0;
@@ -106,8 +107,11 @@ void main()
             const float PI = 3.141592653589793;
             float y = lat / PI * 2.0;
             int cell = int(abs(trunc(y * numCells)));
-            float cm = float(cell % 2) * 2.0 - 1.0;
-            vec2 localWind = vec2(-cm, sign(lat) * cm); // - change x magnitude depending on vertical location in cell? To do
+            int cmi = cell % 2;
+            float cellDist = abs(float(cell + cmi) - abs(y * numCells));
+            float cm = float(cmi) * 2.0 - 1.0;
+            vec2 localWind = vec2(-cm, sign(lat) * cm); // - change x magnitude depending on vertical location in cell? To 
+            localWind.x = mix(localWind.x, localWind.x * cellDist, 0.75); // - to do: tune
             // - to do: smooth transition between cells
             
             const vec3 up = vec3(0, 1, 0);
@@ -133,6 +137,9 @@ void main()
                     p *= lacunarity * scale;
                 }
             }
+            // Unfinished attempt at intertropical convergence zone:
+            //mask += (1.0 - smoothstep(0.0, 0.03, abs(y))) * (fBm(3u, p * 8.0, 0.5, 2.0) * 0.5 + 0.5);
+            
             //mask = cm; // - debugging
             
             // - to do: construct wind-aware mask
@@ -155,5 +162,6 @@ void main()
         }
     }
     
+    rayleigh = (rayleigh - offsetR) / scaleR;
     imageStore(brickImage, ivec3(writeOffs), vec4(clamp(vec2(rayleigh, mie), vec2(0.0), vec2(1.0)), 0, 0));
 }

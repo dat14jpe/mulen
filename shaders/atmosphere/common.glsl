@@ -1,5 +1,7 @@
 
 
+const float PI = 3.14159265358979323846;
+
 // - to do: UBO
 uniform mat4 viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat;
 uniform uint rootGroupIndex;
@@ -10,8 +12,12 @@ uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
 uniform vec3 planetLocation;
 uniform vec3 lightDir;
 
+// Physical values:
 uniform vec3 betaR;
 uniform float HR;
+
+// Sample scaling:
+uniform float offsetR, scaleR;
 
 uniform layout(binding=0) sampler3D brickTexture;
 uniform layout(binding=1) sampler3D brickLightTexture;
@@ -188,6 +194,16 @@ uint OctreeDescendMap(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint 
     return ni;
 }
 
+
+float RayleighDensityFromSample(float v)
+{
+    return exp(offsetR + scaleR * v);
+}
+
+float PhaseRayleigh(float v)
+{
+    return (3.0 / (16.0 * PI)) * (1.0 + v * v);
+}
 
 
 // - to do: move to noise.glsl?

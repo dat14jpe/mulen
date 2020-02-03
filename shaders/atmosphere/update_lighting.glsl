@@ -77,6 +77,9 @@ void main()
         float shadow = PlanetShadow(ori, dir, vec3(0.0), voxelSize);
         //shadow = 1.0; // - debugging banding
         light = vec3(1.0); // - debugging
+        
+        float opticalDepthR = 0.0;
+        
         //if (false)
         //if (shadow > 0.0)
         {
@@ -133,6 +136,7 @@ void main()
                         vec4 voxelData = texture(brickTexture, tc);
                         
                         float rayleigh = voxelData.x, mie = voxelData.y;
+                        opticalDepthR += RayleighDensityFromSample(rayleigh) * atmStep;
                         rayleigh *= 1.0 / 32.0;
                         mie *= 1.0;
                         float density = rayleigh + mie;
@@ -159,12 +163,13 @@ void main()
                 }
                 //if (numBricks > 10u) shadow = 4.0; // - testing
                 //if (numBricks == 1) light = vec3(0, 1, 1) * 1e2; // - debugging
-                
-                vec3 transmittance = betaR * exp(-depthR);
-                // - to do: scatter towards camera, then store
             }
             //light = vec3(shadow);
         }
+        
+        vec3 transmittance = exp(-opticalDepthR * betaR);
+        // (to do: phase function(s), making this unfortunately view-dependent)
+        light *= transmittance;
         light *= shadow;
     }
     

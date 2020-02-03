@@ -77,6 +77,9 @@ void main()
     const uint maxSteps = 512u; // - arbitrary, for testing
     
     float alpha = 0.0;
+    float opticalDepthR = 0.0, opticalDepthM = 0.0;
+    vec3 transmittance = vec3(1.0);
+    const float phaseR = PhaseRayleigh(dot(-lightDir, dir));
     
     //if (ni > 7u) discard; // - testing. Strangely low nodes used (while splitting 4 levels)
     
@@ -129,18 +132,40 @@ void main()
             vec4 voxelData = texture(brickTexture, tc);
             
             float rayleigh = voxelData.x, mie = voxelData.y;
+            float rayleighDensity = RayleighDensityFromSample(rayleigh);
+            opticalDepthR += rayleighDensity * atmStep;
+            
             rayleigh *= 200.0 / 32.0;
             //rayleigh = exp(rayleigh);
             mie *= 200.0;
+            rayleigh = mie = 0.0; // - testing
+            
+            { // - test: hardcoded upper cloud boundary
+                // - to do: apply in lighting too, if it's going to be used
+                // It seems like this *might* get rid of the structural banding at low resolution.
+                // But the performance cost is about 10% (or more?). Hmm.
+                vec3 p = (hit + dir * dist) / planetRadius;
+                const float atmHeight = 0.01;
+                const float relativeCloudTop = 0.4; // - to do: tune
+                mie *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
+                //mie *= smoothstep(1.0005, 1.001, length(p)); // - testing bottom hardcode as well (should be avoided)
+            }
+            
             float density = rayleigh + mie; // - to do: handle correctly/separately
             //density *= 200.0; // - testing
             //density = smoothstep(0.1, 0.75, density); // - testing
+            //density = 10.0; // - testing
             const float visibility = 1.0 - alpha;
             vec3 newLight = vec3(1.0);
             newLight *= visibility * density * step;
             alpha += visibility * density * step; // - to do: do this correctly, not ad hoc
             newLight *= storedLight;
-            color += newLight;
+            //color += newLight;
+            
+            const vec3 lightIntensity = vec3(1e1); // - to do: uniform
+            vec3 transmittance = exp(-opticalDepthR * betaR); // - to do: add Mie
+            // - to do: phase function(s)
+            color += (phaseR * betaR * rayleighDensity) * transmittance * storedLight * lightIntensity * atmStep;
             
             dist += atmStep;
             lc = localStart + dist / nodeSize * dir;
@@ -166,5 +191,8 @@ void main()
     //if (numSteps > 30) { color.r = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     //if (numBricks > 20) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     
+    // - to do: eventually modify solid render light at solidDepth according to final transmittance
+    
+    alpha = 1.0; // - testing
     outValue = vec4(color * alpha, min(1.0, alpha));
 }

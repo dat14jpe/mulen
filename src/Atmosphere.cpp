@@ -144,8 +144,11 @@ namespace Mulen {
         shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
         shader.Uniform1f("atmosphereHeight", glm::vec1{ (float)height });
         shader.Uniform3f("lightDir", lightDir);
+
         shader.Uniform1f("HR", glm::vec1((float)HR));
         shader.Uniform3f("betaR", betaR);
+        shader.Uniform1f("offsetR", glm::vec1{ 0.0f });
+        shader.Uniform1f("scaleR", glm::vec1{ -10.0f });
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
         // - to do: use actual far plane (parameter from outside the Atmosphere class?)

@@ -25,6 +25,7 @@ namespace Mulen {
         // - to do: check these values
         double HR = 8.0e3; // Rayleigh scale height
         glm::dvec3 betaR = { 5.8e-6, 1.35e-5, 3.31e-5 };
+        double HM = 1.2e3; // Mie scale height
         // - to add: Mie values
 
 
