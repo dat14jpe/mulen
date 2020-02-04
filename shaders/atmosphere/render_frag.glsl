@@ -31,7 +31,7 @@ void main()
     float solidDepth = length(ViewspaceFromDepth(GetDepth()));
     
     float tmin, tmax;
-    const float atmFactor = 1.1; // - to do: adjust so that the upper "Rayleigh line" is not visible
+    const float atmFactor = 1.7;//1.1; // - to do: adjust so that the upper "Rayleigh line" is not visible
     float R = planetRadius + atmosphereHeight * atmFactor;
     if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) discard;
     solidDepth = min(solidDepth, tmax);

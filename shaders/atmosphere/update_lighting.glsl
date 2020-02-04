@@ -70,7 +70,6 @@ void main()
     const vec3 ori = p * planetRadius + offsetOrigin(p, dir, voxelSize);
     
     vec3 light = vec3(1.0);
-    if (length(ori - planetLocation) < planetRadius + atmosphereHeight) // only ray trace for voxels within the atmosphere
     {
         //dist += voxelSize * 1.0 * (rand(gp.xy, gp.z)); // - to do: make this work
         
@@ -81,7 +80,8 @@ void main()
         float opticalDepthR = 0.0, opticalDepthM = 0.0;
         
         //if (false)
-        if (shadow > 0.0)
+        if (shadow > 0.0
+            && length(ori - planetLocation) < planetRadius + atmosphereHeight) // only ray trace for voxels within the atmosphere
         {
             light = vec3(1.0);
             {
