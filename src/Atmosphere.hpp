@@ -35,8 +35,8 @@ namespace Mulen {
 
         // Render:
         Util::Shader postShader;
-        Util::Framebuffer fbo;
-        Util::Texture depthTexture, lightTexture; // - to do: maybe go full deferred (i.e. add at least colour)
+        Util::Framebuffer fbos[2];
+        Util::Texture depthTexture, lightTextures[2];
 
         Util::Texture octreeMap;
         Util::Buffer gpuNodes;

@@ -155,7 +155,8 @@ void main()
         //mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
         //mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
-        mie = mix(mie, 10.0 * max(0.0, d), shellFactor * mask);
+        const float cloudDensity = 5.0; // - to do: tune this
+        mie = mix(mie, cloudDensity * max(0.0, d), shellFactor * mask);
     }
     
     { // zero faces

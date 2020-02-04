@@ -276,10 +276,13 @@ namespace Mulen {
         if (depthTexture.GetWidth() != res.x || depthTexture.GetHeight() != res.y)
         {
             depthTexture.Create(GL_TEXTURE_2D, 1u, GL_DEPTH24_STENCIL8, res.x, res.y);
-            lightTexture.Create(GL_TEXTURE_2D, 1u, GL_RGB16F, res.x, res.y);
-            fbo.Create();
-            fbo.SetDepthBuffer(depthTexture, 0u);
-            fbo.SetColorBuffer(0u, lightTexture, 0u);
+            for (auto i = 0u; i < 2u; ++i)
+            {
+                lightTextures[i].Create(GL_TEXTURE_2D, 1u, GL_RGB16F, res.x, res.y);
+                fbos[i].Create();
+                fbos[i].SetDepthBuffer(depthTexture, 0u);
+                fbos[i].SetColorBuffer(0u, lightTextures[i], 0u);
+            }
         }
 
         const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position - camera.GetPosition());
@@ -303,7 +306,7 @@ namespace Mulen {
             return shader;
         };
 
-        fbo.Bind();
+        fbos[0].Bind();
         auto ssboIndex = 0u, texUnit = 0u;
         gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
         brickTexture.Bind(0u);
@@ -323,6 +326,9 @@ namespace Mulen {
         }
         
         { // atmosphere
+            fbos[1].Bind();
+            glClear(GL_COLOR_BUFFER_BIT);
+            lightTextures[0].Bind(4u);
             glDisable(GL_DEPTH_TEST);
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -335,7 +341,7 @@ namespace Mulen {
             Util::Framebuffer::BindBackbuffer();
             auto& shader = postShader;
             shader.Bind();
-            lightTexture.Bind(0u);
+            lightTextures[1].Bind(0u);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
 

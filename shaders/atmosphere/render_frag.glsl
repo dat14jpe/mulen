@@ -4,6 +4,7 @@
 
 layout(location = 0) out vec4 outValue;
 in vec4 clip_coords;
+uniform layout(binding=4) sampler2D lightTexture;
 
 
 float GetDepth()
@@ -22,6 +23,7 @@ vec3 ViewspaceFromDepth(float depth)
 
 void main()
 {
+    const vec3 backLight = texelFetch(lightTexture, ivec2(gl_FragCoord.xy), 0).xyz;
     const float atmScale = atmosphereRadius;
     
     const vec3 ori = vec3(invViewMat * vec4(0, 0, 0, 1));
@@ -80,32 +82,16 @@ void main()
     
     const uint maxSteps = 1024u; // - arbitrary, for testing
     
-    float alpha = 0.0;
     float opticalDepthR = 0.0, opticalDepthM = 0.0;
     vec3 transmittance = vec3(1.0);
     const float mu = dot(lightDir, dir);
     const float phaseR = PhaseRayleigh(mu);
     const float phaseM = PhaseMie(mu);
     
-    //if (ni > 7u) discard; // - testing. Strangely low nodes used (while splitting 4 levels)
-    
     // Trace through bricks:
     uint numBricks = 0u, numSteps = 0u;
     while (InvalidIndex != ni)
-    {
-        // - debugging (structure visualisation)
-        if (false)
-        {
-            if (depth < 6)
-            {
-                alpha += 0.05;
-                color += vec3(1, 0, 0) * 1e-2;
-                if (depth == 1u) color += vec3(0, 1, 0) * 1e-2;
-                if (depth == 2u) color += vec3(0, 0, 1) * 1e-2;
-            }
-            if (depth == 6) { alpha += 0.05; color += vec3(0, 1, 0) * 1e-3; }
-        }
-        
+    {   
         nodeCenter *= atmScale;
         nodeSize *= atmScale;
         const float step = nodeSize / atmScale * stepFactor;
@@ -127,9 +113,7 @@ void main()
         // - to do: add random offset here (again), or only on depth change? Let's see
         
         while (dist < tmax && numSteps < maxSteps)
-        {
-            if (alpha > 0.999) break; // - to do: tune
-            
+        {            
             vec3 tc = lc * 0.5 + 0.5;
             tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
             tc = BrickSampleCoordinates(brickOffs, tc);
@@ -146,22 +130,20 @@ void main()
                 // - to do: apply in lighting too, if it's going to be used
                 // It seems like this *might* get rid of the structural banding at low resolution.
                 // But the performance cost is about 10% (or more?). Hmm.
+                // (and the flexibility cost is steep as well: no mist or low clouds in general)
                 vec3 p = (hit + dir * dist) / planetRadius;
                 const float atmHeight = 0.01;
                 const float relativeCloudTop = 0.4; // - to do: tune
                 mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
-                mieDensity *= smoothstep(1.0005, 1.001, length(p)); // - testing bottom hardcode as well (should be avoided)
+                float bottom = smoothstep(1.0005, 1.001, length(p));
+                float a = 1.0 / 6371.0;
+                //bottom = max(bottom, 1.0 - smoothstep(1.0 + a * 0.5, 1.0 + a, length(p)));
+                mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
             }
             
             opticalDepthR += rayleighDensity * atmStep;
             opticalDepthM += mieDensity * atmStep;
             // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
-            
-            /*rayleigh *= 200.0 / 32.0;
-            //rayleigh = exp(rayleigh);
-            mie *= 200.0;
-            rayleigh = mie = 0.0; // - testing
-            */
             
             const vec3 lightIntensity = vec3(5e0); // - to do: uniform
             //mieDensity *= 30.0; // - debugging
@@ -193,8 +175,6 @@ void main()
     //if (numSteps > 30) { color.r = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     //if (numBricks > 20) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
     
-    // - to do: eventually modify solid render light at solidDepth according to final transmittance
-    
-    alpha = 1.0; // - testing
-    outValue = vec4(color * alpha, min(1.0, alpha));
+    color += backLight * transmittance;
+    outValue = vec4(color, 1.0);
 }
