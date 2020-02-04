@@ -69,7 +69,7 @@ void main()
     const vec3 dir = lightDir;
     const vec3 ori = p * planetRadius + offsetOrigin(p, dir, voxelSize);
     
-    vec3 light = vec3(0.0);
+    vec3 light = vec3(1.0);
     if (length(ori - planetLocation) < planetRadius + atmosphereHeight) // only ray trace for voxels within the atmosphere
     {
         //dist += voxelSize * 1.0 * (rand(gp.xy, gp.z)); // - to do: make this work
@@ -81,7 +81,7 @@ void main()
         float opticalDepthR = 0.0, opticalDepthM = 0.0;
         
         //if (false)
-        //if (shadow > 0.0)
+        if (shadow > 0.0)
         {
             light = vec3(1.0);
             {
@@ -122,12 +122,9 @@ void main()
                     vec3 localStart = (ori - nodeCenter) / nodeSize;
                     vec3 lc = localStart + dist / nodeSize * dir;
                     
-                    const float shadowThreshold = 1e-2;
-                    
                     //do // do while to not erroneously miss the first voxel if it's on the border
                     while (dist < tmax && numSteps < maxSteps)
                     {
-                        if (shadow < shadowThreshold) break;
                         vec3 tc = lc * 0.5 + 0.5;
                         tc = clamp(tc, vec3(0.0), vec3(1.0));
                         tc = BrickSampleCoordinates(brickOffs, tc);
@@ -137,18 +134,11 @@ void main()
                         opticalDepthR += RayleighDensityFromSample(rayleigh) * atmStep;
                         opticalDepthM += MieDensityFromSample(mie) * atmStep;
                         
-                        /*rayleigh *= 1.0 / 32.0;
-                        mie *= 1.0;
-                        float density = rayleigh + mie;
-                        //shadow -= density * step * 1e2; // - testing
-                        shadow *= 1.0 - density;*/
-                        
                         dist += atmStep;
                         lc = localStart + dist / nodeSize * dir;
                         ++numSteps;
                     } //while (dist < tmax && numSteps < maxSteps);
                     ++numBricks;
-                    if (shadow < shadowThreshold) break;
                     
                     const uint old = ni;
                     vec3 p = (ori + dist * dir) / atmScale;
@@ -158,11 +148,11 @@ void main()
                     if (old == ni) break; // - error (but can this even happen?)
                     
                     if (numBricks >= 64u) break; // - testing
+                    // - maybe also try breaking if transmittance is too high (though needlessly evaluating it might be expensive in itself)
                 }
                 //if (numBricks > 10u) shadow = 4.0; // - testing
                 //if (numBricks == 1) light = vec3(0, 1, 1) * 1e2; // - debugging
             }
-            //light = vec3(shadow);
         }
         
         vec3 transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));

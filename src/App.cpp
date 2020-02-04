@@ -120,6 +120,9 @@ namespace Mulen {
                         auto viewMatInv = glm::inverse(camera.GetViewMatrix());
                         a0 = (viewMatInv * glm::dvec4(a0, 0.0));
                         a1 = (viewMatInv * glm::dvec4(a1, 0.0));
+                        const auto planetR = atmosphere.GetPlanetRadius();
+                        const auto mul = glm::min(1.0, camera.radius / (planetR * 2.25));
+                        a0 *= mul;
                         cross = glm::cross(a0, a1);
                         auto q = Object::Orientation{ dot(a0, a1), cross };
 

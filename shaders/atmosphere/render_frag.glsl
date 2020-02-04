@@ -31,7 +31,8 @@ void main()
     float solidDepth = length(ViewspaceFromDepth(GetDepth()));
     
     float tmin, tmax;
-    float R = planetRadius + atmosphereHeight;
+    const float atmFactor = 1.1; // - to do: adjust so that the upper "Rayleigh line" is not visible
+    float R = planetRadius + atmosphereHeight * atmFactor;
     if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) discard;
     solidDepth = min(solidDepth, tmax);
     
@@ -141,8 +142,6 @@ void main()
                 mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
             }
             
-            opticalDepthR += rayleighDensity * atmStep;
-            opticalDepthM += mieDensity * atmStep;
             // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
             
             const vec3 lightIntensity = vec3(5e0); // - to do: uniform
@@ -150,6 +149,12 @@ void main()
             transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
             color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
                 * transmittance * storedLight * lightIntensity * atmStep;
+            // - experiment: Mie added to optical depth *after*, to not occlude itself
+            // (should also be the case for Rayleigh, maybe?)
+            // - but adding Mie optical depth here tends to make clouds overly bright at close range
+            // (which might turn out to not be a problem with adaptive loading of higher detail, eventually)
+            opticalDepthR += rayleighDensity * atmStep;
+            opticalDepthM += mieDensity * atmStep;
             
             dist += atmStep;
             lc = localStart + dist / nodeSize * dir;
