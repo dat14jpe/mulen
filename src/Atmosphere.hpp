@@ -25,9 +25,9 @@ namespace Mulen {
         double HR = 8.0e3; // Rayleigh scale height
         glm::dvec3 betaR = { 5.8e-6, 1.35e-5, 3.31e-5 };
         double HM = 1.2e3; // Mie scale height
-        double mieG = 0.76;
-        double betaMEx = 210e-5;
-        double betaMSca = betaMEx / 0.9;
+        double mieG = 0.8;
+        double betaMSca = 2e-5;
+        double betaMEx = betaMSca / 0.9;
 
 
         Octree octree;

@@ -152,10 +152,11 @@ namespace Mulen {
         shader.Uniform1f("betaMSca", glm::vec1((float)betaMSca));
         shader.Uniform1f("mieG", glm::vec1((float)mieG));
 
-        shader.Uniform1f("offsetR", glm::vec1{ 0.0f });
+        // - tuning these is important to avoid visual banding/clamping
+        shader.Uniform1f("offsetR", glm::vec1{ 2.0f });
         shader.Uniform1f("scaleR", glm::vec1{ -20.0f });
-        shader.Uniform1f("offsetM", glm::vec1{ 10.0f });
-        shader.Uniform1f("scaleM", glm::vec1{ -30.0f });
+        shader.Uniform1f("offsetM", glm::vec1{ 20.0f });
+        shader.Uniform1f("scaleM", glm::vec1{ -80.0f });
 
         // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
         // - to do: use actual far plane (parameter from outside the Atmosphere class?)

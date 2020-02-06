@@ -35,6 +35,11 @@ void main()
         // (didn't seem to really work well, unfortunately)
         p += upload.nodeLocation.w / float(BrickRes - 1u) * vec3(rand3D(p.xyz), rand3D(p.zyx), rand3D(p.yxz));
     }
+    // - debugging generation aliasing:
+    {
+        //if (length(p) < 1.0) p = normalize(p);
+        // - to do: try "normalizing" to nearest spherical shell of radius spacing voxelSize
+    }
     
     float rayleigh = 0.0, mie = 0.0;
     
@@ -74,9 +79,10 @@ void main()
         rayleigh = dist;
         rayleigh = -h / HR;
         mie = -h / HM; // - too strong now? Check offset/scaling
-        mie = min(0.0, mie); // - testing
+        //mie = min(0.0, mie); // - testing
         //mie = -20; // - testing
     }
+    //if (false) // - debugging
     { // new noisy clouds attempt
         float d = 0.0;
         vec3 np = p;
@@ -155,8 +161,12 @@ void main()
         //mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
         //mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
-        const float cloudDensity = 5.0; // - to do: tune this
-        mie = mix(mie, cloudDensity * max(0.0, d), shellFactor * mask);
+        const float cloudDensity = 5.0; // - to do: tune this (probably needs to be higher, no? Maybe 10? Try to find a physical derivation)
+        float cloud = cloudDensity * max(0.0, d);
+        // - to do: try different ways of combining these
+        //mie = mix(mie, cloud, shellFactor * mask);
+        //mie = log(mix(exp(mie), exp(cloud), shellFactor * mask));
+        mie += 2.0 * cloud * shellFactor * mask; // - is this (just adding) really better? Hmm.
     }
     
     { // zero faces

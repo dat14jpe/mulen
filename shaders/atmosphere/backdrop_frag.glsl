@@ -32,16 +32,17 @@ void main()
     vec3 diffuseColor = vec3(1.0);
     diffuseColor = vec3(0.01, 0.05, 0.1);
     diffuseColor = pow(vec3(0.016, 0.306, 0.482), vec3(2.2));
-    //diffuseColor = vec3(0.0); // - testing
+    diffuseColor = vec3(0.0); // - testing
     color *= diffuseColor;
     //color = vec3(0.0);
     
     { // sunglint (specular)
         vec3 d = reflect(lightDir, normal);
-        float s = pow(max(0.0, dot(d, dir)), 50.0);
+        float s = pow(max(0.0, dot(d, dir)), 80.0);
         color += s * vec3(1.0);
     }
     
+    //if (false) // - debugging
     { // - testing modulation by atmosphere lighting
         // - the sample position probably needs to be dithered in time... no?
         vec3 p = (hitp + dir * randOffs - center) / atmosphereScale / planetRadius;
@@ -61,6 +62,7 @@ void main()
             color *= storedLight;
         }
     }
+    //color *= 10.0; // - to do: uniform
     
     outValue = vec4(color, 1);
     //float flogz = 1.0 + (worldViewProjMat * vec4(hitp, 1.0)).w;

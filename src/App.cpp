@@ -86,6 +86,11 @@ namespace Mulen {
                 // - to do: restrict by radius, when implementing planet-locked camera
             }
 
+            if (window.IsKeyPressed(GLFW_KEY_U)) // upright (prototype. To do: make (partly?) automatic)
+            {
+
+            }
+
             auto cursorPos = glm::dvec2(window.GetCursorPosition());
             cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
             cursorPos.x *= aspect;

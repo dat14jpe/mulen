@@ -46,7 +46,7 @@ vec3 offsetOrigin(vec3 p, vec3 dir, float voxelSize)
     float y = sqrt(r) * sin(theta);
     return 
         //dir * voxelSize 
-        p * voxelSize
+        //p * voxelSize
         + offs * voxelSize * (x * a + y * b)
         ;
 }
@@ -63,7 +63,7 @@ void main()
     
     
     const float voxelSize = 1.0 / float(BrickRes - 1u) * 2 * upload.nodeLocation.w * atmosphereScale * planetRadius;
-    const float stepFactor = 0.2 * stepSize; // - to-be-tuned
+    const float stepFactor = 0.1 * stepSize; // - to-be-tuned
     const float atmScale = atmosphereRadius;
     float dist = 0.0;
     const vec3 dir = lightDir;
@@ -74,10 +74,12 @@ void main()
         //dist += voxelSize * 1.0 * (rand(gp.xy, gp.z)); // - to do: make this work
         
         float shadow = PlanetShadow(ori, dir, vec3(0.0), voxelSize);
+        //shadow = min(1.0, shadow); // - test (probably bad, for interpolation. Or not?)
         //shadow = 1.0; // - debugging banding
         light = vec3(1.0); // - debugging
         
         float opticalDepthR = 0.0, opticalDepthM = 0.0;
+        float prevDensityR = 0.0, prevDensityM = 0.0; // - maybe to do: get these from start values
         
         //if (false)
         if (shadow > 0.0
@@ -131,8 +133,23 @@ void main()
                         vec4 voxelData = texture(brickTexture, tc);
                         
                         float rayleigh = voxelData.x, mie = voxelData.y;
-                        opticalDepthR += RayleighDensityFromSample(rayleigh) * atmStep;
-                        opticalDepthM += MieDensityFromSample(mie) * atmStep;
+                        float densityR = RayleighDensityFromSample(rayleigh);
+                        float densityM = MieDensityFromSample(mie);
+                        
+                        const bool midPoint = false;//true;
+                        if (midPoint)
+                        {
+                            opticalDepthR += densityR * atmStep;
+                            opticalDepthM += densityM * atmStep;
+                        }
+                        else
+                        {
+                            opticalDepthR += (prevDensityR + densityR) * 0.5 * atmStep;
+                            opticalDepthM += (prevDensityM + densityM) * 0.5 * atmStep;
+                        }
+                        
+                        prevDensityR = densityR;
+                        prevDensityM = densityM;
                         
                         dist += atmStep;
                         lc = localStart + dist / nodeSize * dir;

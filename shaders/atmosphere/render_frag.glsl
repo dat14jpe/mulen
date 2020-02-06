@@ -61,7 +61,7 @@ void main()
     // - to do: find a way to not make clouds too dark/noisy without extreme numbers of steps
     // (maybe try to adaptively decrease step size at cloud boundaries?)
     
-    const float stepFactor = 0.1 * //0.1; // - arbitrary factor (to-be-tuned)
+    const float stepFactor = 0.1; // - arbitrary factor (to-be-tuned)
         stepSize;
     
     const vec3 globalStart = hit;
@@ -88,6 +88,7 @@ void main()
     const float mu = dot(lightDir, dir);
     const float phaseR = PhaseRayleigh(mu);
     const float phaseM = PhaseMie(mu);
+    float lastRayleighDensity = 0.0, lastMieDensity = 0.0; // - or should these be the logarithms? Investigate
     
     // Trace through bricks:
     uint numBricks = 0u, numSteps = 0u;
@@ -120,11 +121,15 @@ void main()
             tc = BrickSampleCoordinates(brickOffs, tc);
             
             vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+            storedLight = min(vec3(1.0), storedLight); // for interpolation, lighting shadows can be "negative" (but is this needed?)
+            //storedLight = vec3(1.0); // - debugging
+            
             vec4 voxelData = texture(brickTexture, tc);
             
             float rayleigh = voxelData.x, mie = voxelData.y;
             float rayleighDensity = RayleighDensityFromSample(rayleigh);
             float mieDensity = MieDensityFromSample(mie);
+            //mieDensity = mie * 0.02; // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
             
             
             { // - test: hardcoded upper cloud boundary
@@ -135,16 +140,16 @@ void main()
                 vec3 p = (hit + dir * dist) / planetRadius;
                 const float atmHeight = 0.01;
                 const float relativeCloudTop = 0.4; // - to do: tune
-                mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
+                //mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
                 float bottom = smoothstep(1.0005, 1.001, length(p));
                 float a = 1.0 / 6371.0;
                 //bottom = max(bottom, 1.0 - smoothstep(1.0 + a * 0.5, 1.0 + a, length(p)));
-                mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
+                //mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
             }
             
             // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
             
-            const vec3 lightIntensity = vec3(5e0); // - to do: uniform
+            const vec3 lightIntensity = vec3(10e0); // - to do: uniform
             //mieDensity *= 30.0; // - debugging
             transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
             color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
@@ -153,8 +158,21 @@ void main()
             // (should also be the case for Rayleigh, maybe?)
             // - but adding Mie optical depth here tends to make clouds overly bright at close range
             // (which might turn out to not be a problem with adaptive loading of higher detail, eventually)
-            opticalDepthR += rayleighDensity * atmStep;
-            opticalDepthM += mieDensity * atmStep;
+            
+            const bool midPoint = false;//true;
+            if (midPoint)
+            {
+                opticalDepthR += rayleighDensity * atmStep;
+                opticalDepthM += mieDensity * atmStep;
+            }
+            else // trapezoidal
+            {
+                opticalDepthR += (lastRayleighDensity + rayleighDensity) * 0.5 * atmStep;
+                opticalDepthM += (lastMieDensity + mieDensity) * 0.5 * atmStep;
+            }
+            
+            lastRayleighDensity = rayleighDensity;
+            lastMieDensity = lastMieDensity;
             
             dist += atmStep;
             lc = localStart + dist / nodeSize * dir;
@@ -177,8 +195,9 @@ void main()
         
         if (numBricks >= 64u) break; // - testing
     }
-    //if (numSteps > 30) { color.r = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
-    //if (numBricks > 20) { color.g = 1.0; alpha = max(alpha, 0.5); } // - performance visualisation
+    //if (numSteps > 30) color.r = 1.0; // - performance visualisation
+    //if (numBricks > 20) color.g = 0.0; // - performance visualisation
+    //color.g += 0.01 * float(numBricks);
     
     color += backLight * transmittance;
     outValue = vec4(color, 1.0);
