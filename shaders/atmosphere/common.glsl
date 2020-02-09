@@ -11,6 +11,7 @@ uniform float stepSize;
 uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
 uniform vec3 planetLocation;
 uniform vec3 lightDir;
+uniform vec3 sun; // distance, radius, intensity (already attenuated)
 
 // Physical values:
 uniform vec3 betaR;

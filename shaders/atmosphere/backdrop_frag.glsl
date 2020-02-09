@@ -7,15 +7,12 @@ layout(location = 0) out vec4 outValue;
 in vec4 ndc;
 //in float flogz;
 
-void main()
+bool RenderPlanet(vec3 ori, vec3 dir)
 {
-    const vec3 ori = vec3(invViewMat * vec4(0, 0, 0, 1));
-    const vec3 dir = normalize(vec3(invViewProjMat * ndc));
-    
     const vec3 center = planetLocation;
     float t0, t1;
-    if (!IntersectSphere(ori, dir, center, planetRadius, t0, t1)) discard;
-    if (t0 <= 0.0) discard; // don't block if we're inside the planet (since it's fun to look out into the atmosphere shell)
+    if (!IntersectSphere(ori, dir, center, planetRadius, t0, t1)) return false;
+    if (t0 <= 0.0) return false; // don't block if we're inside the planet (since it's fun to look out into the atmosphere shell)
     
     // - to do: dither (somehow proportionally to voxel size, of course)
     const vec2 randTimeOffs = vec2(cos(time), sin(time));
@@ -32,7 +29,7 @@ void main()
     vec3 diffuseColor = vec3(1.0);
     diffuseColor = vec3(0.01, 0.05, 0.1);
     diffuseColor = pow(vec3(0.016, 0.306, 0.482), vec3(2.2));
-    diffuseColor = vec3(0.0); // - testing
+    diffuseColor = vec3(0.0); // - testing (though this seems more correct than having a color)
     color *= diffuseColor;
     //color = vec3(0.0);
     
@@ -68,4 +65,26 @@ void main()
     //float flogz = 1.0 + (worldViewProjMat * vec4(hitp, 1.0)).w;
     float flogz = 1.0 + (viewProjMat * vec4(hitp, 1.0)).w;
     gl_FragDepth = log2(flogz) * Fcoef_half;
+    return true;
+}
+
+bool RenderSun(vec3 ori, vec3 dir)
+{
+    const vec3 center = lightDir * sun.x;
+    float t0, t1;
+    if (!IntersectSphere(ori, dir, center, sun.y, t0, t1)) return false;
+    // - to do: simple bloom effect around it? A dedicated bloom pass would be better, but maybe
+    vec3 color = vec3(1.0) * 1.0;//sun.z;
+    outValue = vec4(color, 1);
+    gl_FragDepth = 0.5;
+    // - to do
+    return true;
+}
+
+void main()
+{
+    const vec3 ori = vec3(invViewMat * vec4(0, 0, 0, 1));
+    const vec3 dir = normalize(vec3(invViewProjMat * ndc));
+    
+    if (!RenderPlanet(ori, dir) && !RenderSun(ori, dir)) discard;
 }

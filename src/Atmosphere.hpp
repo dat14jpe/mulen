@@ -29,6 +29,8 @@ namespace Mulen {
         double betaMSca = 2e-5;
         double betaMEx = betaMSca / 0.9;
 
+        double sunDistance = 1.5e11, sunRadius = 6.957e8, sunIntensity = 1e1; // - to do: make intensity physically based
+
 
         Octree octree;
         NodeIndex rootGroupIndex;
@@ -95,6 +97,8 @@ namespace Mulen {
 
         void Update(const Camera&);
         void Render(const glm::ivec2& res, double time, const Camera&);
+
+        void RecomputeLighting();
 
         double GetPlanetRadius() const { return planetRadius; }
     };

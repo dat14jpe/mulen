@@ -26,6 +26,8 @@ namespace Mulen {
         Atmosphere atmosphere;
         Util::Timer timer;
 
+        bool upright = true, collision = true, fly = true;
+
         void SetVSync(bool);
         bool Reload();
         void OnFrame() override;

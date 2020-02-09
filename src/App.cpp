@@ -55,6 +55,10 @@ namespace Mulen {
             ImGui::ColorEdit3("clear color", (float*)&clear_color);
             ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
 
+            ImGui::Checkbox("Upright", &upright);
+            ImGui::Checkbox("Collision", &collision);
+            ImGui::Checkbox("Fly", &fly);
+
             /*if (ImGui::Button("Button")) counter++;
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);*/
@@ -81,14 +85,8 @@ namespace Mulen {
                 force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 16.0)); // - to do: find nicer speed profile
                 //force *= glm::clamp(pow((dist - r) / r, 1.5), 1e-2, 1.0);
                 accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
+                // - to do: only perpendicular to planet normal, if not flying
                 camera.Accelerate(glm::normalize(accel) * force);
-
-                // - to do: restrict by radius, when implementing planet-locked camera
-            }
-
-            if (window.IsKeyPressed(GLFW_KEY_U)) // upright (prototype. To do: make (partly?) automatic)
-            {
-
             }
 
             auto cursorPos = glm::dvec2(window.GetCursorPosition());
@@ -155,7 +153,27 @@ namespace Mulen {
             camera.Update(dt);
             if (camera.GetVelocity() != Object::Position{ 0.0 })
             {
-                camera.radius = glm::distance(camera.GetPosition(), atmosphere.GetPosition());
+                auto cp = camera.GetPosition(), ap = atmosphere.GetPosition();
+                auto R = atmosphere.GetPlanetRadius();
+                camera.radius = glm::distance(cp, ap);
+                
+                const auto minR = 1.79; // seems like a decent test height
+                if (collision && camera.radius < minR + R)
+                {
+                    camera.radius = minR + R;
+                    camera.SetPosition(ap + glm::normalize(cp - ap) * camera.radius);
+                }
+            }
+
+            if (window.IsKeyPressed(GLFW_KEY_U) || upright)
+            {
+                // Idea: rotate so that view right vector is perpendicular to planet normal at current location.
+                auto viewMat = camera.GetViewMatrix();
+                auto right = Object::Position{ glm::inverse(viewMat) * glm::dvec4{ 1, 0, 0, 0 } };
+                auto up = glm::normalize(atmosphere.GetPosition() - camera.GetPosition());
+                auto angle = 3.141592653589793 * 0.5 - acos(glm::dot(up, right));
+                Object::Orientation q = glm::angleAxis(angle, Object::Position{ 0, 0, -1 });
+                if (abs(angle) > 1e-3) camera.ApplyRotation(q);
             }
         }
 

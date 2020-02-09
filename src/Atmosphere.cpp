@@ -30,15 +30,15 @@ namespace Mulen {
         std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, " 
             << width << "*" << height << "*" << depth << " texels (multiple of "
             << (width * height * depth / (1024 * 1024)) << " MB)\n";
-        auto setUpTexture = [&](Util::Texture& tex, GLenum internalFormat)
+        auto setUpTexture = [&](Util::Texture& tex, GLenum internalFormat, bool linear)
         {
-            const auto filter = GL_LINEAR;
+            auto filter = linear ? GL_LINEAR : GL_NEAREST;
             tex.Create(GL_TEXTURE_3D, 1u, internalFormat, width, height, depth);
             glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, filter);
             glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, filter);
         };
-        setUpTexture(brickTexture, BrickFormat);
-        setUpTexture(brickLightTexture, BrickLightFormat);
+        setUpTexture(brickTexture, BrickFormat, true);
+        setUpTexture(brickLightTexture, BrickLightFormat, true);
 
         // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
         const auto mapRes = 64u; // - to do: try different values and measure performance
@@ -132,7 +132,7 @@ namespace Mulen {
 
     void Atmosphere::SetUniforms(Util::Shader& shader)
     {
-        const auto lightDir = glm::normalize(glm::vec3(1, 0.6, 0.4));
+        const auto lightDir = glm::normalize(glm::vec3(1, 0., 0.));
 
         // - to do: use a UBO instead
         shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
@@ -144,6 +144,7 @@ namespace Mulen {
         shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
         shader.Uniform1f("atmosphereHeight", glm::vec1{ (float)height });
         shader.Uniform3f("lightDir", lightDir);
+        shader.Uniform3f("sun", glm::vec3{ sunDistance, sunRadius, sunIntensity });
 
         shader.Uniform1f("HR", glm::vec1((float)HR));
         shader.Uniform3f("betaR", betaR);
