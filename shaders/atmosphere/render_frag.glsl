@@ -59,22 +59,33 @@ void main()
                 }
             }
         }
-        if (false)
+        //if (false)
         { // - debugging
             
+            float dist = 0.0;
+            
             float elevation = 0.5 + 1 * (cos(time) * 0.5 + 0.5);
-            elevation = 1.0;
+            elevation = 0.0;
             float voxelSize = 15.6431 * 1e3;
+            
             float R = planetRadius + (elevation * voxelSize);
             if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) discard;
             
-            // - to do: maybe intersect with a fixed plane, to really see through a layer at a time?
-            vec3 pn = vec3(0, 0, 1);
-            float pd = dot(dir, pn);
-            // - to do
+            dist = tmin;
             
-            float dist = 0.0;
-            const vec3 hit = ori + dir * (tmin + dist) - planetLocation;
+            float pz = 0.0;
+            pz = 2.2e5; // - arbitrary
+            if ((ori + dir * dist - planetLocation).z > pz)
+            {
+                // - to do: maybe intersect with a fixed plane, to really see through a layer at a time?
+                vec3 pn = vec3(0, 0, 1);
+                float pd = dot(-dir, pn);
+                dist = dot(ori - (planetLocation + pn * pz), pn) / pd;
+                // - to do
+                if (length(ori + dir * dist - planetLocation) > R) discard;
+            }
+            
+            vec3 hit = ori + dir * dist - planetLocation;
             uint depth;
             vec3 nodeCenter;
             float nodeSize;
@@ -85,8 +96,32 @@ void main()
             vec3 lc = (hit - nodeCenter) / nodeSize;
             
             vec3 tc = lc * 0.5 + 0.5;
+            vec3 ltc = tc;
             tc = BrickSampleCoordinates(brickOffs, tc);
             vec3 storedLight = vec3(texture(brickLightTexture, tc));
+            
+            tc *= vec3(textureSize(brickLightTexture, 0));
+            //storedLight = vec3(texelFetch(brickLightTexture, ivec3(tc), 0));
+            //if (false) // grid lines
+            {
+                tc = (lc * 0.5 + 0.5) * 7.0;
+                vec3 gridLine = abs(fract(tc) - vec3(0.5));
+                if (any(greaterThan(gridLine, vec3(0.48))))
+                {
+                    float maxLine = max(gridLine.x, max(gridLine.y, gridLine.z));
+                    vec3 gridColor = vec3(1.0) - storedLight;
+                    gridColor = vec3(0, 0, 1);
+                    //storedLight = mix(storedLight, gridColor, smoothstep(0.48, 0.5, maxLine));
+                    storedLight += gridColor * 0.1;
+                    storedLight.b = max(0.0, storedLight.b) + 0.1;
+                    
+                    if (any(greaterThan(abs(ltc - vec3(0.5)), vec3(0.48))))
+                    {
+                        storedLight.g = max(0.0, storedLight.g) + 0.1;
+                    }
+                }
+            }
+            
             //storedLight = max(vec3(0.0), storedLight);
             //storedLight = min(vec3(1.0), storedLight);
             if (false)
@@ -94,9 +129,13 @@ void main()
                 if (any(greaterThan(storedLight, vec3(1.0)))) storedLight = vec3(0, 1, 0);
                 if (any(lessThan(storedLight, vec3(0.0)))) storedLight = vec3(1, 0, 1);
             }
+            //if (depth == 6u) storedLight.b = 1.0;
             
             //outValue = vec4(gl_FragCoord.xy / 1024.0, 0.0, 1.0);
             //storedLight = exp(-(1e2 * storedLight)); // - to do: scaling
+            //if (any(lessThan(storedLight, vec3(0.0)))) storedLight = vec3(1, 0, 0);
+            //if (any(greaterThan(storedLight, vec3(1.0)))) storedLight = vec3(0, 1, 0);
+            
             storedLight *= 0.25;
             outValue = vec4(storedLight, 1.0);
             return;

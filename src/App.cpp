@@ -15,12 +15,17 @@ namespace Mulen {
         Reload();
         SetVSync(vsync);
 
+        InitializeAtmosphere();
+        camera.SetPosition(Object::Position(0, 0, atmosphere.GetPlanetRadius() * 2.25));
+        camera.radius = glm::distance(camera.GetPosition(), atmosphere.GetPosition());
+    }
+
+    bool App::InitializeAtmosphere()
+    {
         // - to do: configurable values, not hardcoded
         const size_t budget = 256u * (1u << 20u);
         atmosphere.Init({ budget, budget });
-
-        camera.SetPosition(Object::Position(0, 0, atmosphere.GetPlanetRadius() * 2.25));
-        camera.radius = glm::distance(camera.GetPosition(), atmosphere.GetPosition());
+        return true;
     }
 
     void App::SetVSync(bool vsync)
@@ -58,6 +63,11 @@ namespace Mulen {
             ImGui::Checkbox("Upright", &upright);
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
+            if (ImGui::Button("Re-init"))
+            {
+                atmosphere.ReloadShaders(shaderPath);
+                InitializeAtmosphere();
+            }
 
             /*if (ImGui::Button("Button")) counter++;
             ImGui::SameLine();

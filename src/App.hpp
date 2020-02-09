@@ -28,6 +28,7 @@ namespace Mulen {
 
         bool upright = true, collision = true, fly = true;
 
+        bool InitializeAtmosphere();
         void SetVSync(bool);
         bool Reload();
         void OnFrame() override;

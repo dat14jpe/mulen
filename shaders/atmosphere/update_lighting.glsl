@@ -309,15 +309,15 @@ void main()
             vec3 nodeCenter = upload.nodeLocation.xyz;
             float nodeSize = upload.nodeLocation.w;
             uint ni = upload.nodeIndex;
-            light *= TraceTransmittance(ori, dir, dist, nodeCenter, nodeSize, ni, stepFactor);
-            //light *= ConeTraceTransmittance(ori, dir, dist, stepFactor, voxelSize);
+            //light *= TraceTransmittance(ori, dir, dist, nodeCenter, nodeSize, ni, stepFactor);
+            light *= ConeTraceTransmittance(ori, dir, dist, stepFactor, voxelSize);
             
-            if (false)
+            //if (false)
             { // - debugging: try a more theoretical transmittance computation, to see if that gives workable results
                 
                 float opticalDepthR = 0.0;
-                const uint numSteps = 128u;
-                float atmStep = voxelSize;
+                const uint numSteps = 4096u;
+                float atmStep = voxelSize / 32.0;
                 //ori = normalize(ori) * planetRadius; // - testing // - yes, it's smooth. But how to do that with varying radius?
                 for (uint i = 0u; i < numSteps; ++i)
                 {
@@ -355,7 +355,7 @@ void main()
                     dist += atmStep;
                 }
                 light = exp(-betaR * opticalDepthR);
-                light = 1e-2 * betaR * opticalDepthR;
+                //light = 1e-2 * betaR * opticalDepthR;
             }
             
             if (false)
