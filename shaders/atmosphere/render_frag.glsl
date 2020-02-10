@@ -59,7 +59,7 @@ void main()
                 }
             }
         }
-        //if (false)
+        if (false)
         { // - debugging
             
             float dist = 0.0;
@@ -207,6 +207,26 @@ void main()
                 vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
                 storedLight = min(vec3(1.0), storedLight); // for interpolation, lighting shadows can be "negative" (but is this needed?)
                 //storedLight = vec3(1.0); // - debugging
+                
+                if (false)
+                { // - debugging: try a more theoretical transmittance computation, to see if that gives workable results
+                    // (it does. What does that tell us? Per-step computations work? Well, yes, but the expense is prohibitive...)
+                    float ldist = 0.0;
+                    vec3 lori = hit + dist * dir;
+                    float opticalDepthR = 0.0;
+                    const uint numSteps = 128u;
+                    float atmStep = 1e4;
+                    //lori = normalize(lori) * planetRadius; // - testing // - yes, it's smooth. But how to do that with varying radius?
+                    for (uint i = 0u; i < numSteps; ++i)
+                    {
+                        vec3 p = lori + ldist * lightDir;
+                        float densityR = exp(-(length(p) - planetRadius) / 8e3);
+                        
+                        opticalDepthR += densityR * atmStep;
+                        ldist += atmStep;
+                    }
+                    storedLight = exp(-betaR * opticalDepthR);
+                }
                 
                 vec4 voxelData = texture(brickTexture, tc);
                 

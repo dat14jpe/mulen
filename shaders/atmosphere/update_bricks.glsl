@@ -112,7 +112,9 @@ void main()
             
             // - experiment: assign wind direction and compute mask with consideration to it
             
-            float lat = asin(p.y / length(p));
+            float noisedY = p.y + (fBm(4, p * 8.0, 0.5, 2.0) * 2.0 - 1.0) * 0.25;
+            
+            float lat = asin(noisedY / length(p));
             const float PI = 3.141592653589793;
             float y = lat / PI * 2.0;
             int cell = int(abs(trunc(y * numCells)));
@@ -136,7 +138,7 @@ void main()
             const float lacunarity = 2.0;
             const vec3 op = p;
             {
-                vec3 p = op * 16.0;
+                vec3 p = op * 12.0;
                 float a = 1.0;
                 mask = 0.0;
                 for (uint i = 0u; i < octaves; ++i)
@@ -146,6 +148,7 @@ void main()
                     p *= lacunarity * scale;
                 }
             }
+            mask -= 0.25;
             // Unfinished attempt at intertropical convergence zone:
             //mask += (1.0 - smoothstep(0.0, 0.03, abs(y))) * (fBm(3u, p * 8.0, 0.5, 2.0) * 0.5 + 0.5);
             
@@ -161,7 +164,7 @@ void main()
         //mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
         //mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
-        const float cloudDensity = 5.0; // - to do: tune this (probably needs to be higher, no? Maybe 10? Try to find a physical derivation)
+        const float cloudDensity = 10.0; // - to do: tune this (probably needs to be higher, no? Maybe 10? Try to find a physical derivation)
         float cloud = cloudDensity * max(0.0, d);
         // - to do: try different ways of combining these
         //mie = mix(mie, cloud, shellFactor * mask);
