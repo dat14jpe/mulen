@@ -153,7 +153,7 @@ vec3 TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float n
         }
     }
     
-    vec3 opticalDepth = opticalDepthR * betaR + opticalDepthM * betaMEx;
+    vec3 opticalDepth = opticalDepthR * betaR + vec3(opticalDepthM * betaMEx);
     return exp(-opticalDepth);
 }
 
@@ -189,7 +189,7 @@ vec3 ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFact
         while (dist < tmax && numSteps < maxSteps)
         {
             vec3 p = (ori + dist * dir) / atmScale;
-            //p += offsetOrigin(p, dir, voxelSize / atmScale); // - testing
+            //p += offsetOrigin(p, dir, voxelSize / atmScale) * dist * 1e-5; // - testing
             vec3 nodeCenter;
             float nodeSize;
             uint depth;

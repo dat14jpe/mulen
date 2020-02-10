@@ -1,6 +1,7 @@
 #version 450
 #include "common.glsl"
 #include "../geometry.glsl"
+#include "../noise.glsl"
 
 layout(location = 0) out vec4 outValue;
 in vec4 clip_coords;
@@ -208,6 +209,19 @@ void main()
                 storedLight = min(vec3(1.0), storedLight); // for interpolation, lighting shadows can be "negative" (but is this needed?)
                 //storedLight = vec3(1.0); // - debugging
                 
+                vec3 p = hit + dist * dir;
+                float r = length(p);
+                //if (r > Rt + 3.5e4) color += vec3(0, 1, 0); // - testing
+                float mu = dot(p / r, normalize(lightDir)); // - about 0.3 ms faster *with* the unnecessary lightDir normalisation. Hmm...
+                //storedLight = GetTransmittanceToAtmosphereTop(r, mu); // - far too red, no?
+                storedLight *= GetTransmittanceToSun(r, mu); // - far too red, no?
+                { // - debugging
+                    vec2 uv = RMuToTransmittanceUv(r, mu);
+                    //if (uv.x > 1.0) storedLight.x += 10.0;
+                    //storedLight = vec3(0.0, uv);
+                    //storedLight = vec3(0, abs(mu), sign(mu));
+                }
+                
                 if (false)
                 { // - debugging: try a more theoretical transmittance computation, to see if that gives workable results
                     // (it does. What does that tell us? Per-step computations work? Well, yes, but the expense is prohibitive...)
@@ -258,6 +272,8 @@ void main()
                 transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
                 color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
                     * transmittance * storedLight * lightIntensity * atmStep;
+                //color += /*transmittance * */storedLight * atmStep * 1e-6; // - debugging
+                    
                 // - experiment: Mie added to optical depth *after*, to not occlude itself
                 // (should also be the case for Rayleigh, maybe?)
                 // - but adding Mie optical depth here tends to make clouds overly bright at close range
@@ -310,6 +326,9 @@ void main()
     
     //color *= 0.125; // - debugging
     transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+    
+    //color = texelFetch(transmittanceTexture, ivec2(gl_FragCoord.xy), 0).xyz; // - test
+    
     color += backLight * transmittance;
     outValue = vec4(color, 1.0);
 }

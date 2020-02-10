@@ -9,11 +9,14 @@ namespace Util {
 	protected:
 		void GLDestroy() override {	glDeleteTextures(1, &id); }
 		Dim width = 0u, height = 0u, depth = 0u;
+		Dim levels = 0u;
+		GLenum internalformat;
 
 	public:
 		Dim GetWidth () const { return width; }
 		Dim GetHeight() const { return height; }
 		Dim GetDepth () const { return depth; }
+		GLenum GetFormat() const { return internalformat; }
 
 		void Create(GLenum target, Dim levels, GLenum internalformat, Dim width, Dim height = 1u, Dim depth = 1u)
 		{
@@ -21,6 +24,8 @@ namespace Util {
 			this->width = width;
 			this->height = height;
 			this->depth = depth;
+			this->levels = levels;
+			this->internalformat = internalformat;
 			glCreateTextures(target, 1, &id);
 			switch (target) {
 			case GL_TEXTURE_1D: glTextureStorage1D(id, levels, internalformat, width); break;

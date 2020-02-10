@@ -12,6 +12,9 @@ uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
 uniform vec3 planetLocation;
 uniform vec3 lightDir;
 uniform vec3 sun; // distance, radius, intensity (already attenuated)
+uniform float Rt, Rg; // atmosphere top and bottom (ground) radii
+
+const int TransmittanceWidth = 256, TransmittanceHeight = 64;
 
 // Physical values:
 uniform vec3 betaR;
@@ -24,6 +27,7 @@ uniform layout(binding=0) sampler3D brickTexture;
 uniform layout(binding=1) sampler3D brickLightTexture;
 uniform layout(binding=2) usampler3D octreeMapTexture;
 uniform layout(binding=3) sampler2D depthTexture;
+uniform layout(binding=5) sampler2D transmittanceTexture;
 
 
 #define SSBO_VOXEL_NODES         0
@@ -221,13 +225,66 @@ float PhaseMie(float v)
 }
 
 
-// - to do: move to noise.glsl?
+// see https://github.com/ebruneton/precomputed_atmospheric_scattering/blob/master/atmosphere/functions.glsl
+// (accessed 20200210)
 
-float rand(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233)))*43758.5453123); }
-float rand(vec2 co, float l) {return rand(vec2(rand(co), l));}
-float rand(vec2 co, float l, float t) {return rand(vec2(rand(co, l), t));}
+// r: distance to planet center
+// mu: dot product of ray direction and normalized position
 
-// http://www.science-and-fiction.org/rendering/noise.html 20200131
-float rand3D(in vec3 co){
-    return fract(sin(dot(co.xyz ,vec3(12.9898,78.233,144.7272))) * 43758.5453);
+float DistanceToAtmosphereTop(float r, float mu)
+{
+    return max(0.0, -r*mu + sqrt(max(0.0, Rt*Rt + r*r*(mu*mu - 1.0))));
 }
+float DistanceToAtmosphereBottom(float r, float mu)
+{
+    return max(0.0, -r*mu - sqrt(max(0.0, Rg*Rg + r*r*(mu*mu - 1.0))));
+}
+
+// x on [0, 1], texSize texture size in texels
+float UnitCoordToTextureCoord(float x, float texSize)
+{
+    return 0.5 / texSize + x * (1.0 - 1.0 / texSize);
+}
+float TextureCoordToUnitCoord(float x, float texSize)
+{
+    return (x - 0.5 / texSize) / (1.0 - 1.0 / texSize);
+}
+
+vec2 RMuToTransmittanceUv(float r, float mu)
+{
+    float H = sqrt(Rt*Rt - Rg*Rg); // distance to atmosphere top for ground level horizontal ray
+    float rho = sqrt(max(0.0, r*r - Rg*Rg)); // distance to horizon
+    float d = DistanceToAtmosphereTop(r, mu);
+    float d_min = Rt - r, d_max = rho + H;
+    float x_mu = (d - d_min) / (d_max - d_min);
+    float x_r = rho / H;
+    return vec2(UnitCoordToTextureCoord(x_mu, TransmittanceWidth), UnitCoordToTextureCoord(x_r, TransmittanceHeight));
+}
+void TransmittanceUvToRMu(vec2 uv, out float r, out float mu)
+{
+    float x_mu = TextureCoordToUnitCoord(uv.x, TransmittanceWidth);
+    float x_r = TextureCoordToUnitCoord(uv.y, TransmittanceHeight);
+    float H = sqrt(Rt*Rt - Rg*Rg);
+    float rho = x_r * H;
+    r = sqrt(rho*rho + Rg*Rg);
+    float d_min = Rt - r, d_max = rho + H;
+    float d = x_mu * (d_max - d_min) + d_min;
+    mu = d == 0.0 ? 1.0 : (H*H - rho*rho - d*d) / (2.0 * r * d);
+    mu = clamp(mu, -1.0, 1.0);
+}
+
+vec3 GetTransmittanceToAtmosphereTop(float r, float mu)
+{
+    return vec3(texture(transmittanceTexture, RMuToTransmittanceUv(r, mu)));
+}
+vec3 GetTransmittanceToSun(float r, float mu_s)
+{
+    const float sun_angular_radius = 0.00935 / 2.0;
+    float sin_theta_h = Rg / r;
+    float cos_theta_h = -sqrt(max(1.0 - sin_theta_h * sin_theta_h, 0.0));
+    return GetTransmittanceToAtmosphereTop(r, mu_s) *
+      smoothstep(-sin_theta_h * sun_angular_radius,
+                 sin_theta_h * sun_angular_radius,
+                 mu_s - cos_theta_h);
+}
+// - to do: a variant accounting for planet shadow, analytically

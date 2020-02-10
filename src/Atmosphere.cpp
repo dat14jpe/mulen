@@ -11,6 +11,7 @@ namespace Mulen {
         vao.Create();
 
         const bool moreMemory = true; // - for quick switching during development
+        hasTransmittance = false;
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
         const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u);
@@ -30,21 +31,28 @@ namespace Mulen {
         std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, " 
             << width << "*" << height << "*" << depth << " texels (multiple of "
             << (width * height * depth / (1024 * 1024)) << " MB)\n";
-        auto setUpTexture = [&](Util::Texture& tex, GLenum internalFormat, bool linear)
+        auto setTextureFilter = [](Util::Texture& tex, GLenum filter)
         {
-            auto filter = linear ? GL_LINEAR : GL_NEAREST;
-            tex.Create(GL_TEXTURE_3D, 1u, internalFormat, width, height, depth);
             glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, filter);
             glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, filter);
         };
-        setUpTexture(brickTexture, BrickFormat, true);
-        setUpTexture(brickLightTexture, BrickLightFormat, true);
+        auto setUpTexture = [&](Util::Texture& tex, GLenum internalFormat, GLenum filter)
+        {
+            tex.Create(GL_TEXTURE_3D, 1u, internalFormat, width, height, depth);
+            setTextureFilter(tex, filter);
+        };
+        setUpTexture(brickTexture, BrickFormat, GL_LINEAR);
+        setUpTexture(brickLightTexture, BrickLightFormat, GL_LINEAR);
+
+        transmittanceTexture.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, 256, 64);
+        setTextureFilter(transmittanceTexture, GL_LINEAR);
+        glTextureParameteri(transmittanceTexture.GetId(), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(transmittanceTexture.GetId(), GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
         // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
         const auto mapRes = 64u; // - to do: try different values and measure performance
         octreeMap.Create(GL_TEXTURE_3D, 1u, GL_R32UI, mapRes, mapRes, mapRes);
-        glTextureParameteri(octreeMap.GetId(), GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTextureParameteri(octreeMap.GetId(), GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        setTextureFilter(octreeMap, GL_NEAREST);
 
         // - to do: also create second texture (for double-buffering updates)
 
@@ -152,6 +160,8 @@ namespace Mulen {
         shader.Uniform1f("betaMEx", glm::vec1((float)betaMEx));
         shader.Uniform1f("betaMSca", glm::vec1((float)betaMSca));
         shader.Uniform1f("mieG", glm::vec1((float)mieG));
+        shader.Uniform1f("Rg", glm::vec1{ (float)planetRadius });
+        shader.Uniform1f("Rt", glm::vec1{ (float)(planetRadius + height * scale) });
 
         // - tuning these is important to avoid visual banding/clamping
         shader.Uniform1f("offsetR", glm::vec1{ 2.0f });
@@ -180,6 +190,7 @@ namespace Mulen {
         };
         if (!loadShader(postShader, "../post", false)) return false;
         if (!loadShader(backdropShader, "backdrop", false)) return false;
+        if (!loadShader(transmittanceShader, "transmittance", true)) return false;
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
@@ -202,6 +213,34 @@ namespace Mulen {
             // - to do: run animation update
         }
 
+
+        auto ssboIndex = 0u;
+        gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
+        gpuUploadNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
+        gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
+        // - to do: also bind the old texture for reading
+        // (initially just testing writing directly to one)
+
+        auto setShader = [&](Util::Shader& shader)
+        {
+            shader.Bind();
+            SetUniforms(shader);
+        };
+
+        if (!hasTransmittance)
+        {
+            hasTransmittance = true;
+
+            // Prepass time.
+            auto t = timer.Begin("Transmittance");
+            setShader(transmittanceShader);
+            const glm::uvec3 workGroupSize{ 32u, 32u, 1u };
+            auto& tex = transmittanceTexture;
+            glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
+            glDispatchCompute(tex.GetWidth() / workGroupSize.x, tex.GetHeight() / workGroupSize.y, tex.GetDepth() / workGroupSize.z);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        }
+
         // Update GPU data:
         if (nodesToUpload.size())
         {
@@ -218,18 +257,6 @@ namespace Mulen {
 
             // - to do: upload brick data
 
-            auto ssboIndex = 0u;
-            gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
-            gpuUploadNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
-            gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
-            // - to do: also bind the old texture for reading
-            // (initially just testing writing directly to one)
-
-            auto setShader = [&](Util::Shader& shader)
-            {
-                shader.Bind();
-                SetUniforms(shader);
-            };
 
             {
                 auto t = timer.Begin("Nodes");
@@ -315,6 +342,7 @@ namespace Mulen {
         brickLightTexture.Bind(1u);
         octreeMap.Bind(2u);
         depthTexture.Bind(3u);
+        transmittanceTexture.Bind(5u);
         vao.Bind();
 
         { // "planet" background (to do: spruce this up, maybe move elsewhere)

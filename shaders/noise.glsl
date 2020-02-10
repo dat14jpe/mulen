@@ -26,3 +26,14 @@ float noise(vec3 p){
 
     return o4.y * d.y + o4.x * (1.0 - d.y);
 }
+
+
+
+float rand(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233)))*43758.5453123); }
+float rand(vec2 co, float l) {return rand(vec2(rand(co), l));}
+float rand(vec2 co, float l, float t) {return rand(vec2(rand(co, l), t));}
+
+// http://www.science-and-fiction.org/rendering/noise.html 20200131
+float rand3D(in vec3 co){
+    return fract(sin(dot(co.xyz ,vec3(12.9898,78.233,144.7272))) * 43758.5453);
+}

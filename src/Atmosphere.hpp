@@ -26,8 +26,8 @@ namespace Mulen {
         glm::dvec3 betaR = { 5.8e-6, 1.35e-5, 3.31e-5 };
         double HM = 1.2e3; // Mie scale height
         double mieG = 0.8;
-        double betaMSca = 2e-5;
-        double betaMEx = betaMSca / 0.9;
+        double betaMSca = 2e-5; // Mie scattering
+        double betaMEx = betaMSca / 0.9; // Mie extinction
 
         double sunDistance = 1.5e11, sunRadius = 6.957e8, sunIntensity = 1e1; // - to do: make intensity physically based
 
@@ -78,6 +78,11 @@ namespace Mulen {
         Util::Shader updateShader, updateBricksShader, updateLightShader, updateOctreeMapShader;
         void StageNodeGroup(UploadType, NodeIndex ni);
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
+
+        // Prepass:
+        Util::Shader transmittanceShader;
+        Util::Texture transmittanceTexture;
+        bool hasTransmittance = false; // - to do: per-atmosphere
 
         void SetUniforms(Util::Shader&);
 

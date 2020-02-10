@@ -2,6 +2,7 @@
 
 #include "common.glsl"
 #include "../geometry.glsl"
+#include "../noise.glsl"
 
 layout(location = 0) out vec4 outValue;
 in vec4 ndc;
