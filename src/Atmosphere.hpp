@@ -48,8 +48,8 @@ namespace Mulen {
         glm::uvec3 texMap;
         // Two channels since bricks store both last and next values, to let rendering interpolate between them.
         static const auto
-            BrickFormat = GL_RG16, // - visible banding if only 8 bits per channel. Maybe can be resolved with generation dithering?
-            BrickLightFormat = GL_RGBA16F;
+            BrickFormat = GL_R16, // - visible banding if only 8 bits per channel. Maybe can be resolved with generation dithering?
+            BrickLightFormat = GL_R16F;
         
         // Update:
         Util::Texture brickUploadTexture;

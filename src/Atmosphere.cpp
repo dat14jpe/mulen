@@ -14,7 +14,7 @@ namespace Mulen {
         hasTransmittance = false;
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u);
+        const size_t numNodeGroups = 16384u * (moreMemory ? 5u : 1u);
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
         gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
@@ -129,7 +129,7 @@ namespace Mulen {
                 testSplit(rootGroupIndex, i, glm::dvec4{ 0, 0, 0, 1 });
             }
         };
-        const auto testDepth = 5u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
+        const auto testDepth = 6u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
         std::cout << "Voxel resolution: " << res << " (" << 2e-3 * planetRadius * scale / res << " km/voxel)\n";

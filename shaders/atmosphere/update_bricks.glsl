@@ -5,7 +5,7 @@
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"
 
-uniform layout(binding=0, rg8) writeonly image3D brickImage;
+uniform layout(binding=0, r16) writeonly image3D brickImage;
 
 float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
 {
@@ -181,5 +181,7 @@ void main()
     
     rayleigh = (rayleigh - offsetR) / scaleR;
     mie = (mie - offsetM) / scaleM;
-    imageStore(brickImage, ivec3(writeOffs), vec4(clamp(vec2(rayleigh, mie), vec2(0.0), vec2(1.0)), 0, 0));
+    vec2 data = vec2(rayleigh, mie); // - old order
+    data = vec2(mie, rayleigh);
+    imageStore(brickImage, ivec3(writeOffs), vec4(clamp(data, vec2(0.0), vec2(1.0)), 0, 0));
 }

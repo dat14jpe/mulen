@@ -6,7 +6,7 @@
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"
 
-uniform layout(binding=0, rgba16f) writeonly image3D lightImage;
+uniform layout(binding=0, r16f) writeonly image3D lightImage;
 
 float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
 {
@@ -105,7 +105,7 @@ vec3 TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float n
                 tc = BrickSampleCoordinates(brickOffs, tc);
                 vec4 voxelData = texture(brickTexture, tc);
                 
-                float rayleigh = voxelData.x, mie = voxelData.y;
+                float rayleigh = voxelData.y, mie = voxelData.x;
                 float densityR = RayleighDensityFromSample(rayleigh);
                 float densityM = MieDensityFromSample(mie);
                 
@@ -116,7 +116,7 @@ vec3 TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float n
                     const float relativeCloudTop = 0.4; // - to do: tune
                     if ((p - 1.0) / atmHeight > relativeCloudTop) densityM = 0.0;
                     //densityM = 0.0;
-                    //densityR = 0.0;
+                    densityR = 0.0;
                     //mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (p - 1.0) / atmHeight);
                 }
                 
@@ -211,7 +211,7 @@ vec3 ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFact
             tc = BrickSampleCoordinates(brickOffs, tc);
             vec4 voxelData = texture(brickTexture, tc);
             
-            float rayleigh = voxelData.x, mie = voxelData.y;
+            float rayleigh = voxelData.y, mie = voxelData.x;
             float densityR = RayleighDensityFromSample(rayleigh);
             float densityM = MieDensityFromSample(mie);
             
@@ -222,7 +222,7 @@ vec3 ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFact
                 const float relativeCloudTop = 0.4; // - to do: tune
                 if ((p - 1.0) / atmHeight > relativeCloudTop) densityM = 0.0;
                 //densityM = 0.0;
-                //densityR = 0.0;
+                densityR = 0.0;
                 //mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (p - 1.0) / atmHeight);
             }
             
@@ -247,7 +247,7 @@ vec3 ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFact
         }
     }
     
-    vec3 opticalDepth = opticalDepthR * betaR + opticalDepthM * betaMEx;
+    vec3 opticalDepth = vec3(opticalDepthM * betaMEx);
     return exp(-opticalDepth);
 }
 
@@ -346,7 +346,7 @@ void main()
                     tc = BrickSampleCoordinates(brickOffs, tc);
                     vec4 voxelData = texture(brickTexture, tc);
                     
-                    float rayleigh = voxelData.x, mie = voxelData.y;
+                    float rayleigh = voxelData.y, mie = voxelData.x;
                     float densityR = RayleighDensityFromSample(rayleigh);
                     float densityM = MieDensityFromSample(mie);*/
                     

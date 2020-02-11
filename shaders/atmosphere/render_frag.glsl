@@ -211,16 +211,10 @@ void main()
                 
                 vec3 p = hit + dist * dir;
                 float r = length(p);
-                //if (r > Rt + 3.5e4) color += vec3(0, 1, 0); // - testing
                 float mu = dot(p / r, normalize(lightDir)); // - about 0.3 ms faster *with* the unnecessary lightDir normalisation. Hmm...
-                //storedLight = GetTransmittanceToAtmosphereTop(r, mu); // - far too red, no?
-                storedLight *= GetTransmittanceToSun(r, mu); // - far too red, no?
-                { // - debugging
-                    vec2 uv = RMuToTransmittanceUv(r, mu);
-                    //if (uv.x > 1.0) storedLight.x += 10.0;
-                    //storedLight = vec3(0.0, uv);
-                    //storedLight = vec3(0, abs(mu), sign(mu));
-                }
+                storedLight = storedLight.xxx; // - problem since removing Rayleigh channel. Look into lighting
+                storedLight *= GetTransmittanceToSun(r, mu);
+                
                 
                 if (false)
                 { // - debugging: try a more theoretical transmittance computation, to see if that gives workable results
@@ -244,8 +238,10 @@ void main()
                 
                 vec4 voxelData = texture(brickTexture, tc);
                 
-                float rayleigh = voxelData.x, mie = voxelData.y;
+                float rayleigh = voxelData.y, mie = voxelData.x;
                 float rayleighDensity = RayleighDensityFromSample(rayleigh);
+                // - to do: compute Rayleigh density theoretically
+                rayleighDensity = exp(-(r - Rg) / HR);
                 float mieDensity = MieDensityFromSample(mie);
                 //mieDensity = mie * 0.02; // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 

@@ -57,6 +57,15 @@ bool RenderPlanet(vec3 ori, vec3 dir)
             tc = BrickSampleCoordinates(brickOffs, tc);
             
             vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+            storedLight = storedLight.xxx;
+            
+            {
+                vec3 p = hitp - center;
+                float r = length(p);
+                float mu = dot(p / r, normalize(lightDir));
+                color *= GetTransmittanceToSun(r, mu);
+            }
+            
             color *= storedLight;
         }
     }
