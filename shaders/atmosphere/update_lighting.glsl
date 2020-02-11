@@ -54,12 +54,12 @@ vec3 offsetOrigin(vec3 p, vec3 dir, float voxelSize)
         ;
 }
 
-vec3 TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float nodeSize, uint ni, const float stepFactor)
+float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float nodeSize, uint ni, const float stepFactor)
 {
     const float atmScale = atmosphereRadius;
     
-    float opticalDepthR = 0.0, opticalDepthM = 0.0;
-    float prevDensityR = 0.0, prevDensityM = 0.0; // - maybe to do: get these from start values
+    float opticalDepthM = 0.0;
+    float prevDensityM = 0.0; // - maybe to do: get these from start values
 
     //ori += offsetOrigin(p, dir, voxelSize); // - trying this *after* the planet shadowing. But it's not helping.
     
@@ -105,8 +105,7 @@ vec3 TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float n
                 tc = BrickSampleCoordinates(brickOffs, tc);
                 vec4 voxelData = texture(brickTexture, tc);
                 
-                float rayleigh = voxelData.y, mie = voxelData.x;
-                float densityR = RayleighDensityFromSample(rayleigh);
+                float mie = voxelData.x;
                 float densityM = MieDensityFromSample(mie);
                 
                 // - debugging aliasing with hardcoded cutoff(s)
@@ -116,23 +115,10 @@ vec3 TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float n
                     const float relativeCloudTop = 0.4; // - to do: tune
                     if ((p - 1.0) / atmHeight > relativeCloudTop) densityM = 0.0;
                     //densityM = 0.0;
-                    densityR = 0.0;
                     //mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (p - 1.0) / atmHeight);
                 }
                 
-                const bool midPoint = false;//true;
-                if (midPoint)
-                {
-                    opticalDepthR += densityR * atmStep;
-                    opticalDepthM += densityM * atmStep;
-                }
-                else
-                {
-                    opticalDepthR += (prevDensityR + densityR) * 0.5 * atmStep;
-                    opticalDepthM += (prevDensityM + densityM) * 0.5 * atmStep;
-                }
-                
-                prevDensityR = densityR;
+                opticalDepthM += (prevDensityM + densityM) * 0.5 * atmStep;
                 prevDensityM = densityM;
                 
                 dist += atmStep;
@@ -153,11 +139,11 @@ vec3 TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float n
         }
     }
     
-    vec3 opticalDepth = opticalDepthR * betaR + vec3(opticalDepthM * betaMEx);
+    float opticalDepth = opticalDepthM * betaMEx;
     return exp(-opticalDepth);
 }
 
-vec3 ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFactor, const float voxelSize)
+float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFactor, const float voxelSize)
 {
     const float atmScale = atmosphereRadius;
     
@@ -247,7 +233,7 @@ vec3 ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFact
         }
     }
     
-    vec3 opticalDepth = vec3(opticalDepthM * betaMEx);
+    float opticalDepth = opticalDepthM * betaMEx;
     return exp(-opticalDepth);
 }
 
@@ -312,54 +298,9 @@ void main()
             light *= TraceTransmittance(ori, dir, dist, nodeCenter, nodeSize, ni, stepFactor);
             //light *= ConeTraceTransmittance(ori, dir, dist, stepFactor, voxelSize);
             
-            if (false)
-            { // - debugging: try a more theoretical transmittance computation, to see if that gives workable results
-                
-                float opticalDepthR = 0.0;
-                const uint numSteps = 4096u;
-                float atmStep = 1e2;//voxelSize / 32.0;
-                //ori = normalize(ori) * planetRadius; // - testing // - yes, it's smooth. But how to do that with varying radius?
-                for (uint i = 0u; i < numSteps; ++i)
-                {
-                    vec3 p = ori + dist * dir;
-                    float densityR = exp(-(length(p) - planetRadius) / 8e3);
-                    
-                    /*vec3 p = (ori + dist * dir) / atmScale;
-                    vec3 nodeCenter;
-                    float nodeSize;
-                    uint depth;
-                    uint ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-                    if (InvalidIndex == ni) break;
-                    
-                    nodeCenter *= atmScale;
-                    nodeSize *= atmScale;
-                    const float step = nodeSize / atmScale * stepFactor;
-                    const float atmStep = step * atmScale;
-                    
-                    const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
-                    vec3 localStart = (ori - nodeCenter) / nodeSize;
-                    vec3 lc = localStart + dist / nodeSize * dir;
-                    lc = (p * atmScale - nodeCenter) / nodeSize;
-                    
-                    vec3 tc = lc * 0.5 + 0.5;
-                    tc = clamp(tc, vec3(0.0), vec3(1.0));
-                    tc = BrickSampleCoordinates(brickOffs, tc);
-                    vec4 voxelData = texture(brickTexture, tc);
-                    
-                    float rayleigh = voxelData.y, mie = voxelData.x;
-                    float densityR = RayleighDensityFromSample(rayleigh);
-                    float densityM = MieDensityFromSample(mie);*/
-                    
-                    opticalDepthR += densityR * atmStep;
-                    
-                    dist += atmStep;
-                }
-                light = exp(-betaR * opticalDepthR);
-                //light = 1e-2 * betaR * opticalDepthR;
-            }
             
             if (false)
-            { // - experimenting with supersampling: (... which doesn't help at all? Gah!)
+            { // - experimenting with supersampling:
                 vec3 a = perpendicular(dir);
                 vec3 b = cross(dir, a);
                 
@@ -388,7 +329,8 @@ void main()
                 light *= 0.5;*/
             }
         }
-        light *= shadow;
+        // - outdated by newer transmittance method, no? But its absence causes more banding now
+        //light *= shadow;
     }
     
     //light = clamp(light, vec3(0.0), vec3(1.0)); // - probably not needed, and... even incorrect?

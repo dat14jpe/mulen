@@ -78,11 +78,9 @@ void main()
             pz = 2.2e5; // - arbitrary
             if ((ori + dir * dist - planetLocation).z > pz)
             {
-                // - to do: maybe intersect with a fixed plane, to really see through a layer at a time?
                 vec3 pn = vec3(0, 0, 1);
                 float pd = dot(-dir, pn);
                 dist = dot(ori - (planetLocation + pn * pz), pn) / pd;
-                // - to do
                 if (length(ori + dir * dist - planetLocation) > R) discard;
             }
             
@@ -140,6 +138,11 @@ void main()
             storedLight *= 0.25;
             outValue = vec4(storedLight, 1.0);
             return;
+        }
+        // - Debug mode for cross section of actual atmosphere:
+        //if (false)
+        {
+            // - to do: do this
         }
         
         const float outerMin = tmin;
@@ -320,11 +323,7 @@ void main()
         }
     }
     
-    //color *= 0.125; // - debugging
     transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
-    
-    //color = texelFetch(transmittanceTexture, ivec2(gl_FragCoord.xy), 0).xyz; // - test
-    
     color += backLight * transmittance;
     outValue = vec4(color, 1.0);
 }

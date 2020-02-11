@@ -14,7 +14,7 @@ namespace Mulen {
         hasTransmittance = false;
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * (moreMemory ? 5u : 1u);
+        const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u);
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
         gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
@@ -42,7 +42,10 @@ namespace Mulen {
             setTextureFilter(tex, filter);
         };
         setUpTexture(brickTexture, BrickFormat, GL_LINEAR);
-        setUpTexture(brickLightTexture, BrickLightFormat, GL_LINEAR);
+        for (auto i = 0u; i < std::extent<decltype(brickLightTextures)>::value; ++i)
+        {
+            setUpTexture(brickLightTextures[i], BrickLightFormat, GL_LINEAR);
+        }
 
         transmittanceTexture.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, 256, 64);
         setTextureFilter(transmittanceTexture, GL_LINEAR);
@@ -129,7 +132,7 @@ namespace Mulen {
                 testSplit(rootGroupIndex, i, glm::dvec4{ 0, 0, 0, 1 });
             }
         };
-        const auto testDepth = 6u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
+        const auto testDepth = 5u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
         std::cout << "Voxel resolution: " << res << " (" << 2e-3 * planetRadius * scale / res << " km/voxel)\n";
@@ -140,7 +143,7 @@ namespace Mulen {
 
     void Atmosphere::SetUniforms(Util::Shader& shader)
     {
-        const auto lightDir = glm::normalize(glm::vec3(1, 0., 0.));
+        const auto lightDir = glm::normalize(glm::vec3(1, 0.6, 0.4));
 
         // - to do: use a UBO instead
         shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
@@ -194,6 +197,7 @@ namespace Mulen {
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
+        if (!loadShader(lightFilterShader, "filter_lighting", true)) return false;
         if (!loadShader(updateOctreeMapShader, "update_octree_map", true)) return false;
         if (!loadShader(renderShader, "render", false)) return false;
         return true;
@@ -255,6 +259,9 @@ namespace Mulen {
             gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * nodesToUpload.size(), nodesToUpload.data());
             gpuUploadBricks.Upload(0, sizeof(UploadBrick) * bricksToUpload.size(), bricksToUpload.data());
 
+            brickTexture.Bind(0u);
+            octreeMap.Bind(2u);
+
             // - to do: upload brick data
 
 
@@ -286,10 +293,17 @@ namespace Mulen {
 
             {
                 auto t = timer.Begin("Lighting");
-                glBindImageTexture(0u, brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
-                brickTexture.Bind(0u);
-                octreeMap.Bind(2u);
+                glBindImageTexture(0u, brickLightTextures[0].GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
                 setShader(updateLightShader);
+                glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
+                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            }
+
+            {
+                auto t = timer.Begin("Light filter");
+                glBindImageTexture(0u, brickLightTextures[1].GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+                setShader(lightFilterShader);
+                brickLightTextures[0].Bind(1u);
                 glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
                 glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
             }
@@ -336,10 +350,9 @@ namespace Mulen {
         };
 
         fbos[0].Bind();
-        auto ssboIndex = 0u, texUnit = 0u;
-        gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
+        gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         brickTexture.Bind(0u);
-        brickLightTexture.Bind(1u);
+        brickLightTextures[1].Bind(1u);
         octreeMap.Bind(2u);
         depthTexture.Bind(3u);
         transmittanceTexture.Bind(5u);

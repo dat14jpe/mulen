@@ -42,7 +42,7 @@ namespace Mulen {
 
         Util::Texture octreeMap;
         Util::Buffer gpuNodes;
-        Util::Texture brickTexture, brickLightTexture;
+        Util::Texture brickTexture, brickLightTextures[2];
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader;
         glm::uvec3 texMap;
@@ -75,7 +75,7 @@ namespace Mulen {
             glm::vec4 nodeLocation;
         };
         std::vector<UploadBrick> bricksToUpload;
-        Util::Shader updateShader, updateBricksShader, updateLightShader, updateOctreeMapShader;
+        Util::Shader updateShader, updateBricksShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
         void StageNodeGroup(UploadType, NodeIndex ni);
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
 

@@ -252,6 +252,9 @@ float TextureCoordToUnitCoord(float x, float texSize)
 
 vec2 RMuToTransmittanceUv(float r, float mu)
 {
+    /*const float Rt = 6426000.0;
+    const float Rg = 6371000.0;*/
+    
     float H = sqrt(Rt*Rt - Rg*Rg); // distance to atmosphere top for ground level horizontal ray
     float rho = sqrt(max(0.0, r*r - Rg*Rg)); // distance to horizon
     float d = DistanceToAtmosphereTop(r, mu);

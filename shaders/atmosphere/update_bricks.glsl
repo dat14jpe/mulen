@@ -47,6 +47,10 @@ void main()
     // - to do: allow for simulation/update, and parameters from CPU
     
     const float h = (length(p) - 1.0) * planetRadius;
+    
+    if (h < -2e4) return; // - to do: check this
+    if (h > Rt - Rg + 4e4) return;
+    
     const float height = 0.01; // - to do: aim for approximately 0.01 (Earth-like)
     const float shellDist = 1.0 + height - length(p);
     //if (shellDist < 0.0) return; // - early exit if outside atmosphere (to do: check accuracy of this)

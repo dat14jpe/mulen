@@ -84,10 +84,9 @@ bool RenderSun(vec3 ori, vec3 dir)
     float t0, t1;
     if (!IntersectSphere(ori, dir, center, sun.y, t0, t1)) return false;
     // - to do: simple bloom effect around it? A dedicated bloom pass would be better, but maybe
-    vec3 color = vec3(1.0) * 1.0;//sun.z;
+    vec3 color = vec3(1.0) * sun.z;
     outValue = vec4(color, 1);
-    gl_FragDepth = 0.5;
-    // - to do
+    gl_FragDepth = 1.0 - 1e-6; // - not quite the best method, but, hey...
     return true;
 }
 
