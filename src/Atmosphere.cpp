@@ -14,7 +14,7 @@ namespace Mulen {
         hasTransmittance = false;
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u);
+        const size_t numNodeGroups = 16384u * (moreMemory ? 10u : 1u);
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
         gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
@@ -22,15 +22,18 @@ namespace Mulen {
         Util::Texture::Dim maxWidth, brickRes, width, height, depth;
         maxWidth = 4096u; // - to do: retrieve actual system-dependent limit programmatically
         brickRes = BrickRes;
+        const auto cellsPerBrick = (BrickRes - 1u) * (BrickRes - 1u) * (BrickRes - 1u);
         width = maxWidth - (maxWidth % brickRes);
         texMap.x = width / brickRes;
         texMap.y = glm::min(maxWidth / brickRes, unsigned(numBricks + texMap.x - 1u) / texMap.x);
         texMap.z = (unsigned(numBricks) + texMap.x * texMap.y - 1u) / (texMap.x * texMap.y);
+        width = texMap.x * brickRes;
         height = texMap.y * brickRes;
         depth = texMap.z * brickRes;
+        std::cout << numNodeGroups << " node groups (" << numBricks << " bricks, " << (cellsPerBrick * numBricks) / 1000000u << " M voxel cells)\n";
         std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, " 
             << width << "*" << height << "*" << depth << " texels (multiple of "
-            << (width * height * depth / (1024 * 1024)) << " MB)\n";
+            << width * height * depth / (1024 * 1024) << " MB)\n";
         auto setTextureFilter = [](Util::Texture& tex, GLenum filter)
         {
             glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, filter);
@@ -51,6 +54,14 @@ namespace Mulen {
         setTextureFilter(transmittanceTexture, GL_LINEAR);
         glTextureParameteri(transmittanceTexture.GetId(), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(transmittanceTexture.GetId(), GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        // - to do: probably only use the half not intersecting the ground, meaning the texture size can be halved as well
+        const auto ScatterRSize = 32u, ScatterMuSize = 128u, ScatterMuSSize = 32u, ScatterNuSize = 8u;
+        scatterTexture.Create(GL_TEXTURE_3D, 1u, GL_RGBA16F, ScatterNuSize * ScatterMuSSize, ScatterMuSize, ScatterRSize);
+        setTextureFilter(scatterTexture, GL_LINEAR);
+        glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
         // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
         const auto mapRes = 64u; // - to do: try different values and measure performance
@@ -113,6 +124,7 @@ namespace Mulen {
                                 if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) anyOutside = true;
                             }
                     if (!anyOutside) continue; // inside
+
                 }
 
                 if (!octree.nodes.GetNumFree()) return;
@@ -132,7 +144,7 @@ namespace Mulen {
                 testSplit(rootGroupIndex, i, glm::dvec4{ 0, 0, 0, 1 });
             }
         };
-        const auto testDepth = 5u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
+        const auto testDepth = 6u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
         std::cout << "Voxel resolution: " << res << " (" << 2e-3 * planetRadius * scale / res << " km/voxel)\n";
@@ -164,7 +176,7 @@ namespace Mulen {
         shader.Uniform1f("betaMSca", glm::vec1((float)betaMSca));
         shader.Uniform1f("mieG", glm::vec1((float)mieG));
         shader.Uniform1f("Rg", glm::vec1{ (float)planetRadius });
-        shader.Uniform1f("Rt", glm::vec1{ (float)(planetRadius + height * scale) });
+        shader.Uniform1f("Rt", glm::vec1{ (float)(planetRadius + height * 2.0) });
 
         // - tuning these is important to avoid visual banding/clamping
         shader.Uniform1f("offsetR", glm::vec1{ 2.0f });
@@ -194,6 +206,7 @@ namespace Mulen {
         if (!loadShader(postShader, "../post", false)) return false;
         if (!loadShader(backdropShader, "backdrop", false)) return false;
         if (!loadShader(transmittanceShader, "transmittance", true)) return false;
+        if (!loadShader(inscatterFirstShader, "inscatter_first", true)) return false;
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
@@ -235,14 +248,25 @@ namespace Mulen {
         {
             hasTransmittance = true;
 
-            // Prepass time.
-            auto t = timer.Begin("Transmittance");
-            setShader(transmittanceShader);
-            const glm::uvec3 workGroupSize{ 32u, 32u, 1u };
-            auto& tex = transmittanceTexture;
-            glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
-            glDispatchCompute(tex.GetWidth() / workGroupSize.x, tex.GetHeight() / workGroupSize.y, tex.GetDepth() / workGroupSize.z);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            {
+                auto t = timer.Begin("Transmittance");
+                setShader(transmittanceShader);
+                const glm::uvec3 workGroupSize{ 32u, 32u, 1u };
+                auto& tex = transmittanceTexture;
+                glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
+                glDispatchCompute(tex.GetWidth() / workGroupSize.x, tex.GetHeight() / workGroupSize.y, tex.GetDepth() / workGroupSize.z);
+                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            }
+            {
+                transmittanceTexture.Bind(5u);
+                auto t = timer.Begin("Inscatter");
+                setShader(inscatterFirstShader);
+                const glm::uvec3 workGroupSize{ 8u, 8u, 8u };
+                auto& tex = scatterTexture;
+                glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
+                glDispatchCompute(tex.GetWidth() / workGroupSize.x, tex.GetHeight() / workGroupSize.y, tex.GetDepth() / workGroupSize.z);
+                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            }
         }
 
         // Update GPU data:
@@ -356,6 +380,7 @@ namespace Mulen {
         octreeMap.Bind(2u);
         depthTexture.Bind(3u);
         transmittanceTexture.Bind(5u);
+        scatterTexture.Bind(6u);
         vao.Bind();
 
         { // "planet" background (to do: spruce this up, maybe move elsewhere)

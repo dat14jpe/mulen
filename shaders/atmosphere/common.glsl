@@ -3,18 +3,22 @@
 const float PI = 3.14159265358979323846;
 
 // - to do: UBO
-uniform mat4 viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat;
-uniform uint rootGroupIndex;
+uniform mat4  viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat;
+uniform uint  rootGroupIndex;
 uniform float time;
 uniform float Fcoef_half;
 uniform float stepSize;
 uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
-uniform vec3 planetLocation;
-uniform vec3 lightDir;
-uniform vec3 sun; // distance, radius, intensity (already attenuated)
+uniform vec3  planetLocation;
+uniform vec3  lightDir;
+uniform vec3  sun; // distance, radius, intensity (already attenuated)
 uniform float Rt, Rg; // atmosphere top and bottom (ground) radii
 
 const int TransmittanceWidth = 256, TransmittanceHeight = 64;
+
+const float ScatterNuSize = 8, ScatterMuSSize = 32, ScatterMuSize = 128, ScatterRSize = 32;
+const float MuSMin = -0.2; // cos(102 degrees), which was chosen for Earth in particular
+
 
 // Physical values:
 uniform vec3 betaR;
@@ -23,11 +27,12 @@ uniform float HR, HM, betaMEx, betaMSca, mieG;
 // Sample scaling:
 uniform float offsetR, scaleR, offsetM, scaleM;
 
-uniform layout(binding=0) sampler3D brickTexture;
-uniform layout(binding=1) sampler3D brickLightTexture;
+uniform layout(binding=0) sampler3D  brickTexture;
+uniform layout(binding=1) sampler3D  brickLightTexture;
 uniform layout(binding=2) usampler3D octreeMapTexture;
-uniform layout(binding=3) sampler2D depthTexture;
-uniform layout(binding=5) sampler2D transmittanceTexture;
+uniform layout(binding=3) sampler2D  depthTexture;
+uniform layout(binding=5) sampler2D  transmittanceTexture;
+uniform layout(binding=6) sampler3D  scatterTexture;
 
 
 #define SSBO_VOXEL_NODES         0
@@ -209,6 +214,15 @@ float MieDensityFromSample(float v)
     return exp(offsetM + scaleM * v);
 }
 
+float RayleighDensityFromH(float H)
+{
+    return exp(-H / HR);
+}
+float MieDensityFromH(float H)
+{
+    return exp(-H / HM);
+}
+
 float PhaseRayleigh(float v)
 {
     return (3.0 / (16.0 * PI)) * (1.0 + v * v);
@@ -238,6 +252,10 @@ float DistanceToAtmosphereTop(float r, float mu)
 float DistanceToAtmosphereBottom(float r, float mu)
 {
     return max(0.0, -r*mu - sqrt(max(0.0, Rg*Rg + r*r*(mu*mu - 1.0))));
+}
+float DistanceToNearestAtmosphereBoundary(float r, float mu, bool intersectsGround)
+{
+    return intersectsGround ? DistanceToAtmosphereBottom(r, mu) : DistanceToAtmosphereTop(r, mu);
 }
 
 // x on [0, 1], texSize texture size in texels
@@ -282,12 +300,161 @@ vec3 GetTransmittanceToAtmosphereTop(float r, float mu)
 }
 vec3 GetTransmittanceToSun(float r, float mu_s)
 {
-    const float sun_angular_radius = 0.00935 / 2.0;
+    const float sunAngularRadius = 0.00935 / 2.0;
     float sin_theta_h = Rg / r;
     float cos_theta_h = -sqrt(max(1.0 - sin_theta_h * sin_theta_h, 0.0));
     return GetTransmittanceToAtmosphereTop(r, mu_s) *
-      smoothstep(-sin_theta_h * sun_angular_radius,
-                 sin_theta_h * sun_angular_radius,
+      smoothstep(-sin_theta_h * sunAngularRadius,
+                 sin_theta_h * sunAngularRadius,
                  mu_s - cos_theta_h);
 }
-// - to do: a variant accounting for planet shadow, analytically
+vec3 GetTransmittance(float r, float mu, float d, bool intersectsGround)
+{
+    float r_d = clamp(sqrt(d*d + r*r* + 2.0 * r * mu * d), Rg, Rt);
+    float mu_d = clamp((r * mu + d) / r_d, -1.0, 1.0);
+    
+    if (intersectsGround)
+    {
+        return min(vec3(1.0),
+            GetTransmittanceToAtmosphereTop(r_d, -mu_d) /
+            GetTransmittanceToAtmosphereTop(r, -mu));
+    }
+    else
+    {
+        return min(vec3(1.0),
+            GetTransmittanceToAtmosphereTop(r, mu) /
+            GetTransmittanceToAtmosphereTop(r_d, mu_d));
+    }
+}
+
+// nu: dot product of ray direction and light direction
+// d: length along ray
+void ComputeSingleScatteringIntegrand
+(
+    float r, float mu, float mu_s, float nu, float d,
+    bool intersectsGround,
+    out vec3 rayleigh, out vec3 mie
+)
+{
+    float r_d = clamp(sqrt(d*d + r*r + 2.0 * r * mu * d), Rg, Rt);
+    float mu_s_d = clamp((r * mu_s + d * nu) / r_d, -1.0, 1.0);
+    vec3 T = 
+        GetTransmittance(r, mu, d, intersectsGround) *
+        GetTransmittanceToSun(r_d, mu_s_d);
+    float H = r_d - Rg;
+    rayleigh = T * RayleighDensityFromH(H);
+    mie = T * MieDensityFromH(H);
+}
+
+void ComputeSingleScattering
+(
+    float r, float mu, float mu_s, float nu, bool intersectsGround,
+    out vec3 rayleigh, out vec3 mie
+)
+{
+    const uint NumSteps = 512u;
+    float dx = DistanceToNearestAtmosphereBoundary(r, mu, intersectsGround) / float(NumSteps);
+    rayleigh = mie = vec3(0.0);
+    for (uint step = 0u; step < NumSteps; ++step)
+    {
+        float d = dx * float(step);
+        vec3 dray, dmie;
+        ComputeSingleScatteringIntegrand(r, mu, mu_s, nu, d, intersectsGround, dray, dmie);
+        rayleigh += dray;
+        mie += dmie;
+    }
+    rayleigh *= betaR * dx;
+    mie *= betaMSca * dx;
+}
+
+
+vec4 ScatteringUvwzFromRMuMuSNu
+(
+    float r, float mu, float mu_s, float nu, bool intersectsGround
+)
+{
+    float H = sqrt(Rt*Rt - Rg*Rg); // distance to atmosphere top for a horizontal ray at ground level
+    float rho = sqrt(max(0.0, r*r - Rg*Rg)); // distance to the horizon
+    float u_r = UnitCoordToTextureCoord(rho / H, ScatterRSize);
+    
+    float r_mu = r * mu;
+    float discriminant = r*mu*r_mu - r*r + Rg*Rg; // of intersection between ray (r, mu) and the ground
+    float u_mu;
+    if (intersectsGround)
+    {
+        // Distance to the ground and its min and max over mu.
+        float d = -r_mu - sqrt(max(0.0, discriminant));
+        float d_min = r - Rg, d_max = rho;
+        u_mu = 0.5 - 0.5 * UnitCoordToTextureCoord(d_max == d_min ? 0.0 : (d - d_min) / (d_max - d_min), ScatterMuSize / 2);
+    }
+    else
+    {
+        // Distance to the atmosphere top and its min and max over mu.
+        float d = -r_mu + sqrt(max(0.0, discriminant + H*H));
+        float d_min = Rt - r, d_max = rho + H;
+        u_mu = 0.5 + 0.5 * UnitCoordToTextureCoord((d - d_min) / (d_max - d_min), ScatterMuSize / 2);
+    }
+    
+    float d = DistanceToAtmosphereTop(Rg, mu_s);
+    float d_min = Rt - Rg, d_max = H;
+    float a = (d - d_min) / (d_max - d_min);
+    float A = -2.0 * MuSMin * Rg / (d_max - d_min);
+    float u_mu_s = UnitCoordToTextureCoord(max(1.0 - a / A, 0.0) / (1.0 + a), ScatterMuSSize);
+    float u_nu = (nu + 1.0) / 2.0;
+    return vec4(u_nu, u_mu_s, u_mu, u_r);
+}
+
+void RMuMuSNuFromScatteringUvwz
+(
+    vec4 uvwz, out float r, out float mu, out float mu_s, out float nu, out bool intersectsGround
+)
+{
+    float H = sqrt(Rt*Rt - Rg*Rg); // distance to atmosphere top for horizontal ray at ground
+    float rho = H * TextureCoordToUnitCoord(uvwz.w, ScatterRSize); // distance to the horizon
+    r = sqrt(rho*rho + Rg*Rg);
+    
+    if (uvwz.z < 0.5)
+    {
+        // Distance to the ground and its min and max over mu.
+        float d_min = r - Rg, d_max = rho;
+        float d = d_min + (d_max - d_min) * TextureCoordToUnitCoord(1.0 - 2.0 * uvwz.z, ScatterMuSize / 2);
+        mu = d == 0.0 ? -1.0 : clamp(-(rho*rho + d*d) / (2.0 * r * d), -1.0, 1.0);
+        intersectsGround = true;
+    }
+    else
+    {
+        // Distance to the atmosphere top and its min and max over mu.
+        float d_min = Rt - r, d_max = rho + H;
+        float d = d_min + (d_max - d_min) * TextureCoordToUnitCoord(2.0 * uvwz.z - 1.0, ScatterMuSize / 2);
+        mu = d == 0.0 ? 1.0 : clamp((H*H - rho*rho - d*d) / (2.0 * r * d), -1.0, 1.0);
+        intersectsGround = false;
+    }
+    
+    float x_mu_s = TextureCoordToUnitCoord(uvwz.y, ScatterMuSSize);
+    float d_min = Rt - Rg, d_max = H;
+    float A = -2.0 * MuSMin * Rg / (d_max - d_min);
+    float a = (A - x_mu_s * A) / (1.0 + x_mu_s * A);
+    float d = d_min + min(a, A) * (d_max - d_min);
+    mu_s = d == 0.0 ? 1.0 : clamp((H*H - d*d) / (2.0 * Rg * d), -1.0, 1.0);
+    nu = clamp(uvwz.x * 2.0 - 1.0, -1.0, 1.0);
+}
+
+vec4 LookUpScattering(float r, float mu, float mu_s, float nu, bool intersectsGround)
+{
+    vec4 uvwz = ScatteringUvwzFromRMuMuSNu(r, mu, mu_s, nu, intersectsGround);
+    float texCoordX = uvwz.x * float(ScatterNuSize - 1);
+    float texX = floor(texCoordX);
+    float lerp = texCoordX - texX;
+    vec3 uvw0 = vec3((texX + uvwz.y) / float(ScatterNuSize), uvwz.z, uvwz.w);
+    vec3 uvw1 = vec3((texX + 1.0 + uvwz.y) / float(ScatterNuSize), uvwz.z, uvwz.w);
+    return mix(texture(scatterTexture, uvw0), texture(scatterTexture, uvw1), lerp);
+}
+
+// Returns single scattering with phase functions included.
+vec3 GetScattering(float r, float mu, float mu_s, float nu, bool intersectsGround)
+{
+    vec4 scatter = LookUpScattering(r, mu, mu_s, nu, intersectsGround);
+    vec3 rayleigh = scatter.xyz * PhaseRayleigh(nu);
+    vec3 mie = vec3(scatter.www) * PhaseMie(nu);
+    return rayleigh + mie;
+}

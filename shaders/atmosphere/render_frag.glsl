@@ -30,16 +30,52 @@ void main()
     const vec3 ori = vec3(invViewMat * vec4(0, 0, 0, 1));
     vec3 dir = normalize(vec3(invViewProjMat * clip_coords));
     float solidDepth = length(ViewspaceFromDepth(GetDepth()));
+    const float actualSolidDepth = solidDepth;
     
     float opticalDepthR = 0.0, opticalDepthM = 0.0;
     vec3 transmittance = vec3(1.0);
     vec3 color = vec3(0.0);
     
-    float tmin, tmax;
-    const float atmFactor = 1.7;//1.1; // - to do: adjust so that the upper "Rayleigh line" is not visible
-    float R = planetRadius + atmosphereHeight * atmFactor;
-    if (IntersectSphere(ori, dir, planetLocation, R, tmin, tmax))
+    const float outerR = Rt; // upper atmosphere radius (not *cloud* level, but far above it)
+    float outerMin, outerMax, innerMin, innerMax;
+    const bool intersectsOuter = IntersectSphere(ori, dir, planetLocation, outerR, outerMin, outerMax);
+    const float innerR = planetRadius + atmosphereHeight * 0.5; // - to do: make 1.7 more like... 0.5? Maybe
+    const bool intersectsInner = IntersectSphere(ori, dir, planetLocation, innerR, innerMin, innerMax);
+    
+    const bool AddSecondOuter = true;//false;
+    
+    // - to do: fully correct and encompassing logic
+    // - to do: consider depth buffer occlusion before inner atmosphere
+    const float outerLength = intersectsInner ? innerMin - outerMin : outerMax - outerMin; // - to do: use this
+    if (intersectsOuter && outerLength > 0.0)
     {
+        vec3 p = ori + dir * outerMin - planetLocation;
+        float r = length(p);
+        float mu = dot(dir, p) / r;
+        float mu_s = dot(lightDir, p) / r;
+        float nu = dot(dir, lightDir);
+        bool intersectsGround = false; // - to do
+        vec3 scattering = GetScattering(r, mu, mu_s, nu, intersectsGround);
+        transmittance *= GetTransmittance(r, mu, outerLength, true);
+        
+        if (intersectsInner)
+        {
+            vec3 p = ori + dir * innerMin - planetLocation;
+            float r = length(p);
+            float mu = dot(dir, p) / r;
+            float mu_s = dot(lightDir, p) / r;
+            scattering -= transmittance * GetScattering(r, mu, mu_s, nu, intersectsGround);
+        }
+        color += max(vec3(0.0), scattering);
+        // - to do: add *after* inner too if intersectsInner && intersectsOuter
+    }
+    // - to do: use outer atmosphere intersection separately, add precomputed scattering there
+    
+    if (intersectsInner)
+    {
+        #ifndef TestingALittle
+        
+        float tmin = innerMin, tmax = innerMax;
         solidDepth = min(solidDepth, tmax);
         
         /*solidDepth = min(solidDepth, 5e4); // - debugging
@@ -142,9 +178,10 @@ void main()
         // - Debug mode for cross section of actual atmosphere:
         //if (false)
         {
-            // - to do: do this
+            // - to do
         }
         
+        //tmin += 7e4; // - testing ("skips" to cloud level could be quite a performance boost, so maybe use precomputed scattering above them?)
         const float outerMin = tmin;
         const vec3 hit = ori + dir * tmin - planetLocation;
         
@@ -202,7 +239,8 @@ void main()
 
             // - to do: add random offset here (again), or only on depth change? Let's see
             
-            while (dist < tmax && numSteps < maxSteps)
+            vec3 T = vec3(1.0);
+            while (dist < tmax)
             {            
                 vec3 tc = lc * 0.5 + 0.5;
                 tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
@@ -246,7 +284,7 @@ void main()
                 // - to do: compute Rayleigh density theoretically
                 rayleighDensity = exp(-(r - Rg) / HR);
                 float mieDensity = MieDensityFromSample(mie);
-                //mieDensity = mie * 0.02; // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
+                mieDensity = max(0.0, (mie * scaleM + offsetM) * 200.0); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
                 
                 { // - test: hardcoded upper cloud boundary
@@ -261,17 +299,19 @@ void main()
                     float bottom = smoothstep(1.0005, 1.001, length(p));
                     float a = 1.0 / 6371.0;
                     //bottom = max(bottom, 1.0 - smoothstep(1.0 + a * 0.5, 1.0 + a, length(p)));
-                    //mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
+                    mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
                 }
+                
+                // Now adding theoretical base Mie here too:
+                mieDensity += exp(-(r - Rg) / HM);
                 
                 // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
                 
-                const vec3 lightIntensity = vec3(1.0) * sun.z;
                 //mieDensity *= 30.0; // - debugging
-                transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+                T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
                 color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
-                    * transmittance * storedLight * lightIntensity * atmStep;
-                //color += /*transmittance * */storedLight * atmStep * 1e-6; // - debugging
+                    * T * storedLight * atmStep;
+                //color += /*T * */storedLight * atmStep * 1e-6; // - debugging
                     
                 // - experiment: Mie added to optical depth *after*, to not occlude itself
                 // (should also be the case for Rayleigh, maybe?)
@@ -301,7 +341,7 @@ void main()
             
             // This optimisation seems highly effective (20200204).
             // Near-doubling in many cases, and possibly more in others.
-            if (length(transmittance) < 1e-3) break;
+            if (length(T) < 1e-3) break;
             
             //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
             
@@ -312,7 +352,7 @@ void main()
             ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
             if (old == ni) break; // - error (but can this even happen?)
             
-            if (numBricks >= 64u) break; // - testing
+            if (numBricks >= 64u || numSteps >= maxSteps) break; // - testing
         }
         
         { // - debug visualisation
@@ -321,9 +361,42 @@ void main()
             //color.r += 0.02 * float(numBricks);
             //if (0u == (numSteps & 1u)) color.r += 0.1;
         }
+        #endif
+        
+        if (AddSecondOuter)
+        if (intersectsOuter && (!intersectsInner || innerMax < actualSolidDepth))
+        {
+            // - to do: handle depth buffer value possibly interrupting this
+            vec3 p = ori + dir * innerMax - planetLocation;
+            float r = length(p);
+            float mu = dot(dir, p) / r;
+            float mu_s = dot(lightDir, p) / r;
+            float nu = dot(dir, lightDir);
+            vec3 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+            color += T * GetScattering(r, mu, mu_s, nu, false);
+            // - to do: transmittance, also considering potentially occluding depth buffer value
+            //transmittance *= GetTransmittance(r, mu, outerLength, true);
+        }
     }
     
-    transmittance = exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+    if (false)
+    { // - debugging
+        ivec3 size = textureSize(scatterTexture, 0);
+        ivec2 ic = ivec2(gl_FragCoord.xy);
+        const int cols = 4;
+        int z = ic.y / size.y * cols + ic.x / size.x;
+        if (z < size.z && ic.x / size.x < cols)
+        {
+            ic.x = ic.x % size.x;
+            ic.y = ic.y % size.y;
+            color = vec3(texelFetch(scatterTexture, ivec3(ic, z), 0));
+        }
+        //color = vec3(texelFetch(transmittanceTexture, ivec2(gl_FragCoord.xy), 0));
+    }
+    const vec3 lightIntensity = vec3(1.0) * sun.z;
+    color *= lightIntensity;
+    
+    transmittance *= exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
     color += backLight * transmittance;
     outValue = vec4(color, 1.0);
 }

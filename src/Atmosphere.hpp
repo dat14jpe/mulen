@@ -80,8 +80,8 @@ namespace Mulen {
         void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
 
         // Prepass:
-        Util::Shader transmittanceShader;
-        Util::Texture transmittanceTexture;
+        Util::Shader transmittanceShader, inscatterFirstShader;
+        Util::Texture transmittanceTexture, scatterTexture;
         bool hasTransmittance = false; // - to do: per-atmosphere
 
         void SetUniforms(Util::Shader&);

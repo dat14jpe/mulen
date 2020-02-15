@@ -84,7 +84,7 @@ void main()
         rayleigh = -h / HR;
         mie = -h / HM; // - too strong now? Check offset/scaling
         //mie = min(0.0, mie); // - testing
-        //mie = -20; // - testing
+        mie = -20; // - testing
     }
     //if (false) // - debugging
     { // new noisy clouds attempt
@@ -141,6 +141,7 @@ void main()
             const float persistence = 0.5;
             const float lacunarity = 2.0;
             const vec3 op = p;
+            //if (false)
             {
                 vec3 p = op * 12.0;
                 float a = 1.0;
@@ -152,7 +153,7 @@ void main()
                     p *= lacunarity * scale;
                 }
             }
-            mask -= 0.25;
+            //mask -= 0.25;
             // Unfinished attempt at intertropical convergence zone:
             //mask += (1.0 - smoothstep(0.0, 0.03, abs(y))) * (fBm(3u, p * 8.0, 0.5, 2.0) * 0.5 + 0.5);
             
@@ -171,9 +172,9 @@ void main()
         const float cloudDensity = 10.0; // - to do: tune this (probably needs to be higher, no? Maybe 10? Try to find a physical derivation)
         float cloud = cloudDensity * max(0.0, d);
         // - to do: try different ways of combining these
-        //mie = mix(mie, cloud, shellFactor * mask);
+        mie = mix(mie, cloud, shellFactor * mask);
         //mie = log(mix(exp(mie), exp(cloud), shellFactor * mask));
-        mie += 2.0 * cloud * shellFactor * mask; // - is this (just adding) really better? Hmm.
+        //mie += 2.0 * cloud * shellFactor * mask; // - is this (just adding) really better? Hmm.
     }
     
     { // zero faces

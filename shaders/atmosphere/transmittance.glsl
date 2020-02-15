@@ -10,8 +10,8 @@ vec3 ComputeTransmittance(float r0, float mu)
 {
     const int NumSteps = 512; // (nothing special with 512, apart from powers of two just being nice numbers)
     float dx = DistanceToAtmosphereTop(r0, mu) / float(NumSteps);
-    float lastDensityR = 0.0;
-    float opticalDepthR = 0.0;
+    float lastDensityR = 0.0, lastDensityM = 0.0;
+    float opticalDepthR = 0.0, opticalDepthM = 0.0;
     for (int step = 0; step <= NumSteps; ++step)
     {
         float t = dx * float(step);
@@ -19,11 +19,14 @@ vec3 ComputeTransmittance(float r0, float mu)
         float h = r - Rg;
         
         float densityR = exp(-h / HR);
+        float densityM = exp(-h / HM);
         opticalDepthR += (densityR + lastDensityR) * 0.5 * dx;
+        opticalDepthM += (densityM + lastDensityM) * 0.5 * dx;
         lastDensityR = densityR;
+        lastDensityM = densityM;
         // (maybe add ozone and homogeneous Mie here too (at least ozone))
     }
-    vec3 opticalDepth = betaR * opticalDepthR;
+    vec3 opticalDepth = betaR * opticalDepthR + vec3(betaMEx * opticalDepthM);
     return exp(-opticalDepth);
 }
 
