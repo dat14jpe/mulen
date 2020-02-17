@@ -69,6 +69,42 @@ namespace Mulen {
                 InitializeAtmosphere();
             }
 
+            { // distance to planet or atmosphere cloud shell
+                auto cursorPos = glm::dvec2(window.GetCursorPosition());
+                cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
+                cursorPos.y = -cursorPos.y;
+                auto viewMat = camera.GetOrientationMatrix();
+                auto projMat = camera.GetProjectionMatrix();
+                auto ori = glm::dvec3(glm::inverse(viewMat) * glm::dvec4(0, 0, 0, 1));
+                auto dir = glm::normalize(glm::dvec3(glm::inverse(projMat * viewMat) * glm::dvec4(cursorPos, 1, 1)));
+                auto planetLocation = atmosphere.GetPosition() - camera.GetPosition();
+                auto R = atmosphere.GetPlanetRadius();
+
+                auto IntersectSphere = [](glm::dvec3 ori, glm::dvec3 dir, glm::dvec3 center, double radius, double& t0, double& t1)
+                {
+                    const float radius2 = radius * radius;
+
+                    auto L = center - ori;
+                    auto tca = glm::dot(L, dir);
+                    auto d2 = glm::dot(L, L) - tca * tca;
+                    if (d2 > radius2) return false;
+                    auto thc = sqrt(radius2 - d2);
+                    t0 = tca - thc;
+                    t1 = tca + thc;
+                    t0 = glm::max(0.0, t0);
+                    if (t1 < t0) return false;
+
+                    return true;
+                };
+                double t0, t1;
+                if (!IntersectSphere(ori, dir, planetLocation, R, t0, t1)) t0 = -1e3;
+                auto planetT = t0;
+                //ImGui::Text("Planet distance: %.3f km", 1e-3 * t0);
+                if (!IntersectSphere(ori, dir, planetLocation, R + atmosphere.GetHeight() * 0.5, t0, t1)) t1 = -1e3;
+                else if (planetT > 0.0 && t1 > planetT) t1 = planetT;
+                ImGui::Text("Farthest cloud layer distance: %.3f km", 1e-3 * t1);
+            }
+
             /*if (ImGui::Button("Button")) counter++;
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);*/

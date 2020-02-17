@@ -63,6 +63,8 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float 
 
     //ori += offsetOrigin(p, dir, voxelSize); // - trying this *after* the planet shadowing. But it's not helping.
     
+    const float thresholdFraction = 1e-2; // - might need tuning
+    const float threshold = -log(thresholdFraction) / betaMEx;
     
     float tmin, tmax;
     float R = planetRadius + atmosphereHeight;
@@ -128,6 +130,8 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float 
                 ++numSteps;
             } //while (dist < tmax && numSteps < maxSteps);
             ++numBricks;
+            
+            if (opticalDepthM > threshold) break; // - testing
             
             const uint old = ni;
             vec3 p = (ori + dist * dir) / atmScale;

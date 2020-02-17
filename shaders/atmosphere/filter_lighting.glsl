@@ -50,6 +50,7 @@ void main()
         H > planetRadius + atmosphereHeight + voxelSize || // outside atmosphere
         H < planetRadius - voxelSize; // inside planet;
     lightSamples[localIndex] = notInShell ? 1.0 : SampleLighting(gp);
+    float light = 1.0;
     
     // - maybe to do: try to optimise by using explicit knowledge of neighbour samples in the same node/brick
     memoryBarrierShared();
@@ -61,7 +62,6 @@ void main()
         return; // this is a border voxel
     }
     
-    float light = 1.0;
     //if (false) // shared memory optimisation
     {
         light = 0.0;

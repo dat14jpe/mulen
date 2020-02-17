@@ -9,9 +9,5 @@ void main()
 {
     const uint loadId = GetGlobalIndex();
     UploadNodeGroup upload = uploadNodes[loadId];
-    
     nodeGroups[upload.groupIndex] = upload.nodeGroup;
-    
-    // - to do: handle linkage correctly
-    // - if type == Split, update node group but not any one node (nor any bricks)
 }

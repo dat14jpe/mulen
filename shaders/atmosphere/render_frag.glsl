@@ -55,6 +55,7 @@ void main()
         float mu_s = dot(lightDir, p) / r;
         float nu = dot(dir, lightDir);
         bool intersectsGround = false; // - to do
+        //intersectsGround = solidDepth < outerMax;
         vec3 scattering = GetScattering(r, mu, mu_s, nu, intersectsGround);
         transmittance *= GetTransmittance(r, mu, outerLength, true);
         

@@ -106,5 +106,6 @@ namespace Mulen {
         void RecomputeLighting();
 
         double GetPlanetRadius() const { return planetRadius; }
+        double GetHeight() const { return height; }
     };
 }
