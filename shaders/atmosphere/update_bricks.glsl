@@ -6,6 +6,7 @@ layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes
 #include "compute.glsl"
 
 uniform layout(binding=0, r16) writeonly image3D brickImage;
+uniform uint brickUploadOffset;
 
 float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
 {
@@ -22,7 +23,7 @@ float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
 
 void main()
 {
-    const uint loadId = GetWorkGroupIndex();
+    const uint loadId = GetWorkGroupIndex() + brickUploadOffset;
     const UploadBrick upload = uploadBricks[loadId];
     uvec3 writeOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
     

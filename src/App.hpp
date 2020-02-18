@@ -26,7 +26,7 @@ namespace Mulen {
         Atmosphere atmosphere;
         Util::Timer timer;
 
-        bool upright = true, collision = true, fly = true;
+        bool update = true, upright = true, collision = true, fly = true;
 
         bool InitializeAtmosphere();
         void SetVSync(bool);

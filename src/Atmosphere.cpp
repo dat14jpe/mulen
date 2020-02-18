@@ -13,11 +13,16 @@ namespace Mulen {
         const bool moreMemory = true; // - for quick switching during development
         hasTransmittance = false;
 
+        auto setTextureFilter = [](Util::Texture& tex, GLenum filter)
+        {
+            glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, filter);
+            glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, filter);
+        };
+
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * (moreMemory ? 10u : 1u);
+        const size_t numNodeGroups = 16384u * (moreMemory ? 5u : 1u); // - to do: just multiply by 3, or even 1 (though that last 1 is quite optimistic...)
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
-        gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
 
         Util::Texture::Dim maxWidth, brickRes, width, height, depth;
         maxWidth = 4096u; // - to do: retrieve actual system-dependent limit programmatically
@@ -31,24 +36,33 @@ namespace Mulen {
         height = texMap.y * brickRes;
         depth = texMap.z * brickRes;
         std::cout << numNodeGroups << " node groups (" << numBricks << " bricks, " << (cellsPerBrick * numBricks) / 1000000u << " M voxel cells)\n";
-        std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, " 
+        std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, "
             << width << "*" << height << "*" << depth << " texels (multiple of "
             << width * height * depth / (1024 * 1024) << " MB)\n";
-        auto setTextureFilter = [](Util::Texture& tex, GLenum filter)
-        {
-            glTextureParameteri(tex.GetId(), GL_TEXTURE_MIN_FILTER, filter);
-            glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, filter);
-        };
-        auto setUpTexture = [&](Util::Texture& tex, GLenum internalFormat, GLenum filter)
+
+        auto setUpBrickTexture = [&](Util::Texture& tex, GLenum internalFormat, GLenum filter)
         {
             tex.Create(GL_TEXTURE_3D, 1u, internalFormat, width, height, depth);
             setTextureFilter(tex, filter);
         };
-        setUpTexture(brickTexture, BrickFormat, GL_LINEAR);
-        for (auto i = 0u; i < std::extent<decltype(brickLightTextures)>::value; ++i)
+        auto setUpBrickLightTexture = [&](Util::Texture& tex)
         {
-            setUpTexture(brickLightTextures[i], BrickLightFormat, GL_LINEAR);
+            setUpBrickTexture(tex, BrickLightFormat, GL_LINEAR);
+        };
+
+        for (auto i = 0u; i < std::extent<decltype(gpuStates)>::value; ++i)
+        {
+            auto& state = gpuStates[i];
+            state.gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
+            setUpBrickTexture(state.brickTexture, BrickFormat, GL_LINEAR);
+            setUpBrickLightTexture(state.brickLightTexture);
+
+            // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
+            const auto mapRes = 64u; // - to do: try different values and measure performance
+            state.octreeMap.Create(GL_TEXTURE_3D, 1u, GL_R32UI, mapRes, mapRes, mapRes);
+            setTextureFilter(state.octreeMap, GL_NEAREST);
         }
+        setUpBrickLightTexture(brickLightTextureTemp);
 
         transmittanceTexture.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, 256, 64);
         setTextureFilter(transmittanceTexture, GL_LINEAR);
@@ -61,13 +75,6 @@ namespace Mulen {
         glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-        // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
-        const auto mapRes = 64u; // - to do: try different values and measure performance
-        octreeMap.Create(GL_TEXTURE_3D, 1u, GL_R32UI, mapRes, mapRes, mapRes);
-        setTextureFilter(octreeMap, GL_NEAREST);
-
-        // - to do: also create second texture (for double-buffering updates)
 
         maxToUpload = numNodeGroups;// / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
         nodesToUpload.reserve(maxToUpload);
@@ -215,7 +222,7 @@ namespace Mulen {
         return true;
     }
 
-    void Atmosphere::Update(const Camera& camera)
+    void Atmosphere::Update(bool update, const Camera& camera)
     {
         // - to do: divide this over multiple frames (while two past states are being interpolated)
         {
@@ -230,17 +237,19 @@ namespace Mulen {
         }
 
 
+        auto& state = gpuStates[0]; // - to do: correct index
         auto ssboIndex = 0u;
-        gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
+        state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
         gpuUploadNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
         gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
         // - to do: also bind the old texture for reading
         // (initially just testing writing directly to one)
 
-        auto setShader = [&](Util::Shader& shader)
+        auto setShader = [&](Util::Shader& shader) -> Util::Shader&
         {
             shader.Bind();
             SetUniforms(shader);
+            return shader;
         };
 
         if (!hasTransmittance)
@@ -268,9 +277,40 @@ namespace Mulen {
             }
         }
 
-        // Update GPU data:
-        if (nodesToUpload.size())
+        auto updateMap = [&](GpuState& state)
         {
+            auto t = timer.Begin("Map");
+            setShader(updateOctreeMapShader);
+            const glm::uvec3 resolution{ state.octreeMap.GetWidth(), state.octreeMap.GetHeight(), state.octreeMap.GetDepth() };
+            updateOctreeMapShader.Uniform3f("resolution", glm::vec3(resolution));
+            glBindImageTexture(0u, state.octreeMap.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32UI);
+            const auto groups = resolution / 8u;
+            glDispatchCompute(groups.x, groups.y, groups.z);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        };
+        auto updateNodes = [&](uint64_t num)
+        {
+            //auto t = timer.Begin("Nodes");
+            setShader(updateShader);
+            glDispatchCompute((GLuint)num, 1u, 1u);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        };
+        auto generateBricks = [&](GpuState& state, uint64_t first, uint64_t num)
+        {
+            //auto t = timer.Begin("Generation");
+            glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
+            setShader(updateBricksShader);
+            updateBricksShader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+            glDispatchCompute((GLuint)num, 1u, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        };
+
+        // - to do: probably remove this, eventually, in favour of always loading continuously
+        // Update GPU data:
+        static bool firstUpdate = true; // - temporary ugliness, before this is replaced by continuous updates
+        if (nodesToUpload.size() && firstUpdate)
+        {
+            firstUpdate = false;
             std::cout << "Uploading " << nodesToUpload.size() << " node groups\n";
             std::cout << "Generating " << bricksToUpload.size() << " bricks\n";
 
@@ -282,41 +322,19 @@ namespace Mulen {
             gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * nodesToUpload.size(), nodesToUpload.data());
             gpuUploadBricks.Upload(0, sizeof(UploadBrick) * bricksToUpload.size(), bricksToUpload.data());
 
-            brickTexture.Bind(0u);
-            octreeMap.Bind(2u);
+            auto& state = gpuStates[0]; // - to do: choose correct index when swapping for continuous updates
+            state.brickTexture.Bind(0u);
+            state.octreeMap.Bind(2u);
 
             // - to do: upload brick data
 
-
-            {
-                auto t = timer.Begin("Nodes");
-                setShader(updateShader);
-                glDispatchCompute((GLuint)nodesToUpload.size(), 1u, 1u);
-                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-            }
-
-            {
-                auto t = timer.Begin("Map");
-                setShader(updateOctreeMapShader);
-                const glm::uvec3 resolution{ octreeMap.GetWidth(), octreeMap.GetHeight(), octreeMap.GetDepth() };
-                updateOctreeMapShader.Uniform3f("resolution", glm::vec3(resolution));
-                glBindImageTexture(0u, octreeMap.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32UI);
-                const auto groups = resolution / 8u;
-                glDispatchCompute(groups.x, groups.y, groups.z);
-                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-            }
-
-            {
-                auto t = timer.Begin("Generation");
-                glBindImageTexture(0u, brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
-                setShader(updateBricksShader);
-                glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
-                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-            }
+            updateNodes(nodesToUpload.size());
+            updateMap(state);
+            generateBricks(state, 0u, bricksToUpload.size());
 
             {
                 auto t = timer.Begin("Lighting");
-                glBindImageTexture(0u, brickLightTextures[0].GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+                glBindImageTexture(0u, brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
                 setShader(updateLightShader);
                 glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
                 glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
@@ -324,15 +342,100 @@ namespace Mulen {
 
             {
                 auto t = timer.Begin("Light filter");
-                glBindImageTexture(0u, brickLightTextures[1].GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+                glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
                 setShader(lightFilterShader);
-                brickLightTextures[0].Bind(1u);
+                brickLightTextureTemp.Bind(1u);
                 glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
                 glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
             }
 
-            nodesToUpload.resize(0u);
-            bricksToUpload.resize(0u);
+            /*nodesToUpload.resize(0u);
+            bricksToUpload.resize(0u);*/
+        }
+
+        // - prototype continuous update:
+        if (update)
+        {
+            auto setStage = [&](unsigned i)
+            {
+                updateStage = (UpdateStage)i;
+                updateFraction = 0.0;
+                updateStageIndex0 = updateStageIndex1 = 0u;
+            };
+            if (updateStage == UpdateStage::Finished) // start a new iteration?
+            {
+                setStage(0);
+                // - to do: state index swap
+                // - to do: get new octree version from other thread (... which is also to do)
+                // (and update upload vectors accordingly)
+            }
+
+            auto& state = gpuStates[0]; // - to do: correct index
+            state.brickTexture.Bind(0u);
+            state.octreeMap.Bind(2u);
+
+            const auto rate = 1.0 / 60.0; // - to do: make configurable
+            auto fraction = 0.0;
+
+            auto computeNum = [&](size_t total, uint64_t done)
+            {
+                if (total <= done) return 0u; // all done
+                return glm::min(unsigned(total - done), glm::max(unsigned(1u), unsigned(fraction * total)));
+            };
+
+            switch (updateStage)
+            {
+            case UpdateStage::UploadAndGenerate:
+            {
+                fraction = (1.0 / 0.4) * rate; // - to do: try to automatically adjust via measurements of time taken? Maybe
+
+                // - to do: make sure to take care of lower-depth nodes first, as children may want to access parent data
+
+                const auto numNodes = computeNum(nodesToUpload.size(), updateStageIndex0),
+                    numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
+
+                if (numNodes)
+                {
+                    auto& last = updateStageIndex0;
+                    gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numNodes, nodesToUpload.data() + last);
+                    updateNodes(numNodes);
+                    last += numNodes;
+                }
+
+                if (numBricks)
+                {
+                    auto& last = updateStageIndex1;
+                    gpuUploadBricks.Upload(sizeof(UploadBrick) * last, sizeof(UploadBrick) * numBricks, bricksToUpload.data() + last);
+                    generateBricks(state, last, numBricks);
+                    std::cout << "Generating brick uploads " << last << " through " << last + numBricks << "\n";
+                    last += numBricks;
+                }
+
+                break;
+            }
+
+            case UpdateStage::Map:
+                fraction = 1.0;
+                updateMap(state);
+                break;
+
+            case UpdateStage::Lighting:
+            {
+                fraction = (1.0 / 0.4) * rate;
+                // - to do
+                break;
+            }
+
+            case UpdateStage::LightFilter:
+            {
+                fraction = (1.0 / 0.2) * rate;
+                // - to do
+                break;
+            }
+            }
+
+            updateFraction += fraction;
+            if (updateFraction >= 1.0) setStage(unsigned(updateStage) + 1u);
         }
     }
 
@@ -373,10 +476,11 @@ namespace Mulen {
         };
 
         fbos[0].Bind();
-        gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
-        brickTexture.Bind(0u);
-        brickLightTextures[1].Bind(1u);
-        octreeMap.Bind(2u);
+        auto& state = gpuStates[0]; // - to do: correct index
+        state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
+        state.brickTexture.Bind(0u);
+        state.brickLightTexture.Bind(1u);
+        state.octreeMap.Bind(2u);
         depthTexture.Bind(3u);
         transmittanceTexture.Bind(5u);
         scatterTexture.Bind(6u);

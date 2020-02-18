@@ -40,9 +40,13 @@ namespace Mulen {
         Util::Framebuffer fbos[2];
         Util::Texture depthTexture, lightTextures[2];
 
-        Util::Texture octreeMap;
-        Util::Buffer gpuNodes;
-        Util::Texture brickTexture, brickLightTextures[2];
+        struct GpuState
+        {
+            Util::Buffer gpuNodes;
+            Util::Texture brickTexture, brickLightTexture;
+            Util::Texture octreeMap;
+        } gpuStates[2];
+        Util::Texture brickLightTextureTemp;
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader;
         glm::uvec3 texMap;
@@ -89,6 +93,17 @@ namespace Mulen {
 
         Util::Timer& timer;
 
+        enum class UpdateStage
+        {
+            UploadAndGenerate,
+            Map,
+            Lighting,
+            LightFilter,
+            Finished
+        } updateStage = UpdateStage::Finished;
+        double updateFraction = 0.0;
+        uint64_t updateStageIndex0 = 0u, updateStageIndex1 = 0u;
+
 
     public:
         Atmosphere(Util::Timer& timer) : timer{ timer } {}
@@ -100,7 +115,7 @@ namespace Mulen {
         bool Init(const Params&);
         bool ReloadShaders(const std::string& shaderPath);
 
-        void Update(const Camera&);
+        void Update(bool update, const Camera&);
         void Render(const glm::ivec2& res, double time, const Camera&);
 
         void RecomputeLighting();

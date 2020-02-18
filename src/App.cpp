@@ -60,6 +60,7 @@ namespace Mulen {
             ImGui::ColorEdit3("clear color", (float*)&clear_color);
             ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
 
+            ImGui::Checkbox("Update", &update);
             ImGui::Checkbox("Upright", &upright);
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
@@ -223,7 +224,7 @@ namespace Mulen {
             }
         }
 
-        atmosphere.Update(camera);
+        atmosphere.Update(update, camera);
         atmosphere.Render(size, glfwGetTime(), camera);
     }
 
