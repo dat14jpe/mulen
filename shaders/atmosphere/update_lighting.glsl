@@ -7,6 +7,7 @@ layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes
 #include "compute.glsl"
 
 uniform layout(binding=0, r16f) writeonly image3D lightImage;
+uniform uint brickUploadOffset;
 
 float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
 {
@@ -245,7 +246,7 @@ float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFac
 
 void main()
 {
-    const uint loadId = GetWorkGroupIndex();
+    const uint loadId = GetWorkGroupIndex() + brickUploadOffset;
     const UploadBrick upload = uploadBricks[loadId];
     uvec3 writeOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
     

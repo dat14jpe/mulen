@@ -11,6 +11,7 @@ layout(local_size_x = BrickRes + P2, local_size_y = BrickRes + P2, local_size_z 
 shared float lightSamples[(BrickRes + P2) * (BrickRes + P2) * (BrickRes + P2)];
 
 uniform layout(binding=0, r16f) writeonly image3D lightImage;
+uniform uint brickUploadOffset;
 
 // p in [-1, 1] range over entire atmosphere octree
 float SampleLighting(vec3 p)
@@ -28,7 +29,7 @@ float SampleLighting(vec3 p)
 
 void main()
 {
-    const uint loadId = GetWorkGroupIndex();
+    const uint loadId = GetWorkGroupIndex() + brickUploadOffset;
     const UploadBrick upload = uploadBricks[loadId];
     uvec3 writeOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + (gl_LocalInvocationID - uvec3(Padding));
     const vec3 brickOffs = vec3(BrickIndexTo3D(upload.brickIndex));

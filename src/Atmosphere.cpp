@@ -161,7 +161,11 @@ namespace Mulen {
 
     void Atmosphere::SetUniforms(Util::Shader& shader)
     {
-        const auto lightDir = glm::normalize(glm::vec3(1, 0.6, 0.4));
+        auto lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
+        // - light rotation test:
+        auto lightSpeed = 0.001;
+        auto lightRot = glm::angleAxis(lightTime * 3.141592653589793 * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
+        lightDir = glm::rotate(lightRot, lightDir);
 
         // - to do: use a UBO instead
         shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
@@ -237,11 +241,8 @@ namespace Mulen {
         }
 
 
-        auto& state = gpuStates[0]; // - to do: correct index
-        auto ssboIndex = 0u;
-        state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
-        gpuUploadNodes.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
-        gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, ssboIndex++);
+        gpuUploadNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 1u);
+        gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, 2u);
         // - to do: also bind the old texture for reading
         // (initially just testing writing directly to one)
 
@@ -279,7 +280,7 @@ namespace Mulen {
 
         auto updateMap = [&](GpuState& state)
         {
-            auto t = timer.Begin("Map");
+            //auto t = timer.Begin("Map");
             setShader(updateOctreeMapShader);
             const glm::uvec3 resolution{ state.octreeMap.GetWidth(), state.octreeMap.GetHeight(), state.octreeMap.GetDepth() };
             updateOctreeMapShader.Uniform3f("resolution", glm::vec3(resolution));
@@ -299,8 +300,24 @@ namespace Mulen {
         {
             //auto t = timer.Begin("Generation");
             glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
-            setShader(updateBricksShader);
-            updateBricksShader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+            setShader(updateBricksShader).Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+            glDispatchCompute((GLuint)num, 1u, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        };
+        auto lightBricks = [&](GpuState& state, uint64_t first, uint64_t num)
+        {
+            //auto t = timer.Begin("Lighting");
+            glBindImageTexture(0u, brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+            setShader(updateLightShader).Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+            glDispatchCompute((GLuint)num, 1u, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        };
+        auto filterLighting = [&](GpuState& state, uint64_t first, uint64_t num)
+        {
+            //auto t = timer.Begin("Light filter");
+            glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+            setShader(lightFilterShader).Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+            brickLightTextureTemp.Bind(1u);
             glDispatchCompute((GLuint)num, 1u, 1u);
             glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
         };
@@ -322,32 +339,16 @@ namespace Mulen {
             gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * nodesToUpload.size(), nodesToUpload.data());
             gpuUploadBricks.Upload(0, sizeof(UploadBrick) * bricksToUpload.size(), bricksToUpload.data());
 
-            auto& state = gpuStates[0]; // - to do: choose correct index when swapping for continuous updates
+            auto& state = gpuStates[0];
+            state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
             state.brickTexture.Bind(0u);
             state.octreeMap.Bind(2u);
-
-            // - to do: upload brick data
 
             updateNodes(nodesToUpload.size());
             updateMap(state);
             generateBricks(state, 0u, bricksToUpload.size());
-
-            {
-                auto t = timer.Begin("Lighting");
-                glBindImageTexture(0u, brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
-                setShader(updateLightShader);
-                glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
-                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-            }
-
-            {
-                auto t = timer.Begin("Light filter");
-                glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
-                setShader(lightFilterShader);
-                brickLightTextureTemp.Bind(1u);
-                glDispatchCompute((GLuint)bricksToUpload.size(), 1u, 1u);
-                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-            }
+            lightBricks(state, 0u, bricksToUpload.size());
+            filterLighting(state, 0u, bricksToUpload.size());
 
             /*nodesToUpload.resize(0u);
             bricksToUpload.resize(0u);*/
@@ -365,12 +366,13 @@ namespace Mulen {
             if (updateStage == UpdateStage::Finished) // start a new iteration?
             {
                 setStage(0);
-                // - to do: state index swap
+                updateStateIndex = (updateStateIndex + 1u) % std::extent<decltype(gpuStates)>::value;
                 // - to do: get new octree version from other thread (... which is also to do)
                 // (and update upload vectors accordingly)
             }
 
-            auto& state = gpuStates[0]; // - to do: correct index
+            auto& state = gpuStates[updateStateIndex];
+            state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
             state.brickTexture.Bind(0u);
             state.octreeMap.Bind(2u);
 
@@ -383,14 +385,14 @@ namespace Mulen {
                 return glm::min(unsigned(total - done), glm::max(unsigned(1u), unsigned(fraction * total)));
             };
 
+            // - to do: make sure to take care of lower-depth nodes first, as children may want to access parent data
+            // - to do: try to automatically adjust relative time use (fractions) via measurements of time taken? Maybe
+
             switch (updateStage)
             {
             case UpdateStage::UploadAndGenerate:
             {
-                fraction = (1.0 / 0.4) * rate; // - to do: try to automatically adjust via measurements of time taken? Maybe
-
-                // - to do: make sure to take care of lower-depth nodes first, as children may want to access parent data
-
+                fraction = (1.0 / 0.4) * rate;
                 const auto numNodes = computeNum(nodesToUpload.size(), updateStageIndex0),
                     numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
 
@@ -407,7 +409,6 @@ namespace Mulen {
                     auto& last = updateStageIndex1;
                     gpuUploadBricks.Upload(sizeof(UploadBrick) * last, sizeof(UploadBrick) * numBricks, bricksToUpload.data() + last);
                     generateBricks(state, last, numBricks);
-                    std::cout << "Generating brick uploads " << last << " through " << last + numBricks << "\n";
                     last += numBricks;
                 }
 
@@ -422,14 +423,26 @@ namespace Mulen {
             case UpdateStage::Lighting:
             {
                 fraction = (1.0 / 0.4) * rate;
-                // - to do
+                const auto numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
+                if (numBricks)
+                {
+                    auto& last = updateStageIndex1;
+                    lightBricks(state, last, numBricks);
+                    last += numBricks;
+                }
                 break;
             }
 
             case UpdateStage::LightFilter:
             {
                 fraction = (1.0 / 0.2) * rate;
-                // - to do
+                const auto numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
+                if (numBricks)
+                {
+                    auto& last = updateStageIndex1;
+                    filterLighting(state, last, numBricks);
+                    last += numBricks;
+                }
                 break;
             }
             }
@@ -441,6 +454,9 @@ namespace Mulen {
 
     void Atmosphere::Render(const glm::ivec2& res, double time, const Camera& camera)
     {
+        if (rotateLight) lightTime += time - this->time;
+        this->time = time;
+
         // Resize the render targets if resolution has changed.
         if (depthTexture.GetWidth() != res.x || depthTexture.GetHeight() != res.y)
         {
@@ -476,7 +492,7 @@ namespace Mulen {
         };
 
         fbos[0].Bind();
-        auto& state = gpuStates[0]; // - to do: correct index
+        auto& state = gpuStates[(updateStateIndex + 1u) % std::extent<decltype(gpuStates)>::value];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         state.brickTexture.Bind(0u);
         state.brickLightTexture.Bind(1u);

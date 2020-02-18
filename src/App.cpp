@@ -61,6 +61,7 @@ namespace Mulen {
             ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
 
             ImGui::Checkbox("Update", &update);
+            ImGui::Checkbox("Rotate light", &rotateLight);
             ImGui::Checkbox("Upright", &upright);
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
@@ -224,6 +225,7 @@ namespace Mulen {
             }
         }
 
+        atmosphere.SetLightRotates(rotateLight);
         atmosphere.Update(update, camera);
         atmosphere.Render(size, glfwGetTime(), camera);
     }
@@ -247,6 +249,12 @@ namespace Mulen {
             break;
         case GLFW_KEY_F6:
             showGui = !showGui;
+            break;
+        case GLFW_KEY_L:
+            rotateLight = !rotateLight;
+            break;
+        case GLFW_KEY_U:
+            update = !update;
             break;
         }
     }

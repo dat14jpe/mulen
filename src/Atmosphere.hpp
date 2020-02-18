@@ -103,6 +103,10 @@ namespace Mulen {
         } updateStage = UpdateStage::Finished;
         double updateFraction = 0.0;
         uint64_t updateStageIndex0 = 0u, updateStageIndex1 = 0u;
+        unsigned updateStateIndex = 0u;
+
+        double time = 0.0, lightTime = 0.0;
+        bool rotateLight = true;
 
 
     public:
@@ -122,5 +126,7 @@ namespace Mulen {
 
         double GetPlanetRadius() const { return planetRadius; }
         double GetHeight() const { return height; }
+
+        void SetLightRotates(bool b) { rotateLight = b; }
     };
 }
