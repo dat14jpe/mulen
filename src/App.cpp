@@ -84,7 +84,7 @@ namespace Mulen {
 
                 auto IntersectSphere = [](glm::dvec3 ori, glm::dvec3 dir, glm::dvec3 center, double radius, double& t0, double& t1)
                 {
-                    const float radius2 = radius * radius;
+                    const auto radius2 = radius * radius;
 
                     auto L = center - ori;
                     auto tca = glm::dot(L, dir);
@@ -102,9 +102,14 @@ namespace Mulen {
                 if (!IntersectSphere(ori, dir, planetLocation, R, t0, t1)) t0 = -1e3;
                 auto planetT = t0;
                 //ImGui::Text("Planet distance: %.3f km", 1e-3 * t0);
-                if (!IntersectSphere(ori, dir, planetLocation, R + atmosphere.GetHeight() * 0.5, t0, t1)) t1 = -1e3;
+                const auto cloudHeight = atmosphere.GetHeight() * 0.5; // - to do: get from Atmosphere
+                if (!IntersectSphere(ori, dir, planetLocation, R + cloudHeight, t0, t1)) t1 = -1e3;
                 else if (planetT > 0.0 && t1 > planetT) t1 = planetT;
                 ImGui::Text("Farthest cloud layer distance: %.3f km", 1e-3 * t1);
+                const auto h = glm::max(0.0, glm::length(planetLocation) - R);
+                const auto planetHorizon = std::sqrt(h * (h + 2 * R));
+                ImGui::Text("Horizon distance: %.3f km", 1e-3 * planetHorizon);
+                ImGui::Text("Cloud layer horizon distance: %.3f km", 1e-3 * (planetHorizon + std::sqrt(cloudHeight * (cloudHeight + 2 * R))));
             }
 
             /*if (ImGui::Button("Button")) counter++;
@@ -130,7 +135,8 @@ namespace Mulen {
                 auto force = 10.0; // - to do: make configurable?
                 force *= r;
                 const auto dist = glm::distance(atmosphere.GetPosition(), camera.GetPosition());
-                force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 16.0)); // - to do: find nicer speed profile
+                //force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 16.0)); // - to do: find nicer speed profile
+                force *= log(dist / r);
                 //force *= glm::clamp(pow((dist - r) / r, 1.5), 1e-2, 1.0);
                 accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
                 // - to do: only perpendicular to planet normal, if not flying

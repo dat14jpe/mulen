@@ -2,8 +2,11 @@ add_executable(${CMAKE_PROJECT_NAME}
 	main.cpp
     App.hpp
     App.cpp
+    Common.hpp
     Atmosphere.hpp
     Atmosphere.cpp
+    AtmosphereUpdater.hpp
+    AtmosphereUpdater.cpp
     Octree.hpp
     Octree.cpp
     Camera.hpp

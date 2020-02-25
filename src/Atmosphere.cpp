@@ -77,83 +77,16 @@ namespace Mulen {
         glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
         maxToUpload = numNodeGroups;// / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
-        nodesToUpload.reserve(maxToUpload);
+        updater.nodesToUpload.reserve(maxToUpload);
         gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         gpuUploadBricks.Create(sizeof(UploadBrick) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         // - to do: also create brick upload buffer/texture
-
-        auto stageSplit = [&](NodeIndex gi)
-        {
-            StageNodeGroup(UploadType::Split, gi);
-            for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
-            {
-                const auto ni = Octree::GroupAndChildToNode(gi, ci);
-                StageBrick(UploadType::Split, ni);
-            }
-        };
 
         auto t = timer.Begin("Initial atmosphere splits");
 
         // For this particular atmosphere:
         rootGroupIndex = octree.RequestRoot();
-        stageSplit(rootGroupIndex);
-
-        // - test: "manual" splits, indiscriminately to a chosen level
-        std::function<void(NodeIndex, unsigned, glm::dvec4)> testSplit = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
-        {
-            if (!depth) return;
-            for (NodeIndex i = 0u; i < NodeArity; ++i)
-            {
-                const auto ci = NodeArity - 1u - i;
-                const auto ni = Octree::GroupAndChildToNode(gi, ci);
-
-                auto childPos = pos;
-                childPos.w *= 0.5;
-                childPos += (glm::dvec4(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u, 0.5) * 2.0 - 1.0)* childPos.w;
-                //if (false)
-                {
-                    // - simple test to only split those in spherical atmosphere shell:
-                    auto p = glm::dvec3(childPos) * scale;
-                    const auto size = childPos.w * scale;
-                    const Object::Position sphereCenter{ 0.0 };
-                    const auto height = 0.05, radius = 1.0; // - to do: check/correct these values
-                    const auto atmRadius2 = (radius + height) * (radius + height);
-
-                    auto bmin = p - size, bmax = p + size;
-                    const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
-                    if (dist2 > atmRadius2) continue; // outside
-                    bool anyOutside = false;
-                    for (int z = -1; z <= 1; z += 2)
-                        for (int y = -1; y <= 1; y += 2)
-                            for (int x = -1; x <= 1; x += 2)
-                            {
-                                if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) anyOutside = true;
-                            }
-                    if (!anyOutside) continue; // inside
-
-                }
-
-                if (!octree.nodes.GetNumFree()) return;
-                const auto& children = octree.GetNode(ni).children;
-                if (InvalidIndex == children)
-                {
-                    octree.Split(ni);
-                    stageSplit(children);
-                }
-                testSplit(children, depth - 1u, childPos);
-            }
-        };
-        auto testSplitRoot = [&](unsigned depth)
-        {
-            for (auto i = 1u; i <= depth; ++i)
-            {
-                testSplit(rootGroupIndex, i, glm::dvec4{ 0, 0, 0, 1 });
-            }
-        };
-        const auto testDepth = 6u + (moreMemory ? 1u : 0u); // - can't be higher than 5 with current memory constraints and waste
-        testSplitRoot(testDepth);
-        const auto res = (2u << testDepth) * (BrickRes - 1u);
-        std::cout << "Voxel resolution: " << res << " (" << 2e-3 * planetRadius * scale / res << " km/voxel)\n";
+        updater.InitialSetup();
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
         return true;
@@ -163,7 +96,7 @@ namespace Mulen {
     {
         auto lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
         // - light rotation test:
-        auto lightSpeed = 0.001;
+        auto lightSpeed = 1e-3;
         auto lightRot = glm::angleAxis(lightTime * 3.141592653589793 * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
         lightDir = glm::rotate(lightRot, lightDir);
 
@@ -240,18 +173,11 @@ namespace Mulen {
             // - to do: run animation update
         }
 
-
+        auto& u = updater;
         gpuUploadNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 1u);
         gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, 2u);
         // - to do: also bind the old texture for reading
         // (initially just testing writing directly to one)
-
-        auto setShader = [&](Util::Shader& shader) -> Util::Shader&
-        {
-            shader.Bind();
-            SetUniforms(shader);
-            return shader;
-        };
 
         if (!hasTransmittance)
         {
@@ -259,7 +185,7 @@ namespace Mulen {
 
             {
                 auto t = timer.Begin("Transmittance");
-                setShader(transmittanceShader);
+                u.SetShader(transmittanceShader);
                 const glm::uvec3 workGroupSize{ 32u, 32u, 1u };
                 auto& tex = transmittanceTexture;
                 glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
@@ -269,7 +195,7 @@ namespace Mulen {
             {
                 transmittanceTexture.Bind(5u);
                 auto t = timer.Begin("Inscatter");
-                setShader(inscatterFirstShader);
+                u.SetShader(inscatterFirstShader);
                 const glm::uvec3 workGroupSize{ 8u, 8u, 8u };
                 auto& tex = scatterTexture;
                 glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
@@ -278,182 +204,50 @@ namespace Mulen {
             }
         }
 
-        auto updateMap = [&](GpuState& state)
-        {
-            //auto t = timer.Begin("Map");
-            setShader(updateOctreeMapShader);
-            const glm::uvec3 resolution{ state.octreeMap.GetWidth(), state.octreeMap.GetHeight(), state.octreeMap.GetDepth() };
-            updateOctreeMapShader.Uniform3f("resolution", glm::vec3(resolution));
-            glBindImageTexture(0u, state.octreeMap.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32UI);
-            const auto groups = resolution / 8u;
-            glDispatchCompute(groups.x, groups.y, groups.z);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-        };
-        auto updateNodes = [&](uint64_t num)
-        {
-            //auto t = timer.Begin("Nodes");
-            setShader(updateShader);
-            glDispatchCompute((GLuint)num, 1u, 1u);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        };
-        auto generateBricks = [&](GpuState& state, uint64_t first, uint64_t num)
-        {
-            //auto t = timer.Begin("Generation");
-            glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
-            setShader(updateBricksShader).Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
-            glDispatchCompute((GLuint)num, 1u, 1u);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-        };
-        auto lightBricks = [&](GpuState& state, uint64_t first, uint64_t num)
-        {
-            //auto t = timer.Begin("Lighting");
-            glBindImageTexture(0u, brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
-            setShader(updateLightShader).Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
-            glDispatchCompute((GLuint)num, 1u, 1u);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-        };
-        auto filterLighting = [&](GpuState& state, uint64_t first, uint64_t num)
-        {
-            //auto t = timer.Begin("Light filter");
-            glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
-            setShader(lightFilterShader).Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
-            brickLightTextureTemp.Bind(1u);
-            glDispatchCompute((GLuint)num, 1u, 1u);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
-        };
 
         // - to do: probably remove this, eventually, in favour of always loading continuously
         // Update GPU data:
         static bool firstUpdate = true; // - temporary ugliness, before this is replaced by continuous updates
-        if (nodesToUpload.size() && firstUpdate)
+        if (u.nodesToUpload.size() && firstUpdate)
         {
             firstUpdate = false;
-            std::cout << "Uploading " << nodesToUpload.size() << " node groups\n";
-            std::cout << "Generating " << bricksToUpload.size() << " bricks\n";
+            std::cout << "Uploading " << u.nodesToUpload.size() << " node groups\n";
+            std::cout << "Generating " << u.bricksToUpload.size() << " bricks\n";
 
-            for (auto& uploadGroup : nodesToUpload)
+            for (auto& uploadGroup : u.nodesToUpload)
             {
                 const auto old = uploadGroup.nodeGroup;
                 uploadGroup.nodeGroup = octree.GetGroup(uploadGroup.groupIndex);
             }
-            gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * nodesToUpload.size(), nodesToUpload.data());
-            gpuUploadBricks.Upload(0, sizeof(UploadBrick) * bricksToUpload.size(), bricksToUpload.data());
+            gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * u.nodesToUpload.size(), u.nodesToUpload.data());
+            gpuUploadBricks.Upload(0, sizeof(UploadBrick) * u.bricksToUpload.size(), u.bricksToUpload.data());
 
             auto& state = gpuStates[0];
             state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
             state.brickTexture.Bind(0u);
             state.octreeMap.Bind(2u);
 
-            updateNodes(nodesToUpload.size());
-            updateMap(state);
-            generateBricks(state, 0u, bricksToUpload.size());
-            lightBricks(state, 0u, bricksToUpload.size());
-            filterLighting(state, 0u, bricksToUpload.size());
+            u.UpdateNodes(u.nodesToUpload.size());
+            u.UpdateMap(state);
+            u.GenerateBricks(state, 0u, u.bricksToUpload.size());
+            u.LightBricks(state, 0u, u.bricksToUpload.size());
+            u.FilterLighting(state, 0u, u.bricksToUpload.size());
 
             /*nodesToUpload.resize(0u);
             bricksToUpload.resize(0u);*/
         }
 
-        // - prototype continuous update:
-        if (update)
+        if (update) // are we doing continuous updates?
         {
-            auto setStage = [&](unsigned i)
-            {
-                updateStage = (UpdateStage)i;
-                updateFraction = 0.0;
-                updateStageIndex0 = updateStageIndex1 = 0u;
-            };
-            if (updateStage == UpdateStage::Finished) // start a new iteration?
-            {
-                setStage(0);
-                updateStateIndex = (updateStateIndex + 1u) % std::extent<decltype(gpuStates)>::value;
-                // - to do: get new octree version from other thread (... which is also to do)
-                // (and update upload vectors accordingly)
-            }
-
-            auto& state = gpuStates[updateStateIndex];
-            state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
-            state.brickTexture.Bind(0u);
-            state.octreeMap.Bind(2u);
-
-            const auto rate = 1.0 / 60.0; // - to do: make configurable
-            auto fraction = 0.0;
-
-            auto computeNum = [&](size_t total, uint64_t done)
-            {
-                if (total <= done) return 0u; // all done
-                return glm::min(unsigned(total - done), glm::max(unsigned(1u), unsigned(fraction * total)));
-            };
-
-            // - to do: make sure to take care of lower-depth nodes first, as children may want to access parent data
-            // - to do: try to automatically adjust relative time use (fractions) via measurements of time taken? Maybe
-
-            switch (updateStage)
-            {
-            case UpdateStage::UploadAndGenerate:
-            {
-                fraction = (1.0 / 0.4) * rate;
-                const auto numNodes = computeNum(nodesToUpload.size(), updateStageIndex0),
-                    numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
-
-                if (numNodes)
-                {
-                    auto& last = updateStageIndex0;
-                    gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numNodes, nodesToUpload.data() + last);
-                    updateNodes(numNodes);
-                    last += numNodes;
-                }
-
-                if (numBricks)
-                {
-                    auto& last = updateStageIndex1;
-                    gpuUploadBricks.Upload(sizeof(UploadBrick) * last, sizeof(UploadBrick) * numBricks, bricksToUpload.data() + last);
-                    generateBricks(state, last, numBricks);
-                    last += numBricks;
-                }
-
-                break;
-            }
-
-            case UpdateStage::Map:
-                fraction = 1.0;
-                updateMap(state);
-                break;
-
-            case UpdateStage::Lighting:
-            {
-                fraction = (1.0 / 0.4) * rate;
-                const auto numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
-                if (numBricks)
-                {
-                    auto& last = updateStageIndex1;
-                    lightBricks(state, last, numBricks);
-                    last += numBricks;
-                }
-                break;
-            }
-
-            case UpdateStage::LightFilter:
-            {
-                fraction = (1.0 / 0.2) * rate;
-                const auto numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
-                if (numBricks)
-                {
-                    auto& last = updateStageIndex1;
-                    filterLighting(state, last, numBricks);
-                    last += numBricks;
-                }
-                break;
-            }
-            }
-
-            updateFraction += fraction;
-            if (updateFraction >= 1.0) setStage(unsigned(updateStage) + 1u);
+            const auto period = 1.0; // - to do: make configurable
+            updater.OnFrame(time, period);
         }
     }
 
     void Atmosphere::Render(const glm::ivec2& res, double time, const Camera& camera)
     {
+        auto& u = updater;
+
         if (rotateLight) lightTime += time - this->time;
         this->time = time;
 
@@ -492,7 +286,7 @@ namespace Mulen {
         };
 
         fbos[0].Bind();
-        auto& state = gpuStates[(updateStateIndex + 1u) % std::extent<decltype(gpuStates)>::value];
+        auto& state = gpuStates[(u.updateStateIndex + 1u) % std::extent<decltype(gpuStates)>::value];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         state.brickTexture.Bind(0u);
         state.brickLightTexture.Bind(1u);
@@ -533,45 +327,5 @@ namespace Mulen {
         }
 
         timer.EndFrame();
-    }
-
-    void Atmosphere::StageNodeGroup(UploadType type, NodeIndex groupIndex)
-    {
-        // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
-        uint32_t genData = 0u;
-        genData |= uint32_t(type) << 24u;
-        UploadNodeGroup upload{};
-        upload.groupIndex = groupIndex;
-        upload.genData = genData;
-        upload.nodeGroup = octree.GetGroup(groupIndex);
-        nodesToUpload.push_back(upload);
-    }
-
-    void Atmosphere::StageBrick(UploadType type, NodeIndex nodeIndex)
-    {
-        // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
-        const auto brickIndex = nodeIndex;
-        uint32_t genData = 0u; // - to do: also add upload brick data index, when applicable
-        genData |= uint32_t(type) << 24u;
-
-        glm::vec3 nodeCenter{ 0.0, 0.0, 0.0 };
-        float nodeSize = 1.0;
-        for (auto ni = nodeIndex; ni != InvalidIndex; ni = octree.GetGroup(Octree::NodeToGroup(ni)).parent)
-        {
-            glm::ivec3 ioffs = glm::ivec3(ni & 1u, (ni >> 1u) & 1u, (ni >> 2u) & 1u) * 2 - 1;
-            nodeCenter += glm::vec3(ioffs) * nodeSize;
-            nodeSize *= 2.0;
-        }
-        nodeCenter /= nodeSize;
-        nodeSize = 1.0f / nodeSize;
-
-        UploadBrick upload{};
-        upload.nodeIndex = nodeIndex;
-        upload.brickIndex = brickIndex;
-        upload.genData = genData;
-        upload.nodeLocation = glm::vec4(glm::vec3(nodeCenter), (float)nodeSize);
-
-        // - to do: add various generation parameters (e.g. wind vector/temperature/humidity)
-        bricksToUpload.push_back(upload);
     }
 }

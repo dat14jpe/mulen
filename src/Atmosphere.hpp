@@ -1,13 +1,10 @@
 #pragma once
-
+#include "Common.hpp"
 #include <vector>
 #include "util/VertexArray.hpp"
-#include "util/Buffer.hpp"
-#include "util/Texture.hpp"
-#include "util/Shader.hpp"
 #include "util/Framebuffer.hpp"
-#include "Octree.hpp"
 #include "Object.hpp"
+#include "AtmosphereUpdater.hpp"
 
 namespace Util {
     class Timer;
@@ -18,6 +15,8 @@ namespace Mulen {
 
     class Atmosphere : public Object
     {
+        friend class AtmosphereUpdater;
+
         double planetRadius = 6371000.0;
         double height = 50000.0; // - to do: correct
         double scale = 1.1;
@@ -40,48 +39,17 @@ namespace Mulen {
         Util::Framebuffer fbos[2];
         Util::Texture depthTexture, lightTextures[2];
 
-        struct GpuState
-        {
-            Util::Buffer gpuNodes;
-            Util::Texture brickTexture, brickLightTexture;
-            Util::Texture octreeMap;
-        } gpuStates[2];
+        GpuState gpuStates[2];
         Util::Texture brickLightTextureTemp;
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader;
         glm::uvec3 texMap;
-        // Two channels since bricks store both last and next values, to let rendering interpolate between them.
-        static const auto
-            BrickFormat = GL_R16, // - visible banding if only 8 bits per channel. Maybe can be resolved with generation dithering?
-            BrickLightFormat = GL_R16F;
         
         // Update:
         Util::Texture brickUploadTexture;
         size_t maxToUpload; // maximum per frame
         Util::Buffer gpuUploadNodes, gpuUploadBricks;
-        enum class UploadType
-        {
-            Split, Merge, Update
-        };
-        struct UploadNodeGroup
-        {
-            NodeIndex groupIndex;
-            uint32_t genData;
-            //uint32_t padding[2];
-            NodeGroup nodeGroup;
-        };
-        std::vector<UploadNodeGroup> nodesToUpload;
-        struct UploadBrick
-        {
-            NodeIndex nodeIndex, brickIndex;
-            uint32_t genData;
-            uint32_t padding0;
-            glm::vec4 nodeLocation;
-        };
-        std::vector<UploadBrick> bricksToUpload;
         Util::Shader updateShader, updateBricksShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
-        void StageNodeGroup(UploadType, NodeIndex ni);
-        void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
 
         // Prepass:
         Util::Shader transmittanceShader, inscatterFirstShader;
@@ -93,24 +61,14 @@ namespace Mulen {
 
         Util::Timer& timer;
 
-        enum class UpdateStage
-        {
-            UploadAndGenerate,
-            Map,
-            Lighting,
-            LightFilter,
-            Finished
-        } updateStage = UpdateStage::Finished;
-        double updateFraction = 0.0;
-        uint64_t updateStageIndex0 = 0u, updateStageIndex1 = 0u;
-        unsigned updateStateIndex = 0u;
-
         double time = 0.0, lightTime = 0.0;
         bool rotateLight = true;
 
+        AtmosphereUpdater updater;
+
 
     public:
-        Atmosphere(Util::Timer& timer) : timer{ timer } {}
+        Atmosphere(Util::Timer& timer) : timer{ timer }, updater{ *this } {}
 
         struct Params
         {
@@ -121,8 +79,6 @@ namespace Mulen {
 
         void Update(bool update, const Camera&);
         void Render(const glm::ivec2& res, double time, const Camera&);
-
-        void RecomputeLighting();
 
         double GetPlanetRadius() const { return planetRadius; }
         double GetHeight() const { return height; }

@@ -6,7 +6,7 @@
 namespace Mulen {
     bool Octree::Init(size_t numNodes, size_t numBricks)
     {
-        return nodes.Init(numNodes) && bricks.Init(numBricks);
+        return nodes.Init(numNodes);//&& bricks.Init(numBricks);
     }
 
     NodeIndex Octree::RequestRoot()

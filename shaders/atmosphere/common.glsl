@@ -16,7 +16,7 @@ uniform float Rt, Rg; // atmosphere top and bottom (ground) radii
 
 const int TransmittanceWidth = 256, TransmittanceHeight = 64;
 
-const float ScatterNuSize = 8, ScatterMuSSize = 32, ScatterMuSize = 128, ScatterRSize = 32;
+const float ScatterRSize = 32, ScatterMuSize = 128, ScatterMuSSize = 32, ScatterNuSize = 8;
 const float MuSMin = -0.2; // cos(102 degrees), which was chosen for Earth in particular
 
 

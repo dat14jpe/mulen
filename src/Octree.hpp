@@ -97,7 +97,7 @@ namespace Mulen {
 
     public:
         Pool<NodeGroup, NodeIndex> nodes;
-        Pool<Brick, NodeIndex> bricks;
+        //Pool<Brick, NodeIndex> bricks;
 
         bool Init(size_t numNodes, size_t numBricks);
         NodeIndex RequestRoot(); // returns InvalidIndex on failure, or the first of NodeArity root node indices on success
