@@ -115,5 +115,7 @@ namespace Mulen {
 
         static NodeIndex NodeToGroup(NodeIndex ni) { return ni / NodeArity; }
         static NodeIndex GroupAndChildToNode(NodeIndex gi, NodeIndex ci) { return gi * NodeArity + ci; }
+
+        // - to do: template traversal function
     };
 }

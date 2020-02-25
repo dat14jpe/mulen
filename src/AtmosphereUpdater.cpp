@@ -1,6 +1,8 @@
 #include "AtmosphereUpdater.hpp"
 #include "Atmosphere.hpp"
 #include <functional>
+#include <queue>
+#include <unordered_set>
 #include <iostream>
 
 namespace Mulen {
@@ -10,6 +12,35 @@ namespace Mulen {
         , thread(&AtmosphereUpdater::UpdateLoop, this)
     {
 
+    }
+
+
+    bool AtmosphereUpdater::NodeInAtmosphere(const Iteration& it, const glm::dvec4& childPos)
+    {
+        auto& a = atmosphere;
+
+        // - simple test to only split those in spherical atmosphere shell:
+        auto p = glm::dvec3(childPos) * a.scale;
+        const auto size = childPos.w * a.scale;
+        const Object::Position sphereCenter{ 0.0 };
+        const auto height = 0.05, radius = 1.0; // - to do: check/correct these values
+        const auto atmRadius2 = (radius + height) * (radius + height);
+
+        auto bmin = p - size, bmax = p + size;
+        const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
+        if (dist2 > atmRadius2) return true; // outside
+        bool anyOutside = false;
+        for (int z = -1; z <= 1; z += 2)
+        {
+            for (int y = -1; y <= 1; y += 2)
+            {
+                for (int x = -1; x <= 1; x += 2)
+                {
+                    if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) return true;
+                }
+            }
+        }
+        return false; // wholly inside planet
     }
 
     void AtmosphereUpdater::InitialSetup()
@@ -29,32 +60,7 @@ namespace Mulen {
                 auto childPos = pos;
                 childPos.w *= 0.5;
                 childPos += (glm::dvec4(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u, 0.5) * 2.0 - 1.0)* childPos.w;
-                //if (false)
-                {
-                    // - simple test to only split those in spherical atmosphere shell:
-                    auto p = glm::dvec3(childPos) * a.scale;
-                    const auto size = childPos.w * a.scale;
-                    const Object::Position sphereCenter{ 0.0 };
-                    const auto height = 0.05, radius = 1.0; // - to do: check/correct these values
-                    const auto atmRadius2 = (radius + height) * (radius + height);
-
-                    auto bmin = p - size, bmax = p + size;
-                    const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
-                    if (dist2 > atmRadius2) continue; // outside
-                    bool anyOutside = false;
-                    for (int z = -1; z <= 1; z += 2)
-                    {
-                        for (int y = -1; y <= 1; y += 2)
-                        {
-                            for (int x = -1; x <= 1; x += 2)
-                            {
-                                if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) anyOutside = true;
-                            }
-                        }
-                    }
-                    if (!anyOutside) continue; // inside
-
-                }
+                if (!NodeInAtmosphere(it, childPos)) continue;
 
                 if (!a.octree.nodes.GetNumFree()) return;
                 const auto& children = a.octree.GetNode(ni).children;
@@ -148,7 +154,7 @@ namespace Mulen {
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
 
-    void AtmosphereUpdater::OnFrame(double time, double period)
+    void AtmosphereUpdater::OnFrame(const IterationParameters& params, double period)
     {
         auto& a = atmosphere;
         const auto fps = 60.0; // - to do: measure/adjust
@@ -167,8 +173,8 @@ namespace Mulen {
             {
                 nextUpdateReady = false;
                 updateIteration = (updateIteration + 1u) % std::extent<decltype(iterations)>::value;
-                GetUpdateIteration().time = time; // - actually wrong (to do: compute correct one-second-into-the-future-from-last-iteration)
-                // - to do: also send camera parameters
+                // - actually wrong time (to do: compute correct one-second-into-the-future-from-last-iteration)
+                GetUpdateIteration().params = params;
                 lk.unlock();
                 cv.notify_one();
             }
@@ -337,23 +343,112 @@ namespace Mulen {
         it.nodesToUpload.resize(0u);
         it.bricksToUpload.resize(0u);
 
-        // - to do: update octree (eventually in a separate copy so that the render thread may do intersections/lookups in its own copy)
-        // - to do: update upload buffers
+        struct PriorityNode
+        {
+            NodeIndex index;
+            double priority;
+            // - maybe also add depth/location/size
+        };
+        auto cmpSplit = [](const PriorityNode& a, const PriorityNode& b) { return a.priority < b.priority; };
+        auto cmpMerge = [](const PriorityNode& a, const PriorityNode& b) { return a.priority > b.priority; };
+        std::priority_queue<PriorityNode, std::vector<PriorityNode>, decltype(cmpSplit)> splitPrio(cmpSplit);
+        std::priority_queue<PriorityNode, std::vector<PriorityNode>, decltype(cmpMerge)> mergePrio(cmpMerge);
 
-        // - temporary identity upload:
+        // - to do: update octree (eventually in a separate copy so that the render thread may do intersections/lookups in its own copy)
+        // Traverse all, compute split and merge priorities:
+        std::function<bool(NodeIndex, unsigned, glm::dvec4)> computePriority = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
+        {
+            auto hasGrandchildren = false;
+            for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
+            {
+                auto childPos = pos;
+                childPos.w *= 0.5;
+                childPos += (glm::dvec4(glm::uvec3(ci, ci >> 1u, ci >> 2u) & 1u, 0.5) * 2.0 - 1.0) * childPos.w;
+                if (!NodeInAtmosphere(it, childPos)) continue;
+
+                const auto ni = Octree::GroupAndChildToNode(gi, ci);
+                const auto children = a.octree.GetNode(ni).children;
+
+                // - to do: check if inside (cloud) horizon
+                // (which is true if either inside distance-to-ground-horizon or sufficiently low angle for nodes beyond)
+                // - to do: also check for shadowing parts of the atmosphere, somehow, eventually
+
+                // - to do: tune priority computation (though maybe a simple one works well enough)
+                auto priority = childPos.w / glm::distance(it.params.cameraPosition, glm::dvec3(childPos));
+                if (InvalidIndex == children)
+                {
+                    splitPrio.push({ ni, priority });
+                    continue;
+                }
+                hasGrandchildren = true;
+                if (!computePriority(children, depth + 1u, childPos))
+                {
+                    // No grandchildren, which means this node is eligible for merging.
+                    mergePrio.push({ ni, priority });
+                }
+            }
+            return hasGrandchildren;
+        };
+        computePriority(a.rootGroupIndex, 0u, {0, 0, 0, 1});
+
+        // - to do: compute merge threshold (below which nodes won't be merged unless needed)
+        auto mergeThreshold = 1e20; // - arbitrary (but it shouldn't be)
+        auto doSplits = [&]()
+        {
+            while (!splitPrio.empty())
+            {
+                auto toSplit = splitPrio.top();
+                splitPrio.pop();
+
+                if (!a.octree.nodes.GetNumFree()) // are we out of octree memory?
+                {
+                    while (true)
+                    {
+                        if (mergePrio.empty()) return; // no more to merge
+                        auto toMerge = mergePrio.top();
+                        if (toMerge.priority > toSplit.priority) return; // all merge candidates are of higher priority than split candidates
+                        mergePrio.pop();
+
+                        auto hasGrandchildren = false;
+                        const auto children = a.octree.GetNode(toMerge.index).children;
+                        for (auto ci = 0u; ci < NodeArity; ++ci)
+                        {
+                            if (a.octree.GetNode(Octree::GroupAndChildToNode(children, ci)).children != InvalidIndex)
+                            {
+                                hasGrandchildren = true;
+                                break;
+                            }
+                        }
+                        if (hasGrandchildren) continue; // this node can no longer be merged (because a child was split)
+
+                        a.octree.Merge(toMerge.index);
+                        break;
+                    }
+                }
+                
+                a.octree.Split(toSplit.index);
+            }
+        };
+        doSplits();
+        
+        while (!mergePrio.empty())
+        {
+            // - to do: merge remaining merge candidates, if possible (and not below merge threshold)
+            break; // - placeholder
+        }
+
+        // Update upload buffers:
         std::function<void(NodeIndex, unsigned, glm::dvec4)> stageGroup = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
         {
             StageSplit(it, gi);
             for (NodeIndex i = 0u; i < NodeArity; ++i)
             {
-                const auto ci = NodeArity - 1u - i;
-                const auto ni = Octree::GroupAndChildToNode(gi, ci);
-
+                const auto ni = Octree::GroupAndChildToNode(gi, i);
                 const auto children = a.octree.GetNode(ni).children;
                 if (InvalidIndex == children) continue;
                 stageGroup(children, depth + 1u, {});
             }
         };
-        stageGroup(a.rootGroupIndex, 0u, {});
+        stageGroup(a.rootGroupIndex, 0u, {0, 0, 0, 1});
     }
 }

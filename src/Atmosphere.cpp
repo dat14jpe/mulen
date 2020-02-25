@@ -237,8 +237,9 @@ namespace Mulen {
 
         if (update) // are we doing continuous updates?
         {
-            const auto period = 1.0; // - to do: make configurable
-            updater.OnFrame(time, period);
+            const auto period = 1.0; // - to do: make this configurable
+            auto cameraPos = camera.GetPosition() - GetPosition();
+            updater.OnFrame({ time, cameraPos }, period);
         }
     }
 

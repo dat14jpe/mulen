@@ -4,6 +4,7 @@
 #include "util/Buffer.hpp"
 #include "util/Texture.hpp"
 #include "util/Shader.hpp"
+#include "Object.hpp"
 
 namespace Mulen {
     enum class UploadType

@@ -3,7 +3,6 @@
 #include <vector>
 #include "util/VertexArray.hpp"
 #include "util/Framebuffer.hpp"
-#include "Object.hpp"
 #include "AtmosphereUpdater.hpp"
 
 namespace Util {

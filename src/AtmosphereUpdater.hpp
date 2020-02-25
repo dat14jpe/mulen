@@ -11,13 +11,18 @@ namespace Mulen {
     {
         friend class Atmosphere; // - this should probably be made unnecessary
 
+        struct IterationParameters
+        {
+            double time;
+            Object::Position cameraPosition;
+            // - maybe also orientation and field of view, if trying frustum culling
+        };
         struct Iteration
         {
             std::vector<UploadNodeGroup> nodesToUpload;
             std::vector<UploadBrick> bricksToUpload;
 
-            double time;
-            // - to do: camera parameters (at least position, maybe also orientation and field of view)
+            IterationParameters params;
         } iterations[2];
         unsigned updateIteration = 0u; // - to do: better name (this is specifically the threaded CPU index)
         bool nextUpdateReady = true;
@@ -33,6 +38,8 @@ namespace Mulen {
         void LightBricks(GpuState&, uint64_t first, uint64_t num);
         void FilterLighting(GpuState&, uint64_t first, uint64_t num);
         void ComputeIteration(Iteration&);
+
+        bool NodeInAtmosphere(const Iteration&, const glm::dvec4& nodePosAndScale);
 
         Iteration& GetRenderIteration() { return iterations[(updateIteration + 1u) % std::extent<decltype(iterations)>::value]; }
         Iteration& GetUpdateIteration() { return iterations[updateIteration]; }
@@ -62,6 +69,6 @@ namespace Mulen {
         void UpdateLoop();
 
         void InitialSetup();
-        void OnFrame(double time, double period);
+        void OnFrame(const IterationParameters&, double period);
     };
 }
