@@ -209,7 +209,7 @@ void main()
         // (large differences in depth could make the former necessary, no?)
         
         
-        const uint maxSteps = 1024u; // - arbitrary, for testing
+        const uint maxSteps = 2048u; // - arbitrary, for testing
         
         const float mu = dot(lightDir, dir);
         const float phaseR = PhaseRayleigh(mu);
@@ -300,7 +300,7 @@ void main()
                     float bottom = smoothstep(1.0005, 1.001, length(p));
                     float a = 1.0 / 6371.0;
                     //bottom = max(bottom, 1.0 - smoothstep(1.0 + a * 0.5, 1.0 + a, length(p)));
-                    mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
+                    //mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
                 }
                 
                 // Now adding theoretical base Mie here too:

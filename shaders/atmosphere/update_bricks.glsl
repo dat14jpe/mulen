@@ -108,10 +108,11 @@ void main()
         }
         */
         //d = 1.0; // - testing
-        d = (fBm(7u, np, 0.5, 2.0) * 0.5 + 0.5) * 0.5 + 0.5;
+        d = (fBm(9u, np, 0.5, 2.0) * 0.5 + 0.5) * 0.5 + 0.5; // - used to be 7 octaves (before getting used to higher detail)
         
         float mask = 0.0;
         mask = fBm(9u, p * 16.0, 0.5, 2.0); // simplistic
+        if (false) // - testing
         {
             const float numCells = 3.0; // number on southern/northern hemisphere
             
@@ -168,7 +169,7 @@ void main()
         // - do these transitions need to depend on voxel size? Maybe. Think about it, and test
         // - they do, yes. Currently these two cause structural banding
         //mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
-        //mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
+        mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
         const float cloudDensity = 10.0; // - to do: tune this (probably needs to be higher, no? Maybe 10? Try to find a physical derivation)
         float cloud = cloudDensity * max(0.0, d);

@@ -239,6 +239,7 @@ namespace Mulen {
         {
             const auto period = 1.0; // - to do: make this configurable
             auto cameraPos = camera.GetPosition() - GetPosition();
+            cameraPos /= planetRadius * scale;
             updater.OnFrame({ time, cameraPos }, period);
         }
     }
