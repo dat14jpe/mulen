@@ -11,21 +11,31 @@ namespace Mulen {
     {
         friend class Atmosphere; // - this should probably be made unnecessary
 
-        void StageNodeGroup(UploadType, NodeIndex ni);
-        void StageBrick(UploadType, NodeIndex ni); // - to do: also brick data (at least optionally, if/when generating on GPU)
+        struct Iteration
+        {
+            std::vector<UploadNodeGroup> nodesToUpload;
+            std::vector<UploadBrick> bricksToUpload;
 
-        Util::Shader& SetShader(Util::Shader& shader);
-        void UpdateMap(GpuState& state);
+            double time;
+            // - to do: camera parameters (at least position, maybe also orientation and field of view)
+        } iterations[2];
+        unsigned updateIteration = 0u; // - to do: better name (this is specifically the threaded CPU index)
+        bool nextUpdateReady = true;
+
+        void StageNodeGroup(Iteration&, UploadType, NodeIndex);
+        void StageBrick(Iteration&, UploadType, NodeIndex); // - to do: also brick data (at least optionally, if/when generating on GPU)
+        void StageSplit(Iteration&, NodeIndex gi);
+
+        Util::Shader& SetShader(Util::Shader&);
+        void UpdateMap(GpuState&);
         void UpdateNodes(uint64_t num);
-        void GenerateBricks(GpuState& state, uint64_t first, uint64_t num);
-        void LightBricks(GpuState& state, uint64_t first, uint64_t num);
-        void FilterLighting(GpuState& state, uint64_t first, uint64_t num);
+        void GenerateBricks(GpuState&, uint64_t first, uint64_t num);
+        void LightBricks(GpuState&, uint64_t first, uint64_t num);
+        void FilterLighting(GpuState&, uint64_t first, uint64_t num);
+        void ComputeIteration(Iteration&);
 
-
-
-        // - to do: multiple update iterations' worth of these (and of the octree!)
-        std::vector<UploadNodeGroup> nodesToUpload;
-        std::vector<UploadBrick> bricksToUpload;
+        Iteration& GetRenderIteration() { return iterations[(updateIteration + 1u) % std::extent<decltype(iterations)>::value]; }
+        Iteration& GetUpdateIteration() { return iterations[updateIteration]; }
 
         enum class UpdateStage
         {
@@ -45,7 +55,6 @@ namespace Mulen {
         std::condition_variable cv;
         std::thread thread;
 
-        // - maybe also move GPU update logic here, eventually. Maybe
 
     public:
         AtmosphereUpdater(Atmosphere&);
@@ -54,6 +63,5 @@ namespace Mulen {
 
         void InitialSetup();
         void OnFrame(double time, double period);
-        void EndIteration(); // - to do: return data, somehow
     };
 }

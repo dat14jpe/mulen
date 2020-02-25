@@ -15,16 +15,7 @@ namespace Mulen {
     void AtmosphereUpdater::InitialSetup()
     {
         auto& a = atmosphere;
-
-        auto stageSplit = [&](NodeIndex gi)
-        {
-            StageNodeGroup(UploadType::Split, gi);
-            for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
-            {
-                const auto ni = Octree::GroupAndChildToNode(gi, ci);
-                StageBrick(UploadType::Split, ni);
-            }
-        };
+        auto& it = GetUpdateIteration();
 
         // - test: "manual" splits, indiscriminately to a chosen level
         std::function<void(NodeIndex, unsigned, glm::dvec4)> testSplit = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
@@ -70,7 +61,7 @@ namespace Mulen {
                 if (InvalidIndex == children)
                 {
                     a.octree.Split(ni);
-                    stageSplit(children);
+                    StageSplit(it, children);
                 }
                 testSplit(children, depth - 1u, childPos);
             }
@@ -83,7 +74,7 @@ namespace Mulen {
             }
         };
 
-        stageSplit(a.rootGroupIndex);
+        StageSplit(it, a.rootGroupIndex);
         const auto testDepth = 7u; // - to do: probably lower to 6 (or even just 5) when lowering total memory use
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
@@ -117,6 +108,7 @@ namespace Mulen {
         glDispatchCompute(groups.x, groups.y, groups.z);
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
+
     void AtmosphereUpdater::UpdateNodes(uint64_t num)
     {
         //auto t = timer.Begin("Nodes");
@@ -124,6 +116,7 @@ namespace Mulen {
         glDispatchCompute((GLuint)num, 1u, 1u);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     }
+
     void AtmosphereUpdater::GenerateBricks(GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Generation");
@@ -133,6 +126,7 @@ namespace Mulen {
         glDispatchCompute((GLuint)num, 1u, 1u);
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
+
     void AtmosphereUpdater::LightBricks(GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Lighting");
@@ -142,6 +136,7 @@ namespace Mulen {
         glDispatchCompute((GLuint)num, 1u, 1u);
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
+
     void AtmosphereUpdater::FilterLighting(GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Light filter");
@@ -168,14 +163,25 @@ namespace Mulen {
         if (updateStage == UpdateStage::Finished) // start a new iteration?
         {
             std::unique_lock<std::mutex> lk{ mutex };
-            // - to do: receive update data from other thread, and issue new iteration request to it
+            if (nextUpdateReady) // has the worker thread completed its iteration?
+            {
+                nextUpdateReady = false;
+                updateIteration = (updateIteration + 1u) % std::extent<decltype(iterations)>::value;
+                GetUpdateIteration().time = time; // - actually wrong (to do: compute correct one-second-into-the-future-from-last-iteration)
+                // - to do: also send camera parameters
+                lk.unlock();
+                cv.notify_one();
+            }
+            else
+            {
+                return; // nothing to do (update-wise) until the worker thread is done
+            }
 
             setStage(0);
             updateStateIndex = (updateStateIndex + 1u) % std::extent<decltype(a.gpuStates)>::value;
-            // - to do: get new octree version from other thread (... which is also to do)
-            // (and update upload vectors accordingly)
         }
 
+        auto& it = GetRenderIteration();
         auto& state = a.gpuStates[updateStateIndex];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         state.brickTexture.Bind(0u);
@@ -197,13 +203,13 @@ namespace Mulen {
         case UpdateStage::UploadAndGenerate:
         {
             fraction = (1.0 / 0.4) * rate;
-            const auto numNodes = computeNum(nodesToUpload.size(), updateStageIndex0),
-                numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
+            const auto numNodes = computeNum(it.nodesToUpload.size(), updateStageIndex0),
+                numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
 
             if (numNodes)
             {
                 auto& last = updateStageIndex0;
-                a.gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numNodes, nodesToUpload.data() + last);
+                a.gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numNodes, it.nodesToUpload.data() + last);
                 UpdateNodes(numNodes);
                 last += numNodes;
             }
@@ -211,7 +217,7 @@ namespace Mulen {
             if (numBricks)
             {
                 auto& last = updateStageIndex1;
-                a.gpuUploadBricks.Upload(sizeof(UploadBrick) * last, sizeof(UploadBrick) * numBricks, bricksToUpload.data() + last);
+                a.gpuUploadBricks.Upload(sizeof(UploadBrick) * last, sizeof(UploadBrick) * numBricks, it.bricksToUpload.data() + last);
                 GenerateBricks(state, last, numBricks);
                 last += numBricks;
             }
@@ -229,7 +235,7 @@ namespace Mulen {
         case UpdateStage::Lighting:
         {
             fraction = (1.0 / 0.4) * rate;
-            const auto numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
+            const auto numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
             if (numBricks)
             {
                 auto& last = updateStageIndex1;
@@ -242,7 +248,7 @@ namespace Mulen {
         case UpdateStage::LightFilter:
         {
             fraction = (1.0 / 0.2) * rate;
-            const auto numBricks = computeNum(bricksToUpload.size(), updateStageIndex1);
+            const auto numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
             if (numBricks)
             {
                 auto& last = updateStageIndex1;
@@ -257,7 +263,7 @@ namespace Mulen {
         if (updateFraction >= 1.0) setStage(unsigned(updateStage) + 1u);
     }
 
-    void AtmosphereUpdater::StageNodeGroup(UploadType type, NodeIndex groupIndex)
+    void AtmosphereUpdater::StageNodeGroup(Iteration& it, UploadType type, NodeIndex groupIndex)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         uint32_t genData = 0u;
@@ -266,10 +272,10 @@ namespace Mulen {
         upload.groupIndex = groupIndex;
         upload.genData = genData;
         upload.nodeGroup = atmosphere.octree.GetGroup(groupIndex);
-        nodesToUpload.push_back(upload);
+        it.nodesToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageBrick(UploadType type, NodeIndex nodeIndex)
+    void AtmosphereUpdater::StageBrick(Iteration& it, UploadType type, NodeIndex nodeIndex)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         const auto brickIndex = nodeIndex;
@@ -294,7 +300,17 @@ namespace Mulen {
         upload.nodeLocation = glm::vec4(glm::vec3(nodeCenter), (float)nodeSize);
 
         // - to do: add various generation parameters (e.g. wind vector/temperature/humidity)
-        bricksToUpload.push_back(upload);
+        it.bricksToUpload.push_back(upload);
+    }
+
+    void AtmosphereUpdater::StageSplit(Iteration& it, NodeIndex gi)
+    {
+        StageNodeGroup(it, UploadType::Split, gi);
+        for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
+        {
+            const auto ni = Octree::GroupAndChildToNode(gi, ci);
+            StageBrick(it, UploadType::Split, ni);
+        }
     }
 
     void AtmosphereUpdater::UpdateLoop()
@@ -302,15 +318,42 @@ namespace Mulen {
         while (true)
         {
             std::unique_lock<std::mutex> lk{ mutex };
-            cv.wait(lk, [&] { return done; });
+            cv.wait(lk, [&] { return done || !nextUpdateReady; });
 
             if (done) return;
-            // - to do: determine what to do for this iteration, if anything
-
+            if (nextUpdateReady) continue;
             lk.unlock();
-
-            // - to do: bulk work (outside lock)
-            // - to do: send back (inside new lock)
+            ComputeIteration(GetUpdateIteration());
+            {
+                std::unique_lock<std::mutex> lk{ mutex };
+                nextUpdateReady = true;
+            }
         }
+    }
+
+    void AtmosphereUpdater::ComputeIteration(Iteration& it)
+    {
+        auto& a = atmosphere;
+        it.nodesToUpload.resize(0u);
+        it.bricksToUpload.resize(0u);
+
+        // - to do: update octree (eventually in a separate copy so that the render thread may do intersections/lookups in its own copy)
+        // - to do: update upload buffers
+
+        // - temporary identity upload:
+        std::function<void(NodeIndex, unsigned, glm::dvec4)> stageGroup = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
+        {
+            StageSplit(it, gi);
+            for (NodeIndex i = 0u; i < NodeArity; ++i)
+            {
+                const auto ci = NodeArity - 1u - i;
+                const auto ni = Octree::GroupAndChildToNode(gi, ci);
+
+                const auto children = a.octree.GetNode(ni).children;
+                if (InvalidIndex == children) continue;
+                stageGroup(children, depth + 1u, {});
+            }
+        };
+        stageGroup(a.rootGroupIndex, 0u, {});
     }
 }

@@ -31,7 +31,7 @@ namespace Mulen {
         double sunDistance = 1.5e11, sunRadius = 6.957e8, sunIntensity = 1e1; // - to do: make intensity physically based
 
 
-        Octree octree;
+        Octree octree; // - to do: multiple octrees (2 or 3?) for multithreaded updates
         NodeIndex rootGroupIndex;
 
         // Render:

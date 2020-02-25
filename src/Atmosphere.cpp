@@ -77,7 +77,6 @@ namespace Mulen {
         glTextureParameteri(scatterTexture.GetId(), GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
         maxToUpload = numNodeGroups;// / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
-        updater.nodesToUpload.reserve(maxToUpload);
         gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         gpuUploadBricks.Create(sizeof(UploadBrick) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         // - to do: also create brick upload buffer/texture
@@ -174,6 +173,7 @@ namespace Mulen {
         }
 
         auto& u = updater;
+        auto& it = u.GetRenderIteration();
         gpuUploadNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 1u);
         gpuUploadBricks.BindBase(GL_SHADER_STORAGE_BUFFER, 2u);
         // - to do: also bind the old texture for reading
@@ -208,33 +208,31 @@ namespace Mulen {
         // - to do: probably remove this, eventually, in favour of always loading continuously
         // Update GPU data:
         static bool firstUpdate = true; // - temporary ugliness, before this is replaced by continuous updates
-        if (u.nodesToUpload.size() && firstUpdate)
+        if (firstUpdate && u.GetUpdateIteration().nodesToUpload.size() && firstUpdate)
         {
+            auto& it = u.GetUpdateIteration();
             firstUpdate = false;
-            std::cout << "Uploading " << u.nodesToUpload.size() << " node groups\n";
-            std::cout << "Generating " << u.bricksToUpload.size() << " bricks\n";
+            std::cout << "Uploading " << it.nodesToUpload.size() << " node groups\n";
+            std::cout << "Generating " << it.bricksToUpload.size() << " bricks\n";
 
-            for (auto& uploadGroup : u.nodesToUpload)
+            for (auto& uploadGroup : it.nodesToUpload)
             {
                 const auto old = uploadGroup.nodeGroup;
                 uploadGroup.nodeGroup = octree.GetGroup(uploadGroup.groupIndex);
             }
-            gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * u.nodesToUpload.size(), u.nodesToUpload.data());
-            gpuUploadBricks.Upload(0, sizeof(UploadBrick) * u.bricksToUpload.size(), u.bricksToUpload.data());
+            gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * it.nodesToUpload.size(), it.nodesToUpload.data());
+            gpuUploadBricks.Upload(0, sizeof(UploadBrick) * it.bricksToUpload.size(), it.bricksToUpload.data());
 
             auto& state = gpuStates[0];
             state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
             state.brickTexture.Bind(0u);
             state.octreeMap.Bind(2u);
 
-            u.UpdateNodes(u.nodesToUpload.size());
+            u.UpdateNodes(it.nodesToUpload.size());
             u.UpdateMap(state);
-            u.GenerateBricks(state, 0u, u.bricksToUpload.size());
-            u.LightBricks(state, 0u, u.bricksToUpload.size());
-            u.FilterLighting(state, 0u, u.bricksToUpload.size());
-
-            /*nodesToUpload.resize(0u);
-            bricksToUpload.resize(0u);*/
+            u.GenerateBricks(state, 0u, it.bricksToUpload.size());
+            u.LightBricks(state, 0u, it.bricksToUpload.size());
+            u.FilterLighting(state, 0u, it.bricksToUpload.size());
         }
 
         if (update) // are we doing continuous updates?
@@ -325,7 +323,5 @@ namespace Mulen {
             lightTextures[1].Bind(0u);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
-
-        timer.EndFrame();
     }
 }

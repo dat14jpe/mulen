@@ -234,6 +234,8 @@ namespace Mulen {
         atmosphere.SetLightRotates(rotateLight);
         atmosphere.Update(update, camera);
         atmosphere.Render(size, glfwGetTime(), camera);
+
+        timer.EndFrame();
     }
 
     void App::OnKey(int key, int scancode, int action, int mods)
