@@ -354,6 +354,13 @@ namespace Mulen {
         std::priority_queue<PriorityNode, std::vector<PriorityNode>, decltype(cmpSplit)> splitPrio(cmpSplit);
         std::priority_queue<PriorityNode, std::vector<PriorityNode>, decltype(cmpMerge)> mergePrio(cmpMerge);
 
+        // - depth 10 gives voxel resolution circa 1 km
+        // (to do: try to *selectively* reach at least depth 13, to enable smaller clouds. Around 16 would be perfect, but too expensive)
+        const auto MaxDepth = 10u; // - to do: make this configurable from somewhere
+        const auto camPos = it.params.cameraPosition;
+        const auto h = glm::length(camPos * a.scale) - 1.0;
+        const auto horizonDist = sqrt(h * (h + 2.0));
+
         // - to do: update octree (eventually in a separate copy so that the render thread may do intersections/lookups in its own copy)
         // Traverse all, compute split and merge priorities:
         std::function<bool(NodeIndex, unsigned, glm::dvec4)> computePriority = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
@@ -371,12 +378,30 @@ namespace Mulen {
 
                 // - to do: check if inside (cloud) horizon
                 // (which is true if either inside distance-to-ground-horizon or sufficiently low angle for nodes beyond)
+                // - to do: check with sufficient margin
+                // (especially a decent margin for the biggest nodes)
+                const auto margin = sqrt(3 * (2 * childPos.w) * (2 * childPos.w)); // - to do: check this
+                // - this doesn't seem to cause the distant hemisphere's nodes to merge. Hmm...
+                if (glm::distance(camPos, Object::Position{ childPos }) - margin > horizonDist)
+                {
+                    // - to do: check angle, continue'ing if the check fails
+
+                    // - indiscriminate continue'ing shows that something's wrong, somewhere in adaptive loading. Merging too eagerly
+                    if (InvalidIndex != children)
+                    {
+                        if (!computePriority(children, depth + 1u, childPos)) // - to let children insert themselves in the merge priority
+                        mergePrio.push({ ni, 0.0 }); // - experimental
+                    }
+                    continue; // - testing (should only happen if the angle check fails)
+                }
                 // - to do: also check for shadowing parts of the atmosphere, somehow, eventually
 
                 // - to do: tune priority computation (though maybe a simple one works well enough)
-                auto priority = childPos.w / glm::distance(it.params.cameraPosition, glm::dvec3(childPos));
+                auto priority = childPos.w / glm::distance2(it.params.cameraPosition, glm::dvec3(childPos));
                 if (InvalidIndex == children)
                 {
+                    if (depth == MaxDepth) continue;
+                    // - to do: check for splittability more thoroughly
                     splitPrio.push({ ni, priority });
                     continue;
                 }

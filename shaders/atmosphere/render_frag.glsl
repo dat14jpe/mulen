@@ -353,7 +353,7 @@ void main()
             ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
             if (old == ni) break; // - error (but can this even happen?)
             
-            if (numBricks >= 64u || numSteps >= maxSteps) break; // - testing
+            if (numBricks >= 128u || numSteps >= maxSteps) break; // - testing
         }
         
         { // - debug visualisation

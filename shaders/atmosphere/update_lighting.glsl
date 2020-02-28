@@ -146,6 +146,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float 
         }
     }
     
+    if (opticalDepthM > threshold) opticalDepthM = 1e9; // - trying to avoid sampling pattern from early exit. Maybe too harsh way
     float opticalDepth = opticalDepthM * betaMEx;
     return exp(-opticalDepth);
 }
@@ -169,7 +170,7 @@ float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFac
     float R = planetRadius + atmosphereHeight;
     if (IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) // atmosphere intersection
     {
-        const uint maxSteps = 512u; // - arbitrary, for testing
+        const uint maxSteps = 1024u; // - arbitrary, for testing
         float maxDist = tmax;
         
         /*if (IntersectSphere(ori, dir, planetLocation, planetRadius - voxelSize, tmin, tmax))
