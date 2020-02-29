@@ -23,7 +23,7 @@ namespace Mulen {
         auto p = glm::dvec3(childPos) * a.scale;
         const auto size = childPos.w * a.scale;
         const Object::Position sphereCenter{ 0.0 };
-        const auto height = 0.05, radius = 1.0; // - to do: check/correct these values
+        const auto height = 0.005, radius = 1.0; // - to do: check/correct these values
         const auto atmRadius2 = (radius + height) * (radius + height);
 
         auto bmin = p - size, bmax = p + size;

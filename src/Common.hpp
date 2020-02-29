@@ -35,6 +35,6 @@ namespace Mulen {
 
     // - to do: consider two channels so bricks store both last and next values, to let rendering interpolate between
     static const auto
-        BrickFormat = GL_R16, // - visible banding if only 8 bits per channel. Maybe can be resolved with generation dithering?
-        BrickLightFormat = GL_R16F;
+        BrickFormat = GL_R8, // - visible banding if only 8 bits per channel. Maybe can be resolved with generation dithering?
+        BrickLightFormat = GL_R8;
 }

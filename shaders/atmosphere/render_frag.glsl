@@ -219,7 +219,7 @@ void main()
         // Trace through bricks:
         uint numBricks = 0u, numSteps = 0u;
         while (InvalidIndex != ni)
-        {   
+        {
             nodeCenter *= atmScale;
             nodeSize *= atmScale;
             const float step = nodeSize / atmScale * stepFactor;
@@ -228,6 +228,9 @@ void main()
             AabbIntersection(tmin, tmax, vec3(-nodeSize) + nodeCenter, vec3(nodeSize) + nodeCenter, hit, dir);
             tmax = min(tmax, solidDepth - outerMin);
             //if (isinf(tmin)) continue; // - testing
+            
+            //if (dist >= tmax) color += vec3(0.1); // - debugging
+            //if (isinf(tmin) || isnan(tmin)) color += vec3(0.1); // - debugging
             
             const float randStep = randOffs * nodeSize;
             // - causing glitches. Hmm.
@@ -349,17 +352,24 @@ void main()
             const uint old = ni;
             vec3 p = (hit + dist * dir) / atmScale;
             if (dist + outerMin > solidDepth) break;
-            if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside
+            if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside // - to do: dist vs outer intersection instead
             ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-            if (old == ni) break; // - error (but can this even happen?)
+            if (old == ni)
+            {
+                dist += atmStep; // - testing. Seems like this works wonders vs the black spots, but maybe not *entirely* eliminates them
+                //color.r += 1.0; // - debugging (this covers all black spots, it seems. Bingo. But why does this happen erroneously?)
+                //break; // - error (but can this even happen?) (Yes, it does happen. Quite often and early, interestingly enough)
+            }
             
             if (numBricks >= 128u || numSteps >= maxSteps) break; // - testing
         }
         
+        //if (numSteps < 16u) color += vec3(0.1); // - debugging (this does affect the most regular parts (arcs, lines) of the black spots)
+        
         { // - debug visualisation
             //if (numSteps > 30) color.r = 1.0;
             //if (numBricks > 20) color.g = 0.0;
-            //color.r += 0.02 * float(numBricks);
+            //color.r += 0.003 * float(numBricks);
             //if (0u == (numSteps & 1u)) color.r += 0.1;
         }
         #endif
