@@ -17,6 +17,7 @@ namespace Mulen {
 
     bool AtmosphereUpdater::NodeInAtmosphere(const Iteration& it, const glm::dvec4& childPos)
     {
+        //return true; // - the current version (20200302) is apparently equivalent to this, which is... wow. Entirely wrong.
         auto& a = atmosphere;
 
         // - simple test to only split those in spherical atmosphere shell:
@@ -28,7 +29,7 @@ namespace Mulen {
 
         auto bmin = p - size, bmax = p + size;
         const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
-        if (dist2 > atmRadius2) return true; // outside
+        if (dist2 > atmRadius2) return false; // outside
         bool anyOutside = false;
         for (int z = -1; z <= 1; z += 2)
         {
@@ -342,6 +343,7 @@ namespace Mulen {
         auto& a = atmosphere;
         it.nodesToUpload.resize(0u);
         it.bricksToUpload.resize(0u);
+        it.maxDepth = 0u;
 
         struct PriorityNode
         {
@@ -357,10 +359,11 @@ namespace Mulen {
         // - depth 10 gives voxel resolution circa 1 km
         // (to do: try to *selectively* reach at least depth 13, to enable smaller clouds. Around 16 would be perfect, but too expensive)
         const auto MaxDepth = 10u; //13u; // - 13 would be fantastic, if it can be fast // - to do: make this configurable from somewhere
-        const auto camPos = it.params.cameraPosition;
-        const auto h = glm::length(camPos * a.scale) - 1.0;
+        const auto camPos = it.params.cameraPosition * a.scale;
+        const auto h = glm::length(camPos) - 1.0;
         const auto r = 1.0;
         const auto cloudTop = 0.005; // - to do: retrieve from somewhere else
+        // - to try: only use ground horizon here, and test the angle for nodes beyond that
         const auto horizonDist = 
             sqrt(h * (h + 2.0 * r)) // distance to ground horizon
             + sqrt(cloudTop * (cloudTop + 2.0 * r)) // distance to cloud horizon
@@ -370,33 +373,32 @@ namespace Mulen {
         // Traverse all, compute split and merge priorities:
         std::function<bool(NodeIndex, unsigned, glm::dvec4)> computePriority = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
         {
+            it.maxDepth = glm::max(it.maxDepth, depth);
             auto hasGrandchildren = false;
             for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
             {
                 auto childPos = pos;
                 childPos.w *= 0.5;
                 childPos += (glm::dvec4(glm::uvec3(ci, ci >> 1u, ci >> 2u) & 1u, 0.5) * 2.0 - 1.0) * childPos.w;
-                const auto cp = Object::Position(childPos);
+                const auto nodePos = Object::Position(childPos) * a.scale;
+                const auto nodeSize = childPos.w * a.scale;
+                const auto nodeMin = nodePos - nodeSize, nodeMax = nodePos + nodeSize;
+                if (!NodeInAtmosphere(it, childPos)) continue; // - do we also need to see if this can merge? To do
 
                 const auto ni = Octree::GroupAndChildToNode(gi, ci);
                 const auto children = a.octree.GetNode(ni).children;
                 hasGrandchildren = hasGrandchildren || InvalidIndex != children;
-                const auto insideNode = glm::all(glm::lessThan(glm::abs(camPos - Object::Position{ childPos }) / childPos.w, glm::dvec3{ 1.0 }));
-                const auto distanceToNode = glm::length(glm::max(glm::dvec3(0.0), glm::max(cp - childPos.w - camPos, camPos - cp - childPos.w)));
+                //const auto insideNode = glm::all(glm::lessThan(glm::abs(camPos - nodePos) / nodeSize, glm::dvec3{ 1.0 }));
+                const auto distanceToNode = glm::length(glm::max(glm::dvec3(0.0), glm::max(nodeMin - camPos, camPos - nodeMax)));
+                const auto insideNode = distanceToNode == 0.0;
 
                 // - to do: check if inside (cloud) horizon
                 // (which is true if either inside distance-to-ground-horizon or sufficiently low angle for nodes beyond)
-                // - to do: check with sufficient margin
-                // (especially a decent margin for the biggest nodes)
-                const auto margin = sqrt(3 * (2 * childPos.w) * (2 * childPos.w)); // - to do: check this
-                // - this doesn't seem to cause the distant hemisphere's nodes to merge. Hmm...
-                if (!insideNode && 
-                    (!NodeInAtmosphere(it, childPos) ||
-                    distanceToNode - margin > horizonDist))
+                const auto margin = sqrt(3 * (2 * nodeSize) * (2 * nodeSize));
+                if (!insideNode && distanceToNode - margin > horizonDist)
                 {
                     // - to do: check angle, continue'ing if the check fails
 
-                    // - indiscriminate continue'ing shows that something's wrong, somewhere in adaptive loading. Merging too eagerly
                     if (InvalidIndex != children)
                     {
                         if (!computePriority(children, depth + 1u, childPos)) // - to let children insert themselves in the merge priority
@@ -407,7 +409,7 @@ namespace Mulen {
                 // - to do: also check for shadowing parts of the atmosphere, somehow, eventually
 
                 // - to do: tune priority computation (though maybe a simple one works well enough)
-                auto priority = childPos.w / glm::distance(camPos, glm::dvec3(childPos));
+                auto priority = nodeSize / glm::max(1e-10, distanceToNode);
                 if (insideNode) priority = 1e20;
 
                 if (InvalidIndex == children)
@@ -417,7 +419,7 @@ namespace Mulen {
                     splitPrio.push({ ni, priority });
                     continue;
                 }
-                if (!computePriority(children, depth + 1u, childPos))
+                if (!computePriority(children, depth + 1u, childPos) && !insideNode)
                 {
                     // No grandchildren, which means this node is eligible for merging.
                     mergePrio.push({ ni, priority });

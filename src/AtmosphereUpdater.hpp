@@ -23,6 +23,10 @@ namespace Mulen {
             std::vector<UploadBrick> bricksToUpload;
 
             IterationParameters params;
+
+            unsigned maxDepth;
+            // - to do: full depth distribution? Assuming 32 as max depth should be plenty
+            // - to do: more stats
         } iterations[2];
         unsigned updateIteration = 0u; // - to do: better name (this is specifically the threaded CPU index)
         bool nextUpdateReady = true;

@@ -55,11 +55,7 @@ namespace Mulen {
         {
             ImGui::Begin("Atmosphere");
 
-            /*ImGui::Text("This is some useful text.");
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);*/
-            ImGui::ColorEdit3("clear color", (float*)&clear_color);
             ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
-
             ImGui::Checkbox("Update", &update);
             ImGui::Checkbox("Rotate light", &rotateLight);
             ImGui::Checkbox("Upright", &upright);
@@ -112,9 +108,7 @@ namespace Mulen {
                 ImGui::Text("Cloud layer horizon distance: %.3f km", 1e-3 * (planetHorizon + std::sqrt(cloudHeight * (cloudHeight + 2 * R))));
             }
 
-            /*if (ImGui::Button("Button")) counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);*/
+            ImGui::Text("Max depth: %d", atmosphere.GetMaxDepth());
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();

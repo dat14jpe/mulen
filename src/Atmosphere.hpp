@@ -81,6 +81,10 @@ namespace Mulen {
 
         double GetPlanetRadius() const { return planetRadius; }
         double GetHeight() const { return height; }
+        unsigned GetMaxDepth()
+        {
+            return updater.GetRenderIteration().maxDepth;
+        }
 
         void SetLightRotates(bool b) { rotateLight = b; }
     };
