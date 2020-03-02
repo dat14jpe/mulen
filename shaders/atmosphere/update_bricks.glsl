@@ -109,6 +109,7 @@ void main()
         */
         //d = 1.0; // - testing
         d = (fBm(13u, np * 8.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
+        //d -= 0.5; // - more broken up and dramatic (in high resolution)
         
         float mask = 0.0;
         mask = fBm(9u, p * 64.0, 0.5, 2.0); // simplistic

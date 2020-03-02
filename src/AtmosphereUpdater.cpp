@@ -81,7 +81,7 @@ namespace Mulen {
         };
 
         StageSplit(it, a.rootGroupIndex);
-        const auto testDepth = 7u; // - to do: probably lower to 6 (or even just 5) when lowering total memory use
+        const auto testDepth = 6u;
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
         std::cout << "Voxel resolution: " << res << " (" << 2e-3 * a.planetRadius * a.scale / res << " km/voxel)\n";
@@ -356,10 +356,15 @@ namespace Mulen {
 
         // - depth 10 gives voxel resolution circa 1 km
         // (to do: try to *selectively* reach at least depth 13, to enable smaller clouds. Around 16 would be perfect, but too expensive)
-        const auto MaxDepth = 10u; // - to do: make this configurable from somewhere
+        const auto MaxDepth = 10u; //13u; // - 13 would be fantastic, if it can be fast // - to do: make this configurable from somewhere
         const auto camPos = it.params.cameraPosition;
         const auto h = glm::length(camPos * a.scale) - 1.0;
-        const auto horizonDist = sqrt(h * (h + 2.0));
+        const auto r = 1.0;
+        const auto cloudTop = 0.005; // - to do: retrieve from somewhere else
+        const auto horizonDist = 
+            sqrt(h * (h + 2.0 * r)) // distance to ground horizon
+            + sqrt(cloudTop * (cloudTop + 2.0 * r)) // distance to cloud horizon
+            ;
 
         // - to do: update octree (eventually in a separate copy so that the render thread may do intersections/lookups in its own copy)
         // Traverse all, compute split and merge priorities:
@@ -371,10 +376,13 @@ namespace Mulen {
                 auto childPos = pos;
                 childPos.w *= 0.5;
                 childPos += (glm::dvec4(glm::uvec3(ci, ci >> 1u, ci >> 2u) & 1u, 0.5) * 2.0 - 1.0) * childPos.w;
-                if (!NodeInAtmosphere(it, childPos)) continue;
+                const auto cp = Object::Position(childPos);
 
                 const auto ni = Octree::GroupAndChildToNode(gi, ci);
                 const auto children = a.octree.GetNode(ni).children;
+                hasGrandchildren = hasGrandchildren || InvalidIndex != children;
+                const auto insideNode = glm::all(glm::lessThan(glm::abs(camPos - Object::Position{ childPos }) / childPos.w, glm::dvec3{ 1.0 }));
+                const auto distanceToNode = glm::length(glm::max(glm::dvec3(0.0), glm::max(cp - childPos.w - camPos, camPos - cp - childPos.w)));
 
                 // - to do: check if inside (cloud) horizon
                 // (which is true if either inside distance-to-ground-horizon or sufficiently low angle for nodes beyond)
@@ -382,7 +390,9 @@ namespace Mulen {
                 // (especially a decent margin for the biggest nodes)
                 const auto margin = sqrt(3 * (2 * childPos.w) * (2 * childPos.w)); // - to do: check this
                 // - this doesn't seem to cause the distant hemisphere's nodes to merge. Hmm...
-                if (glm::distance(camPos, Object::Position{ childPos }) - margin > horizonDist)
+                if (!insideNode && 
+                    (!NodeInAtmosphere(it, childPos) ||
+                    distanceToNode - margin > horizonDist))
                 {
                     // - to do: check angle, continue'ing if the check fails
 
@@ -397,7 +407,9 @@ namespace Mulen {
                 // - to do: also check for shadowing parts of the atmosphere, somehow, eventually
 
                 // - to do: tune priority computation (though maybe a simple one works well enough)
-                auto priority = childPos.w / glm::distance2(it.params.cameraPosition, glm::dvec3(childPos));
+                auto priority = childPos.w / glm::distance(camPos, glm::dvec3(childPos));
+                if (insideNode) priority = 1e20;
+
                 if (InvalidIndex == children)
                 {
                     if (depth == MaxDepth) continue;
@@ -405,7 +417,6 @@ namespace Mulen {
                     splitPrio.push({ ni, priority });
                     continue;
                 }
-                hasGrandchildren = true;
                 if (!computePriority(children, depth + 1u, childPos))
                 {
                     // No grandchildren, which means this node is eligible for merging.

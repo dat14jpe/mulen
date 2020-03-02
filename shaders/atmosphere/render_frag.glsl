@@ -261,61 +261,15 @@ void main()
                 storedLight *= GetTransmittanceToSun(r, mu);
                 
                 
-                if (false)
-                { // - debugging: try a more theoretical transmittance computation, to see if that gives workable results
-                    // (it does. What does that tell us? Per-step computations work? Well, yes, but the expense is prohibitive...)
-                    float ldist = 0.0;
-                    vec3 lori = hit + dist * dir;
-                    float opticalDepthR = 0.0;
-                    const uint numSteps = 128u;
-                    float atmStep = 1e4;
-                    //lori = normalize(lori) * planetRadius; // - testing // - yes, it's smooth. But how to do that with varying radius?
-                    for (uint i = 0u; i < numSteps; ++i)
-                    {
-                        vec3 p = lori + ldist * lightDir;
-                        float densityR = exp(-(length(p) - planetRadius) / 8e3);
-                        
-                        opticalDepthR += densityR * atmStep;
-                        ldist += atmStep;
-                    }
-                    storedLight = exp(-betaR * opticalDepthR);
-                }
-                
                 vec4 voxelData = texture(brickTexture, tc);
+                float rayleighDensity = exp(-(r - Rg) / HR);
+                float mieDensity = max(0.0, (voxelData.x * scaleM + offsetM) * 200.0); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
-                float rayleigh = voxelData.y, mie = voxelData.x;
-                float rayleighDensity = RayleighDensityFromSample(rayleigh);
-                // - to do: compute Rayleigh density theoretically
-                rayleighDensity = exp(-(r - Rg) / HR);
-                float mieDensity = MieDensityFromSample(mie);
-                mieDensity = max(0.0, (mie * scaleM + offsetM) * 200.0); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
+                mieDensity += exp(-(r - Rg) / HM); // theoretical base Mie
                 
-                
-                { // - test: hardcoded upper cloud boundary
-                    // - to do: apply in lighting too, if it's going to be used
-                    // It seems like this *might* get rid of the structural banding at low resolution.
-                    // But the performance cost is about 10% (or more?). Hmm.
-                    // (and the flexibility cost is steep as well: no mist or low clouds in general)
-                    vec3 p = (hit + dir * dist) / planetRadius;
-                    const float atmHeight = 0.01;
-                    const float relativeCloudTop = 0.4; // - to do: tune
-                    //mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (length(p) - 1.0) / atmHeight);
-                    float bottom = smoothstep(1.0005, 1.001, length(p));
-                    float a = 1.0 / 6371.0;
-                    //bottom = max(bottom, 1.0 - smoothstep(1.0 + a * 0.5, 1.0 + a, length(p)));
-                    //mieDensity *= bottom; // - testing bottom hardcode as well (should be avoided)
-                }
-                
-                // Now adding theoretical base Mie here too:
-                mieDensity += exp(-(r - Rg) / HM);
-                
-                // - seems like high Mie (i.e. clouds) is extinguishing itself. Whoops. How to fix without horrible flickering?
-                
-                //mieDensity *= 30.0; // - debugging
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
                 color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
                     * T * storedLight * atmStep;
-                //color += /*T * */storedLight * atmStep * 1e-6; // - debugging
                     
                 // - experiment: Mie added to optical depth *after*, to not occlude itself
                 // (should also be the case for Rayleigh, maybe?)
@@ -352,7 +306,6 @@ void main()
             const uint old = ni;
             vec3 p = (hit + dist * dir) / atmScale;
             if (dist + outerMin > solidDepth) break;
-            if (any(greaterThan(abs(p), vec3(1.0)))) break; // - outside // - to do: dist vs outer intersection instead
             ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
             if (old == ni)
             {
@@ -368,7 +321,7 @@ void main()
         
         { // - debug visualisation
             //if (numSteps > 30) color.r = 1.0;
-            //if (numBricks > 20) color.g = 0.0;
+            //if (numBricks > 80) color.g = 0.0;
             //color.r += 0.003 * float(numBricks);
             //if (0u == (numSteps & 1u)) color.r += 0.1;
         }
