@@ -195,6 +195,9 @@ namespace Mulen {
         state.octreeMap.Bind(2u);
 
         auto fraction = 0.0;
+        const auto generationFraction = 0.2;
+        const auto lightingFraction = 0.6;
+        const auto filterFraction = 0.2;
 
         auto computeNum = [&](size_t total, uint64_t done)
         {
@@ -209,7 +212,7 @@ namespace Mulen {
         {
         case UpdateStage::UploadAndGenerate:
         {
-            fraction = (1.0 / 0.4) * rate;
+            fraction = (1.0 / generationFraction) * rate;
             const auto numNodes = computeNum(it.nodesToUpload.size(), updateStageIndex0),
                 numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
 
@@ -241,7 +244,7 @@ namespace Mulen {
 
         case UpdateStage::Lighting:
         {
-            fraction = (1.0 / 0.4) * rate;
+            fraction = (1.0 / lightingFraction) * rate;
             const auto numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
             if (numBricks)
             {
@@ -254,7 +257,7 @@ namespace Mulen {
 
         case UpdateStage::LightFilter:
         {
-            fraction = (1.0 / 0.2) * rate;
+            fraction = (1.0 / filterFraction) * rate;
             const auto numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
             if (numBricks)
             {

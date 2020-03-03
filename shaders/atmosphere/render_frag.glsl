@@ -251,20 +251,22 @@ void main()
                 tc = BrickSampleCoordinates(brickOffs, tc);
                 
                 vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
-                storedLight = min(vec3(1.0), storedLight); // for interpolation, lighting shadows can be "negative" (but is this needed?)
-                //storedLight = vec3(1.0); // - debugging
                 
                 vec3 p = hit + dist * dir;
                 float r = length(p);
                 float mu = dot(p / r, normalize(lightDir)); // - about 0.3 ms faster *with* the unnecessary lightDir normalisation. Hmm...
-                storedLight = storedLight.xxx; // - problem since removing Rayleigh channel. Look into lighting
-                storedLight *= GetTransmittanceToSun(r, mu);
+                storedLight = storedLight.xxx;
+                storedLight *= GetTransmittanceToSun(r, mu); // - heavy: 1/4 in some scenes
                 
+                // - computing base Rayleigh and Mie densities does take some time (maybe 1/6 to 1/4)
+                // Maybe see if using a (very low-resolution) lookup texture helps?
+                // (less time in heavy scenes, it seems)
                 
                 vec4 voxelData = texture(brickTexture, tc);
                 float rayleighDensity = exp(-(r - Rg) / HR);
                 float mieDensity = max(0.0, (voxelData.x * scaleM + offsetM) * 200.0); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
+                if (false) rayleighDensity = r * 1e-7; else // - performance testing. Rather small gain.
                 mieDensity += exp(-(r - Rg) / HM); // theoretical base Mie
                 
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
@@ -297,9 +299,7 @@ void main()
             }
             ++numBricks;
             
-            // This optimisation seems highly effective (20200204).
-            // Near-doubling in many cases, and possibly more in others.
-            if (length(T) < 1e-3) break;
+            if (length(T) < 1e-3) break; // stop early if transmittance is low
             
             //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
             
@@ -314,10 +314,9 @@ void main()
                 //break; // - error (but can this even happen?) (Yes, it does happen. Quite often and early, interestingly enough)
             }
             
-            if (numBricks >= 128u || numSteps >= maxSteps) break; // - testing
+            // - not checking this gives a small improvement (measured approx. 0.6 ms down from 14.6 ms in one case)
+            //if (numBricks >= 128u || numSteps >= maxSteps) break; // - testing
         }
-        
-        //if (numSteps < 16u) color += vec3(0.1); // - debugging (this does affect the most regular parts (arcs, lines) of the black spots)
         
         { // - debug visualisation
             //if (numSteps > 30) color.r = 1.0;
