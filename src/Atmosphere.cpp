@@ -326,16 +326,8 @@ namespace Mulen {
         }
         
         { // atmosphere
-            fbos[1].Bind();
-            glClear(GL_COLOR_BUFFER_BIT);
             lightTextures[0].Bind(4u);
-            glDisable(GL_DEPTH_TEST);
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
             auto& shader = setUpShader(renderShader);
-            //glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
-
-            // - trying compute:
             auto& tex = lightTextures[1];
             glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_READ_WRITE, tex.GetFormat());
             const glm::uvec3 workGroupSize{ 8u, 8u, 1u };
@@ -344,6 +336,8 @@ namespace Mulen {
         }
 
         { // postprocessing
+            fbos[1].Bind();
+            glDisable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
             Util::Framebuffer::BindBackbuffer();
             auto& shader = postShader;
