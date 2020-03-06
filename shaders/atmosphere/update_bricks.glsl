@@ -186,6 +186,7 @@ void main()
             if (abs(p[d]) == 1.0) rayleigh = mie = 0.0;
         }
     }
+    //mie *= 0.0625; // - testing
     
     rayleigh = (rayleigh - offsetR) / scaleR;
     mie = (mie - offsetM) / scaleM;

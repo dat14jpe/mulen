@@ -359,9 +359,7 @@ namespace Mulen {
         std::priority_queue<PriorityNode, std::vector<PriorityNode>, decltype(cmpSplit)> splitPrio(cmpSplit);
         std::priority_queue<PriorityNode, std::vector<PriorityNode>, decltype(cmpMerge)> mergePrio(cmpMerge);
 
-        // - depth 10 gives voxel resolution circa 1 km
-        // (to do: try to *selectively* reach at least depth 13, to enable smaller clouds. Around 16 would be perfect, but too expensive)
-        const auto MaxDepth = 10u; //13u; // - 13 would be fantastic, if it can be fast // - to do: make this configurable from somewhere
+        const auto MaxDepth = it.params.depthLimit;
         const auto camPos = it.params.cameraPosition * a.scale;
         const auto h = glm::length(camPos) - 1.0;
         const auto r = 1.0;

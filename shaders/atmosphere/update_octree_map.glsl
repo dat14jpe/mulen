@@ -16,7 +16,7 @@ void main()
     vec3 nodeCenter;
     float nodeSize;
     uint depth;
-    const uint maxDepth = 5u; // - to do: depend on resolution
+    const uint maxDepth = 5u; // - to do: make this the 2-logarithm of the resolution
     uint ni = OctreeDescendMaxDepth(p, nodeCenter, nodeSize, depth, maxDepth);
     uint gi = nodeGroups[ni / NodeArity].nodes[ni % NodeArity].children;
     if (InvalidIndex == gi)
@@ -34,8 +34,5 @@ void main()
         }
     }
     result |= depth << (IndexBits + ChildBits);
-    
-    //result = 1u; // - debugging
-    
     imageStore(octreeMapImage, ivec3(writeOffs), uvec4(result));
 }

@@ -61,6 +61,7 @@ namespace Mulen {
             ImGui::Checkbox("Upright", &upright);
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
+            ImGui::SliderInt("Depth", &depthLimit, 1u, 16u);
             if (ImGui::Button("Re-init"))
             {
                 atmosphere.ReloadShaders(shaderPath);
@@ -226,7 +227,7 @@ namespace Mulen {
         }
 
         atmosphere.SetLightRotates(rotateLight);
-        atmosphere.Update(update, camera);
+        atmosphere.Update(update, camera, depthLimit);
         atmosphere.Render(size, glfwGetTime(), camera);
 
         timer.EndFrame();

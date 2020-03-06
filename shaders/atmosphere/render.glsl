@@ -3,33 +3,59 @@
 #include "../geometry.glsl"
 #include "../noise.glsl"
 
-layout(location = 0) out vec4 outValue;
-in vec4 clip_coords;
+/*layout(location = 0) out vec4 outValue;
+in vec4 clip_coords;*/
 uniform layout(binding=4) sampler2D lightTexture;
 
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+#include "compute.glsl"
 
-float GetDepth()
+uniform layout(binding=0, rgba16f) image2D lightImage;
+
+
+float GetDepth(vec4 clipCoords)
 {
-    float d = texture(depthTexture, clip_coords.xy * 0.5 + 0.5).x;
+    float d = texture(depthTexture, clipCoords.xy * 0.5 + 0.5).x;
     d = exp2(d / Fcoef_half) - 1.0;
     return d;
 }
 
-vec3 ViewspaceFromDepth(float depth)
+vec3 ViewspaceFromDepth(vec4 clipCoords, float depth)
 {
-    vec4 cs = vec4(clip_coords.xy * depth, -depth, depth);
+    vec4 cs = vec4(clipCoords.xy * depth, -depth, depth);
     vec4 vs = invProjMat * cs;
     return vs.xyz;
 }
 
+void ComputeBaseDensities(out float rayleighDensity, out float mieDensity, float r)
+{
+    rayleighDensity = exp(-(r - Rg) / HR);
+    mieDensity = exp(-(r - Rg) / HM);
+}
+
+vec3 TransmittanceFromPoint(vec3 p)
+{
+    float r = length(p);
+    float mu = dot(p / r, normalize(lightDir)); // - about 0.3 ms faster *with* the unnecessary lightDir normalisation. Hmm...
+    return vec3(GetSunOcclusion(r, mu)); // - just this for now
+    //return GetTransmittanceToAtmosphereTop(r, mu); // - doesn't help;
+    return GetTransmittanceToSun(r, mu);
+}
+
 void main()
 {
-    vec3 backLight = texelFetch(lightTexture, ivec2(gl_FragCoord.xy), 0).xyz;
+    const vec2 fragCoords = vec2(gl_GlobalInvocationID.xy) + vec2(0.5);
+    const vec2 coords = fragCoords / vec2(imageSize(lightImage));
+    if (coords.x > 1.0 || coords.y > 1.0) return;
+    const vec4 clipCoords = vec4(coords * 2.0 - 1.0, 1.0, 1.0);
+    
+    vec3 backLight = texelFetch(lightTexture, ivec2(fragCoords), 0).xyz;
+    //vec3 backLight = imageLoad(lightImage, ivec2(fragCoords), 0).xyz;
     const float atmScale = atmosphereRadius;
     
     const vec3 ori = vec3(invViewMat * vec4(0, 0, 0, 1));
-    vec3 dir = normalize(vec3(invViewProjMat * clip_coords));
-    float solidDepth = length(ViewspaceFromDepth(GetDepth()));
+    vec3 dir = normalize(vec3(invViewProjMat * clipCoords));
+    float solidDepth = length(ViewspaceFromDepth(clipCoords, GetDepth(clipCoords)));
     const float actualSolidDepth = solidDepth;
     
     float opticalDepthR = 0.0, opticalDepthM = 0.0;
@@ -74,8 +100,6 @@ void main()
     
     if (intersectsInner)
     {
-        #ifndef TestingALittle
-        
         float tmin = innerMin, tmax = innerMax;
         solidDepth = min(solidDepth, tmax);
         
@@ -107,7 +131,7 @@ void main()
             float voxelSize = 15.6431 * 1e3;
             
             float R = planetRadius + (elevation * voxelSize);
-            if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) discard;
+            if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) return;
             
             dist = tmin;
             
@@ -118,7 +142,7 @@ void main()
                 vec3 pn = vec3(0, 0, 1);
                 float pd = dot(-dir, pn);
                 dist = dot(ori - (planetLocation + pn * pz), pn) / pd;
-                if (length(ori + dir * dist - planetLocation) > R) discard;
+                if (length(ori + dir * dist - planetLocation) > R) return;
             }
             
             vec3 hit = ori + dir * dist - planetLocation;
@@ -167,13 +191,13 @@ void main()
             }
             //if (depth == 6u) storedLight.b = 1.0;
             
-            //outValue = vec4(gl_FragCoord.xy / 1024.0, 0.0, 1.0);
+            //outValue = vec4(fragCoords / 1024.0, 0.0, 1.0);
             //storedLight = exp(-(1e2 * storedLight)); // - to do: scaling
             //if (any(lessThan(storedLight, vec3(0.0)))) storedLight = vec3(1, 0, 0);
             //if (any(greaterThan(storedLight, vec3(1.0)))) storedLight = vec3(0, 1, 0);
             
             storedLight *= 0.25;
-            outValue = vec4(storedLight, 1.0);
+            //outValue = vec4(storedLight, 1.0);
             return;
         }
         // - Debug mode for cross section of actual atmosphere:
@@ -182,7 +206,6 @@ void main()
             // - to do
         }
         
-        //tmin += 7e4; // - testing ("skips" to cloud level could be quite a performance boost, so maybe use precomputed scattering above them?)
         const float outerMin = tmin;
         const vec3 hit = ori + dir * tmin - planetLocation;
         
@@ -202,7 +225,7 @@ void main()
         vec2 randTimeOffs = vec2(cos(time), sin(time));
         //randTimeOffs = vec2(0); // - testing
         // - experiment (should the factor be proportional to step size?)
-        const float randOffs = (rand3D(vec3(gl_FragCoord.xy, randTimeOffs)) * 0.5 + 0.5) * 2 * stepFactor;
+        const float randOffs = (rand3D(vec3(fragCoords, randTimeOffs)) * 0.5 + 0.5) * 2 * stepFactor;
         dist += randOffs * nodeSize * atmScale;
         
         // - to do: think about whether randomness needs to be applied per-brick or just once
@@ -239,13 +262,25 @@ void main()
             
             const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
             vec3 localStart = (globalStart - nodeCenter) / nodeSize;
-            vec3 lc = localStart + dist / nodeSize * dir;
+            
+            // Precomputed transmittance for start and end in node, to interpolate per-voxel:
+            // - unfortunately interpolating these causes visible artefacts around the terminator
+            const vec3 Tmin = TransmittanceFromPoint(hit + tmin * dir),
+                       Tmax = TransmittanceFromPoint(hit + tmax * dir);
 
             // - to do: add random offset here (again), or only on depth change? Let's see
             
+            float startDist = dist;
+            int numStepsInNode = int(max(1.0, (tmax - dist) / atmStep));
             vec3 T = vec3(1.0);
-            while (dist < tmax)
-            {            
+            // Iterating at least once is required to avoid returning-to-the-same-node edge cases,
+            // so a do-while loop is practical.
+            //while (dist < tmax)
+            do
+            //for (int localStep = 1; localStep <= numStepsInNode;)// ++localStep)
+            //for (int inner = 0; inner < 2; ++inner, ++localStep)
+            {
+                vec3 lc = localStart + dist / nodeSize * dir;
                 vec3 tc = lc * 0.5 + 0.5;
                 tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
                 tc = BrickSampleCoordinates(brickOffs, tc);
@@ -256,18 +291,23 @@ void main()
                 float r = length(p);
                 float mu = dot(p / r, normalize(lightDir)); // - about 0.3 ms faster *with* the unnecessary lightDir normalisation. Hmm...
                 storedLight = storedLight.xxx;
-                storedLight *= GetTransmittanceToSun(r, mu); // - heavy: 1/4 in some scenes
+                
+                // (too simple - the phase function needs to be accounted for too, separately for the more indirect lighting)
+                //storedLight = max(vec3(0.2), storedLight); // - experimental: don't make clouds entirely dark
+                
+                //storedLight *= GetTransmittanceToSun(r, mu); // - heavy: 1/4 in some scenes
+                //storedLight *= mix(Tmin, Tmax, (dist - tmin) / (tmax - tmin)); // - experimental
+                // - faster without sun occlusion computation: (but artefacts, somewhere, maybe?)
+                storedLight *= GetTransmittanceToAtmosphereTop(r, mu); // - still quite expensive
                 
                 // - computing base Rayleigh and Mie densities does take some time (maybe 1/6 to 1/4)
                 // Maybe see if using a (very low-resolution) lookup texture helps?
                 // (less time in heavy scenes, it seems)
                 
+                float rayleighDensity = 0.0, mieDensity = 0.0;
+                ComputeBaseDensities(rayleighDensity, mieDensity, r);
                 vec4 voxelData = texture(brickTexture, tc);
-                float rayleighDensity = exp(-(r - Rg) / HR);
-                float mieDensity = max(0.0, (voxelData.x * scaleM + offsetM) * 200.0); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
-                
-                if (false) rayleighDensity = r * 1e-7; else // - performance testing. Rather small gain.
-                mieDensity += exp(-(r - Rg) / HM); // theoretical base Mie
+                mieDensity += max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
                 color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
@@ -293,38 +333,39 @@ void main()
                 lastRayleighDensity = rayleighDensity;
                 lastMieDensity = lastMieDensity;
                 
-                dist += atmStep;
-                lc = localStart + dist / nodeSize * dir;
+                dist += atmStep; // - for while loops
+                //dist = startDist + atmStep * float(localStep); // - for for loops
                 ++numSteps;
-            }
+            } while (dist < tmax);
             ++numBricks;
             
             if (length(T) < 1e-3) break; // stop early if transmittance is low
             
             //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
             
+            if (dist + outerMin > solidDepth) break;
             const uint old = ni;
             vec3 p = (hit + dist * dir) / atmScale;
-            if (dist + outerMin > solidDepth) break;
             ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-            if (old == ni)
+            // - not necessary now that the loop above is a do-while
+            /*if (old == ni)
             {
                 dist += atmStep; // - testing. Seems like this works wonders vs the black spots, but maybe not *entirely* eliminates them
                 //color.r += 1.0; // - debugging (this covers all black spots, it seems. Bingo. But why does this happen erroneously?)
                 //break; // - error (but can this even happen?) (Yes, it does happen. Quite often and early, interestingly enough)
-            }
+            }*/
             
             // - not checking this gives a small improvement (measured approx. 0.6 ms down from 14.6 ms in one case)
             //if (numBricks >= 128u || numSteps >= maxSteps) break; // - testing
+            //if (numSteps > 400u) break; // - testing
         }
         
         { // - debug visualisation
-            //if (numSteps > 30) color.r = 1.0;
+            //if (numSteps > 500) color.r = 1.0;
             //if (numBricks > 80) color.g = 0.0;
             //color.r += 0.003 * float(numBricks);
             //if (0u == (numSteps & 1u)) color.r += 0.1;
         }
-        #endif
         
         if (AddSecondOuter)
         if (intersectsOuter && (!intersectsInner || innerMax < actualSolidDepth))
@@ -345,7 +386,7 @@ void main()
     if (false)
     { // - debugging
         ivec3 size = textureSize(scatterTexture, 0);
-        ivec2 ic = ivec2(gl_FragCoord.xy);
+        ivec2 ic = ivec2(fragCoords);
         const int cols = 4;
         int z = ic.y / size.y * cols + ic.x / size.x;
         if (z < size.z && ic.x / size.x < cols)
@@ -354,12 +395,13 @@ void main()
             ic.y = ic.y % size.y;
             color = vec3(texelFetch(scatterTexture, ivec3(ic, z), 0));
         }
-        //color = vec3(texelFetch(transmittanceTexture, ivec2(gl_FragCoord.xy), 0));
+        //color = vec3(texelFetch(transmittanceTexture, ivec2(fragCoords), 0));
     }
     const vec3 lightIntensity = vec3(1.0) * sun.z;
     color *= lightIntensity;
     
     transmittance *= exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
     color += backLight * transmittance;
-    outValue = vec4(color, 1.0);
+    //color = vec3(1.0); // - testing
+    imageStore(lightImage, ivec2(gl_GlobalInvocationID), vec4(color, 0.0));
 }

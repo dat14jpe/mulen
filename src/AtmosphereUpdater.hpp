@@ -16,6 +16,7 @@ namespace Mulen {
             double time;
             Object::Position cameraPosition;
             // - maybe also orientation and field of view, if trying frustum culling
+            unsigned depthLimit;
         };
         struct Iteration
         {

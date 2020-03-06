@@ -111,7 +111,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float 
                 float mie = voxelData.x;
                 float densityM = MieDensityFromSample(mie);
                 
-                densityM = max(0.0, (mie * scaleM + offsetM) * 200.0); // - a test
+                densityM = max(0.0, (mie * scaleM + offsetM) * mieMul); // - a test
                 
                 // - debugging aliasing with hardcoded cutoff(s)
                 {

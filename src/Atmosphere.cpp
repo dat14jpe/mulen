@@ -154,11 +154,12 @@ namespace Mulen {
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
         if (!loadShader(lightFilterShader, "filter_lighting", true)) return false;
         if (!loadShader(updateOctreeMapShader, "update_octree_map", true)) return false;
-        if (!loadShader(renderShader, "render", false)) return false;
+        //if (!loadShader(renderShader, "render", false)) return false;
+        if (!loadShader(renderShader, "render", true)) return false;
         return true;
     }
 
-    void Atmosphere::Update(bool update, const Camera& camera)
+    void Atmosphere::Update(bool update, const Camera& camera, unsigned depthLimit)
     {
         // - to do: divide this over multiple frames (while two past states are being interpolated)
         {
@@ -240,7 +241,16 @@ namespace Mulen {
             const auto period = 1.0; // - to do: make this configurable
             auto cameraPos = camera.GetPosition() - GetPosition();
             cameraPos /= planetRadius * scale;
-            updater.OnFrame({ time, cameraPos }, period);
+
+            AtmosphereUpdater::IterationParameters params;
+            params.time = time;
+            params.cameraPosition = cameraPos;
+
+            // - depth 10 gives voxel resolution circa 1 km
+            // (to do: try to *selectively* reach at least depth 13, to enable smaller clouds. Around 16 would be perfect, but likely much too expensive)
+            params.depthLimit = depthLimit;
+
+            updater.OnFrame(params, period);
         }
     }
 
@@ -257,7 +267,7 @@ namespace Mulen {
             depthTexture.Create(GL_TEXTURE_2D, 1u, GL_DEPTH24_STENCIL8, res.x, res.y);
             for (auto i = 0u; i < 2u; ++i)
             {
-                lightTextures[i].Create(GL_TEXTURE_2D, 1u, GL_RGB16F, res.x, res.y);
+                lightTextures[i].Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, res.x, res.y);
                 fbos[i].Create();
                 fbos[i].SetDepthBuffer(depthTexture, 0u);
                 fbos[i].SetColorBuffer(0u, lightTextures[i], 0u);
@@ -296,6 +306,15 @@ namespace Mulen {
         scatterTexture.Bind(6u);
         vao.Bind();
 
+        { // per-frame octree acceleration map aligned to view frustum
+            // - to do: compute atmosphere-space AABB of view frustum (extended to camera distance-to-cloud-layer-horizon, and clamped to atmosphere octree)
+            // (and extend correctly with regards to map resolution, so map texel boundaries line up with node boundaries)
+            // - to do: new compute shader pass
+
+            // - to do, in the future: experiment with a handful of maps for different distances/{sections of the frustum}
+            // (and correspondingly splitting the rendering into a handful of passes)
+        }
+
         { // "planet" background (to do: spruce this up, maybe move elsewhere)
             glEnable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
@@ -314,7 +333,14 @@ namespace Mulen {
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
             auto& shader = setUpShader(renderShader);
-            glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
+            //glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
+
+            // - trying compute:
+            auto& tex = lightTextures[1];
+            glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_READ_WRITE, tex.GetFormat());
+            const glm::uvec3 workGroupSize{ 8u, 8u, 1u };
+            glDispatchCompute((tex.GetWidth() + workGroupSize.x - 1u) / workGroupSize.x, (tex.GetHeight() + workGroupSize.y - 1u) / workGroupSize.y, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
         }
 
         { // postprocessing

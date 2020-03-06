@@ -80,6 +80,8 @@ void main()
             light += w * lightSamples[localIndex + x + (BrickRes + P2) * (y + (BrickRes + P2) * z)];
         }
     }
+    // - to do: try sampling this voxel's density value and make the shadow less dark if it's non-zero
+    // (i.e., very crudely "approximate" higher order scattering in the clouds)
     
     if (false)
     {

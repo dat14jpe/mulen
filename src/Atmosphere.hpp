@@ -76,7 +76,7 @@ namespace Mulen {
         bool Init(const Params&);
         bool ReloadShaders(const std::string& shaderPath);
 
-        void Update(bool update, const Camera&);
+        void Update(bool update, const Camera&, unsigned depthLimit);
         void Render(const glm::ivec2& res, double time, const Camera&);
 
         double GetPlanetRadius() const { return planetRadius; }

@@ -19,6 +19,8 @@ const int TransmittanceWidth = 256, TransmittanceHeight = 64;
 const float ScatterRSize = 32, ScatterMuSize = 128, ScatterMuSSize = 32, ScatterNuSize = 8;
 const float MuSMin = -0.2; // cos(102 degrees), which was chosen for Earth in particular
 
+const float mieMul = 100.0; // - to do: tune, put elsewhere
+
 
 // Physical values:
 uniform vec3 betaR;
@@ -298,15 +300,18 @@ vec3 GetTransmittanceToAtmosphereTop(float r, float mu)
 {
     return vec3(texture(transmittanceTexture, RMuToTransmittanceUv(r, mu)));
 }
-vec3 GetTransmittanceToSun(float r, float mu_s)
+float GetSunOcclusion(float r, float mu_s)
 {
     const float sunAngularRadius = 0.00935 / 2.0;
     float sin_theta_h = Rg / r;
     float cos_theta_h = -sqrt(max(1.0 - sin_theta_h * sin_theta_h, 0.0));
-    return GetTransmittanceToAtmosphereTop(r, mu_s) *
-      smoothstep(-sin_theta_h * sunAngularRadius,
+    return smoothstep(-sin_theta_h * sunAngularRadius,
                  sin_theta_h * sunAngularRadius,
                  mu_s - cos_theta_h);
+}
+vec3 GetTransmittanceToSun(float r, float mu_s)
+{
+    return GetTransmittanceToAtmosphereTop(r, mu_s) * GetSunOcclusion(r, mu_s);
 }
 vec3 GetTransmittance(float r, float mu, float d, bool intersectsGround)
 {

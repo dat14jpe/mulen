@@ -44,6 +44,7 @@ bool RenderPlanet(vec3 ori, vec3 dir)
     { // - testing modulation by atmosphere lighting
         // - the sample position probably needs to be dithered in time... no?
         vec3 p = (hitp + dir * randOffs - center) / atmosphereScale / planetRadius;
+        //p *= 1.00005; // - testing. Doesn't reduce the artefact pattern very quickly
         vec3 nodeCenter;
         float nodeSize;
         uint depth;
