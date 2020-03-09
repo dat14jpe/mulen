@@ -336,7 +336,6 @@ namespace Mulen {
         }
 
         { // postprocessing
-            fbos[1].Bind();
             glDisable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
             Util::Framebuffer::BindBackbuffer();

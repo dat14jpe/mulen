@@ -4,6 +4,7 @@
 #include <queue>
 #include <unordered_set>
 #include <iostream>
+#include "Util/Timer.hpp"
 
 namespace Mulen {
 
@@ -68,7 +69,7 @@ namespace Mulen {
                 if (InvalidIndex == children)
                 {
                     a.octree.Split(ni);
-                    StageSplit(it, children);
+                    StageSplit(it, children, childPos);
                 }
                 testSplit(children, depth - 1u, childPos);
             }
@@ -81,7 +82,7 @@ namespace Mulen {
             }
         };
 
-        StageSplit(it, a.rootGroupIndex);
+        StageSplit(it, a.rootGroupIndex, { 0.0, 0.0, 0.0, 1.0 });
         const auto testDepth = 6u;
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
@@ -285,7 +286,7 @@ namespace Mulen {
         it.nodesToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageBrick(Iteration& it, UploadType type, NodeIndex nodeIndex)
+    void AtmosphereUpdater::StageBrick(Iteration& it, UploadType type, NodeIndex nodeIndex, const glm::vec4& nodePos)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         const auto brickIndex = nodeIndex;
@@ -294,14 +295,17 @@ namespace Mulen {
 
         glm::vec3 nodeCenter{ 0.0, 0.0, 0.0 };
         float nodeSize = 1.0;
-        for (auto ni = nodeIndex; ni != InvalidIndex; ni = atmosphere.octree.GetGroup(Octree::NodeToGroup(ni)).parent)
+        /*for (auto ni = nodeIndex; ni != InvalidIndex; ni = atmosphere.octree.GetGroup(Octree::NodeToGroup(ni)).parent)
         {
             glm::ivec3 ioffs = glm::ivec3(ni & 1u, (ni >> 1u) & 1u, (ni >> 2u) & 1u) * 2 - 1;
             nodeCenter += glm::vec3(ioffs) * nodeSize;
             nodeSize *= 2.0;
         }
         nodeCenter /= nodeSize;
-        nodeSize = 1.0f / nodeSize;
+        nodeSize = 1.0f / nodeSize;*/
+
+        nodeCenter = glm::vec3(nodePos);
+        nodeSize = nodePos.w;
 
         UploadBrick upload{};
         upload.nodeIndex = nodeIndex;
@@ -313,13 +317,16 @@ namespace Mulen {
         it.bricksToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageSplit(Iteration& it, NodeIndex gi)
+    void AtmosphereUpdater::StageSplit(Iteration& it, NodeIndex gi, const glm::vec4& nodePos)
     {
         StageNodeGroup(it, UploadType::Split, gi);
         for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
         {
+            auto childPos = nodePos; // - to do: modify for child
+            childPos.w *= 0.5;
+            childPos += glm::vec4(glm::vec3(glm::ivec3(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u) * 2 - 1) * childPos.w, 0.0);
             const auto ni = Octree::GroupAndChildToNode(gi, ci);
-            StageBrick(it, UploadType::Split, ni);
+            StageBrick(it, UploadType::Split, ni, childPos);
         }
     }
 
@@ -343,6 +350,8 @@ namespace Mulen {
 
     void AtmosphereUpdater::ComputeIteration(Iteration& it)
     {
+        const auto startTime = Util::Timer::Clock::now();
+
         auto& a = atmosphere;
         it.nodesToUpload.resize(0u);
         it.bricksToUpload.resize(0u);
@@ -479,15 +488,24 @@ namespace Mulen {
         // Update upload buffers:
         std::function<void(NodeIndex, unsigned, glm::dvec4)> stageGroup = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
         {
-            StageSplit(it, gi);
-            for (NodeIndex i = 0u; i < NodeArity; ++i)
+            StageSplit(it, gi, pos);
+            for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
             {
-                const auto ni = Octree::GroupAndChildToNode(gi, i);
+                auto childPos = pos;
+                childPos.w *= 0.5;
+                childPos += (glm::dvec4(glm::uvec3(ci, ci >> 1u, ci >> 2u) & 1u, 0.5) * 2.0 - 1.0)* childPos.w;
+                const auto ni = Octree::GroupAndChildToNode(gi, ci);
                 const auto children = a.octree.GetNode(ni).children;
                 if (InvalidIndex == children) continue;
-                stageGroup(children, depth + 1u, {});
+                stageGroup(children, depth + 1u, childPos);
             }
         };
         stageGroup(a.rootGroupIndex, 0u, {0, 0, 0, 1});
+
+        // - to do: better way to time
+        auto endTime = Util::Timer::Clock::now();
+        auto time = endTime - startTime;
+        auto duration = time / std::chrono::milliseconds(1);
+        std::cout << "Atmosphere update in " << duration << " ms\n";
     }
 }

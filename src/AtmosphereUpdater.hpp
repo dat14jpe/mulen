@@ -33,8 +33,8 @@ namespace Mulen {
         bool nextUpdateReady = true;
 
         void StageNodeGroup(Iteration&, UploadType, NodeIndex);
-        void StageBrick(Iteration&, UploadType, NodeIndex); // - to do: also brick data (at least optionally, if/when generating on GPU)
-        void StageSplit(Iteration&, NodeIndex gi);
+        void StageBrick(Iteration&, UploadType, NodeIndex, const glm::vec4& nodePos);
+        void StageSplit(Iteration&, NodeIndex gi, const glm::vec4& groupPos);
 
         Util::Shader& SetShader(Util::Shader&);
         void UpdateMap(GpuState&);

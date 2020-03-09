@@ -46,7 +46,7 @@ void main()
 {
     const vec2 fragCoords = vec2(gl_GlobalInvocationID.xy) + vec2(0.5);
     const vec2 coords = fragCoords / vec2(imageSize(lightImage));
-    if (coords.x > 1.0 || coords.y > 1.0) return;
+    if (coords.x >= 1.0 || coords.y >= 1.0) return; // outside the render
     const vec4 clipCoords = vec4(coords * 2.0 - 1.0, 1.0, 1.0);
     
     vec3 backLight = texelFetch(lightTexture, ivec2(fragCoords), 0).xyz;

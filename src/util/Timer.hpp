@@ -9,9 +9,10 @@ namespace Util {
     {
         // - to do: GPU timing as well
 
-        typedef std::chrono::high_resolution_clock Clock;
 
     public:
+        typedef std::chrono::high_resolution_clock Clock;
+
         class ActiveTiming
         {
             friend class Timer;
