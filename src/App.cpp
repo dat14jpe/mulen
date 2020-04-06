@@ -99,7 +99,7 @@ namespace Mulen {
                 if (!IntersectSphere(ori, dir, planetLocation, R, t0, t1)) t0 = -1e3;
                 auto planetT = t0;
                 //ImGui::Text("Planet distance: %.3f km", 1e-3 * t0);
-                const auto cloudHeight = atmosphere.GetHeight() * 0.5; // - to do: get from Atmosphere
+                const auto cloudHeight = atmosphere.GetCloudMaxHeight();
                 if (!IntersectSphere(ori, dir, planetLocation, R + cloudHeight, t0, t1)) t1 = -1e3;
                 else if (planetT > 0.0 && t1 > planetT) t1 = planetT;
                 ImGui::Text("Farthest cloud layer distance: %.3f km", 1e-3 * t1);

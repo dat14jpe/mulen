@@ -16,8 +16,7 @@ namespace Mulen {
     {
         friend class AtmosphereUpdater;
 
-        double planetRadius = 6371000.0;
-        double height = 50000.0; // - to do: correct
+        double planetRadius = 6371e3, height = 50e3, cloudMaxHeight = 25e3;
         double scale = 1.1;
 
         double HR = 8.0e3; // Rayleigh scale height
@@ -43,6 +42,7 @@ namespace Mulen {
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader;
         glm::uvec3 texMap;
+        Util::Texture octreeMap; // per-frame frustum-encompassing octree map
         
         // Update:
         Util::Texture brickUploadTexture;
@@ -81,6 +81,7 @@ namespace Mulen {
 
         double GetPlanetRadius() const { return planetRadius; }
         double GetHeight() const { return height; }
+        double GetCloudMaxHeight() const { return cloudMaxHeight; }
         unsigned GetMaxDepth()
         {
             return updater.GetRenderIteration().maxDepth;

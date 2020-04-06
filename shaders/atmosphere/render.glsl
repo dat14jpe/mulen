@@ -307,7 +307,8 @@ void main()
                 float rayleighDensity = 0.0, mieDensity = 0.0;
                 ComputeBaseDensities(rayleighDensity, mieDensity, r);
                 vec4 voxelData = texture(brickTexture, tc);
-                mieDensity += max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
+                mieDensity += //5.0 * // - testing (to do: tune factors, somewhere central)
+                max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
                 color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
@@ -346,7 +347,14 @@ void main()
             if (dist + outerMin > solidDepth) break;
             const uint old = ni;
             vec3 p = (hit + dist * dir) / atmScale;
-            ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
+            
+            
+            //ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
+            
+            // - using a map fit for the frustum:
+            // (this turned out to only give a very small improvemet - perhaps roughly 1/30 of render time in the better cases)
+            ni = OctreeDescendMap(frustumOctreeMap, (p - mapPosition) / mapScale, p, nodeCenter, nodeSize, depth);
+            
             // - not necessary now that the loop above is a do-while
             /*if (old == ni)
             {

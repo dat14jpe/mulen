@@ -105,13 +105,16 @@ namespace Mulen {
         return shader;
     }
 
-    void AtmosphereUpdater::UpdateMap(GpuState& state)
+    void AtmosphereUpdater::UpdateMap(Util::Texture& octreeMap, glm::vec3 pos, glm::vec3 scale, unsigned depthOffset)
     {
         //auto t = timer.Begin("Map");
         auto& shader = SetShader(atmosphere.updateOctreeMapShader);
-        const glm::uvec3 resolution{ state.octreeMap.GetWidth(), state.octreeMap.GetHeight(), state.octreeMap.GetDepth() };
+        const glm::uvec3 resolution{ octreeMap.GetWidth(), octreeMap.GetHeight(), octreeMap.GetDepth() };
         shader.Uniform3f("resolution", glm::vec3(resolution));
-        glBindImageTexture(0u, state.octreeMap.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32UI);
+        shader.Uniform3f("mapPosition", pos);
+        shader.Uniform3f("mapScale", scale / glm::vec3(resolution));
+        shader.Uniform1u("maxDepth", glm::uvec1(static_cast<unsigned>(log2(static_cast<float>(resolution.x)) - 1u + depthOffset)));
+        glBindImageTexture(0u, octreeMap.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R32UI);
         const auto groups = resolution / 8u;
         glDispatchCompute(groups.x, groups.y, groups.z);
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
@@ -239,7 +242,7 @@ namespace Mulen {
         case UpdateStage::Map:
         {
             fraction = 1.0;
-            UpdateMap(state);
+            UpdateMap(state.octreeMap);
             break;
         }
 

@@ -35,7 +35,9 @@ uniform layout(binding=2) usampler3D octreeMapTexture;
 uniform layout(binding=3) sampler2D  depthTexture;
 uniform layout(binding=5) sampler2D  transmittanceTexture;
 uniform layout(binding=6) sampler3D  scatterTexture;
+uniform layout(binding=7) usampler3D frustumOctreeMap;
 
+uniform vec3 mapPosition, mapScale;
 
 #define SSBO_VOXEL_NODES         0
 #define SSBO_VOXEL_UPLOAD        1
@@ -176,14 +178,14 @@ uint OctreeDescendMaxDepth(vec3 p, out vec3 nodeCenter, out float nodeSize, out 
 const uint DepthBits = 5u, ChildBits = 8u;
 const uint IndexBits = 32u - DepthBits - ChildBits;
 
-uint OctreeDescendMap(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
+// sampleLoc somewhere on range [0, 1]
+uint OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, in vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
 {
-    vec3 pp = p * 0.5 + 0.5;
-    uint info = texture(octreeMapTexture, pp).x;
+    uint info = texture(mapTexture, sampleLoc).x;
     uint gi = info & ((1u << IndexBits) - 1u);
     uint depth = (info >> (IndexBits + ChildBits)) & ((1u << DepthBits) - 1u);
     float nodesAtDepth = float(1u << (depth + 1u));
-    vec3 pn = vec3(ivec3(pp * nodesAtDepth)) / nodesAtDepth;
+    vec3 pn = vec3(ivec3((p * 0.5 + 0.5) * nodesAtDepth)) / nodesAtDepth;
     float size = 1.0 / nodesAtDepth;
     vec3 center = pn * 2.0 - 1.0 + vec3(size);
     uint ni = InvalidIndex;
@@ -204,6 +206,12 @@ uint OctreeDescendMap(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint 
     nodeSize = size;
     nodeDepth = depth;
     return ni;
+}
+
+uint OctreeDescendMap(in vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
+{
+    vec3 sampleLoc = p * 0.5 + 0.5;
+    return OctreeDescendMap(octreeMapTexture, sampleLoc, p, nodeCenter, nodeSize, nodeDepth);
 }
 
 

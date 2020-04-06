@@ -37,7 +37,7 @@ namespace Mulen {
         void StageSplit(Iteration&, NodeIndex gi, const glm::vec4& groupPos);
 
         Util::Shader& SetShader(Util::Shader&);
-        void UpdateMap(GpuState&);
+        void UpdateMap(Util::Texture&, glm::vec3 pos = glm::vec3(-1.0f), glm::vec3 scale = glm::vec3(2.0f), unsigned depthOffset = 0u);
         void UpdateNodes(uint64_t num);
         void GenerateBricks(GpuState&, uint64_t first, uint64_t num);
         void LightBricks(GpuState&, uint64_t first, uint64_t num);

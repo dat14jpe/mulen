@@ -49,6 +49,14 @@ namespace Mulen {
         {
             setUpBrickTexture(tex, BrickLightFormat, GL_LINEAR);
         };
+        auto setUpMapTexture = [&](Util::Texture& tex)
+        {
+            // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
+            const auto mapRes = 64u; // - to do: try different values and measure performance
+            tex.Create(GL_TEXTURE_3D, 1u, GL_R32UI, mapRes, mapRes, mapRes);
+            setTextureFilter(tex, GL_NEAREST);
+        };
+        setUpMapTexture(octreeMap);
 
         for (auto i = 0u; i < std::extent<decltype(gpuStates)>::value; ++i)
         {
@@ -56,11 +64,7 @@ namespace Mulen {
             state.gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
             setUpBrickTexture(state.brickTexture, BrickFormat, GL_LINEAR);
             setUpBrickLightTexture(state.brickLightTexture);
-
-            // - the map *could* be mipmapped. Hmm. Maybe try it, if there's a need
-            const auto mapRes = 64u; // - to do: try different values and measure performance
-            state.octreeMap.Create(GL_TEXTURE_3D, 1u, GL_R32UI, mapRes, mapRes, mapRes);
-            setTextureFilter(state.octreeMap, GL_NEAREST);
+            setUpMapTexture(state.octreeMap);
         }
         setUpBrickLightTexture(brickLightTextureTemp);
 
@@ -230,7 +234,7 @@ namespace Mulen {
             state.octreeMap.Bind(2u);
 
             u.UpdateNodes(it.nodesToUpload.size());
-            u.UpdateMap(state);
+            u.UpdateMap(state.octreeMap);
             u.GenerateBricks(state, 0u, it.bricksToUpload.size());
             u.LightBricks(state, 0u, it.bricksToUpload.size());
             u.FilterLighting(state, 0u, it.bricksToUpload.size());
@@ -304,12 +308,112 @@ namespace Mulen {
         depthTexture.Bind(3u);
         transmittanceTexture.Bind(5u);
         scatterTexture.Bind(6u);
+        octreeMap.Bind(7u);
         vao.Bind();
 
+        glm::vec3 mapPosition, mapScale;
         { // per-frame octree acceleration map aligned to view frustum
-            // - to do: compute atmosphere-space AABB of view frustum (extended to camera distance-to-cloud-layer-horizon, and clamped to atmosphere octree)
-            // (and extend correctly with regards to map resolution, so map texel boundaries line up with node boundaries)
-            // - to do: new compute shader pass
+
+
+            auto outvec3 = [&](glm::vec3 v)
+            {
+                std::cout << "(" << v.x << ", " << v.y << ", " << v.z;
+                return ")";
+            };
+
+            const auto planetLocation = GetPosition() - camera.GetPosition(); // - or negated? Hmm...
+            const auto R = GetPlanetRadius();
+            const auto cloudHeight = GetCloudMaxHeight();
+            const auto h = glm::max(0.0, glm::length(planetLocation) - R);
+            const auto planetHorizon = std::sqrt(h * (h + 2 * R));
+            const auto cloudHorizon = planetHorizon + std::sqrt(cloudHeight * (cloudHeight + 2 * R));
+
+            const auto viewMatrix = camera.GetViewMatrix();
+            // - to do: also inverse planet matrix, later on (to support orientation)
+            const auto mat = viewMatrix;
+            const auto invMat = glm::inverse(mat);
+            const auto invProjMat = glm::inverse(camera.GetProjectionMatrix() * mat);
+
+
+            // Compute atmosphere-space AABB of view frustum (extended to camera distance-to-cloud-layer-horizon):
+            const auto origin = -glm::vec3(planetLocation);
+            //std::cout << "origin: " << outvec3(origin) << " (cloudHorizon: " << cloudHorizon << ")\n";
+            const auto forward = glm::normalize(glm::vec3(invProjMat * glm::vec4(0.0, 0.0, 1.0, 1.0)));
+            auto min = origin, max = origin;
+            for (float y = -1.0; y < 2.0; y += 2.0)
+            {
+                for (float x = -1.0; x < 2.0; x += 2.0)
+                {
+                    auto d = glm::normalize(glm::vec3(invProjMat * glm::vec4(x, y, 1.0, 1.0)));
+                    //std::cout << outvec3(d) << "\n";
+                    d /= glm::dot(d, forward); // compensate for directions to the side not covering the spherical cap
+                    d *= cloudHorizon;
+                    d += origin;
+                    min = glm::min(min, d);
+                    max = glm::max(max, d);
+                }
+            }
+            // - to do: also consider the roughly hemispherical cap of the frustum
+            // (not taking that into account is making the map coverage far too small)
+
+            // Transform min/max to "octree space" (i.e. on [-1, 1]) and clamp:
+            const auto octreeMin = glm::vec3(-1.0), octreeMax = glm::vec3(1.0);
+            const float octreeScale = static_cast<double>(planetRadius * scale);
+            min = glm::clamp(min / octreeScale, octreeMin, octreeMax);
+            max = glm::clamp(max / octreeScale, octreeMin, octreeMax);
+
+            // - to do: find correct (negative) power of two in relation to full octree size (round up)
+            auto extents = max - min;
+            const auto maxExtent = glm::max(extents.x, glm::max(extents.y, extents.z));
+            auto exponent = static_cast<int>(floor(log2(2.0 / maxExtent)));
+            // - to do: see if the AABB can be fit at this level, with regards to the map resolution
+            // (and if not, increment exponent once and fit at that level instead)
+
+            glm::vec3 mapMin, mapMax;
+            auto fitAabb = [&]()
+            {
+                const auto res = state.octreeMap.GetWidth();
+                const float mapSize = 2.0f / static_cast<float>(exp2(exponent));
+                const float texelSize = mapSize / res;
+
+                // Extend correctly with regards to map resolution, so map texel boundaries line up with node boundaries
+                auto texel0 = floor((min + 1.0f) / texelSize),
+                    texel1 = ceil((max + 1.0f) / texelSize);
+                auto texelDiff = texel1 - texel0;
+                if (texelDiff.x > res || texelDiff.y > res || texelDiff.z > res)
+                {
+                    return false; // the AABB doesn't fit in this level; we need to go bigger sizes
+                }
+
+                texel1 = texel0 + decltype(texel0)(res);
+                mapMin = texel0 * texelSize - 1.0f;
+                mapMax = texel1 * texelSize - 1.0f;
+                return true; // the AABB can be mapped at this level
+            };
+            if (!fitAabb())
+            {
+                exponent -= 1;
+                if (!fitAabb())
+                {
+                    std::cout << "Error: could not fit view frustum AABB\n"; // - to do: better message
+                }
+            }
+
+            mapPosition = mapMin;
+            mapScale = mapMax - mapMin;
+            updater.UpdateMap(octreeMap, mapPosition, mapScale, exponent);
+
+
+            { // - debugging
+                static auto count = 0u;
+                if (count++ % 60u == 0u)
+                {
+                    std::cout << "AABB fit with exponent " << exponent;
+                    std::cout << " (min: " << outvec3(min) << ", max: " << outvec3(max) << ")\n";
+                    std::cout << " (position: " << outvec3(mapPosition) << ", scale: " << outvec3(mapScale) << ")";
+                    std::cout << "\n";
+                }
+            }
 
             // - to do, in the future: experiment with a handful of maps for different distances/{sections of the frustum}
             // (and correspondingly splitting the rendering into a handful of passes)
@@ -328,6 +432,8 @@ namespace Mulen {
         { // atmosphere
             lightTextures[0].Bind(4u);
             auto& shader = setUpShader(renderShader);
+            shader.Uniform3f("mapPosition", mapPosition);
+            shader.Uniform3f("mapScale", mapScale);
             auto& tex = lightTextures[1];
             glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_READ_WRITE, tex.GetFormat());
             const glm::uvec3 workGroupSize{ 8u, 8u, 1u };
