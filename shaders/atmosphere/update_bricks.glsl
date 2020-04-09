@@ -52,7 +52,7 @@ void main()
     if (h < -2e4) return; // - to do: check this
     if (h > Rt - Rg + 4e4) return;
     
-    const float height = 0.01; // - to do: aim for approximately 0.01 (Earth-like)
+    const float height = 0.5 * 0.01; // - to do: aim for approximately 0.01 (Earth-like)
     const float shellDist = 1.0 + height - length(p);
     //if (shellDist < 0.0) return; // - early exit if outside atmosphere (to do: check accuracy of this)
     float shellFactor = 0.0;
@@ -169,8 +169,8 @@ void main()
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         // - do these transitions need to depend on voxel size? Maybe. Think about it, and test
         // - they do, yes. Currently these two cause structural banding
-        //mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
-        mask *= 1.0 - smoothstep(height * 0.98, height, shellDist); // - most of the banding from here? Seems like it might be
+        mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
+        mask *= 1.0 - smoothstep(height * 0.95, height, shellDist); // - most of the banding from here? Seems like it might be
         
         const float cloudDensity = 10.0; // - to do: tune this (probably needs to be higher, no? Maybe 10? Try to find a physical derivation)
         float cloud = cloudDensity * max(0.0, d);
@@ -179,6 +179,7 @@ void main()
         //mie = log(mix(exp(mie), exp(cloud), shellFactor * mask));
         //mie += 2.0 * cloud * shellFactor * mask; // - is this (just adding) really better? Hmm.
     }
+    //mie *= 0.25; // - testing. Does seem to produce nicely diffuse clouds, at least in combination with raised Mie light intensity
     
     { // zero faces
         for (uint d = 0u; d < 3u; ++d)

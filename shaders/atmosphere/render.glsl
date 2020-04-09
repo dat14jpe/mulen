@@ -29,8 +29,9 @@ vec3 ViewspaceFromDepth(vec4 clipCoords, float depth)
 
 void ComputeBaseDensities(out float rayleighDensity, out float mieDensity, float r)
 {
-    rayleighDensity = exp(-(r - Rg) / HR);
-    mieDensity = exp(-(r - Rg) / HM);
+    float H = r - Rg;
+    rayleighDensity = RayleighDensityFromH(H);
+    mieDensity = MieDensityFromH(H);
 }
 
 vec3 TransmittanceFromPoint(vec3 p)
@@ -219,7 +220,13 @@ void main()
         uint depth;
         vec3 nodeCenter;
         float nodeSize;
-        uint ni = OctreeDescendMap(globalStart / atmScale, nodeCenter, nodeSize, depth);
+        uint ni;
+        {
+            vec3 p = globalStart / atmScale;
+            ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
+            //ni = OctreeDescendMap(frustumOctreeMap, (p - mapPosition) / mapScale, p, nodeCenter, nodeSize, depth);
+        }
+        
         float dist = 0.0; // - to do: make it so this can be set to tmin?
         dist += 1e-5;// don't start at a face/edge/corner
         vec2 randTimeOffs = vec2(cos(time), sin(time));
@@ -311,7 +318,9 @@ void main()
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
-                color += (phaseR * betaR * rayleighDensity + phaseM * betaMSca * mieDensity) 
+                color += (phaseR * betaR * rayleighDensity + 
+                    6 * // - testing (this brightens the clouds to great improvement. Must be tuned, somehow)
+                    phaseM * betaMSca * mieDensity) 
                     * T * storedLight * atmStep;
                     
                 // - experiment: Mie added to optical depth *after*, to not occlude itself
@@ -349,11 +358,11 @@ void main()
             vec3 p = (hit + dist * dir) / atmScale;
             
             
-            //ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
+            ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
             
             // - using a map fit for the frustum:
-            // (this turned out to only give a very small improvemet - perhaps roughly 1/30 of render time in the better cases)
-            ni = OctreeDescendMap(frustumOctreeMap, (p - mapPosition) / mapScale, p, nodeCenter, nodeSize, depth);
+            // (this turned out to only give a very small improvement - perhaps roughly 1/30 of render time in the better cases)
+            //ni = OctreeDescendMap(frustumOctreeMap, (p - mapPosition) / mapScale, p, nodeCenter, nodeSize, depth);
             
             // - not necessary now that the loop above is a do-while
             /*if (old == ni)

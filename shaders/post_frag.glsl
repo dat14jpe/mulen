@@ -1,4 +1,5 @@
 #version 450
+#include "ACES.glsl"
 
 // - to do: move to common include file
 float random(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233)))*43758.5453123); }
@@ -12,6 +13,7 @@ void main()
     vec3 color = vec3(texture(lightTexture, ndc.xy * 0.5 + 0.5));
     
     // - to do: tone mapping
+    color = ACESFitted(color); // - experimental
     
     // Gamma correction:
     color = pow(color, vec3(1.0 / 2.2));
