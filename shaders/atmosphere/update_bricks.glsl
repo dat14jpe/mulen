@@ -108,8 +108,8 @@ void main()
         }
         */
         //d = 1.0; // - testing
-        d = (fBm(13u, np * 8.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
-        //d -= 0.5; // - more broken up and dramatic (in high resolution)
+        d = (fBm(13u, np * 16.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
+        d -= 0.5; // - more broken up and dramatic (in high resolution)
         
         float mask = 0.0;
         mask = fBm(9u, p * 64.0, 0.5, 2.0); // simplistic
@@ -179,7 +179,29 @@ void main()
         //mie = log(mix(exp(mie), exp(cloud), shellFactor * mask));
         //mie += 2.0 * cloud * shellFactor * mask; // - is this (just adding) really better? Hmm.
     }
-    //mie *= 0.25; // - testing. Does seem to produce nicely diffuse clouds, at least in combination with raised Mie light intensity
+    { // simple attempt at higher (smoother) cloud layer
+        float mask = fBm(2u, p * 64.0, 0.5, 2.0); // simplistic
+        mask = mask * 0.5 + 0.5;
+        const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
+        
+        const float top = 0.75, bottom = 0.1;
+        //mask *= smoothstep(height * cloudsTop, height * 0.75, shellDist); 
+        //mask *= 1.0 - smoothstep(height * bottom, height, shellDist); // - most of the banding from here? Seems like it might be
+        const float h = 1.0 - shellDist / height;
+        const float 
+            base = 0.025,//0.25, 
+            thickness = 0.05;
+        //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
+        mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
+        mask *= smoothstep(base - thickness, base, h); // - bottom
+        
+        float d = fBm(4u, (vec3(0.3126) + p) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
+        //d = 1.0;
+        d *= 0.5;
+        
+        mie = max(mie, d * mask); // - testing
+    }
+    //mie *= 0.5; // - testing. Does seem to produce nicely diffuse clouds, at least in combination with raised Mie light intensity
     
     { // zero faces
         for (uint d = 0u; d < 3u; ++d)

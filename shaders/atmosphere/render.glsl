@@ -319,7 +319,7 @@ void main()
                 
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
                 color += (phaseR * betaR * rayleighDensity + 
-                    6 * // - testing (this brightens the clouds to great improvement. Must be tuned, somehow)
+                    //6 * // - testing (this brightens the clouds to great improvement. Must be tuned, somehow)
                     phaseM * betaMSca * mieDensity) 
                     * T * storedLight * atmStep;
                     
@@ -418,6 +418,7 @@ void main()
     color *= lightIntensity;
     
     transmittance *= exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+    color *= 3.0; // - testing (to do: tune light intensity instead)
     color += backLight * transmittance;
     //color = vec3(1.0); // - testing
     imageStore(lightImage, ivec2(gl_GlobalInvocationID), vec4(color, 0.0));
