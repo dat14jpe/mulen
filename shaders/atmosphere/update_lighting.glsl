@@ -112,6 +112,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float 
                 float densityM = MieDensityFromSample(mie);
                 
                 densityM = max(0.0, (mie * scaleM + offsetM) * mieMul); // - a test
+                densityM *= 4.0; // - to do: move somewhere central
                 
                 // - debugging aliasing with hardcoded cutoff(s)
                 {

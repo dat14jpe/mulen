@@ -29,6 +29,7 @@ void main()
     
     vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
     vec3 p = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp) * atmosphereScale;
+    const vec3 op = p;
     
     if (false)
     {
@@ -180,8 +181,9 @@ void main()
         //mie += 2.0 * cloud * shellFactor * mask; // - is this (just adding) really better? Hmm.
     }
     { // simple attempt at higher (smoother) cloud layer
-        float mask = fBm(2u, p * 64.0, 0.5, 2.0); // simplistic
+        float mask = fBm(2u, p * 128.0, 0.5, 2.0); // simplistic
         mask = mask * 0.5 + 0.5;
+        const float maskBase = mask;
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         
         const float top = 0.75, bottom = 0.1;
@@ -189,17 +191,38 @@ void main()
         //mask *= 1.0 - smoothstep(height * bottom, height, shellDist); // - most of the banding from here? Seems like it might be
         const float h = 1.0 - shellDist / height;
         const float 
-            base = 0.025,//0.25, 
+            base = 0.5,//0.025,//0.25, 
             thickness = 0.05;
         //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
         mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
         mask *= smoothstep(base - thickness, base, h); // - bottom
+        mask = max(0.0, mask - 0.25);
         
-        float d = fBm(4u, (vec3(0.3126) + p) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
-        //d = 1.0;
-        d *= 0.5;
-        
-        mie = max(mie, d * mask); // - testing
+        { // cirrus
+            float d = fBm(4u, (vec3(0.65) + p) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
+            //d = 1.0;
+            //d *= 0.5; // - worked well for fog
+            d *= 0.0625; // stratus or cirrus
+            
+            mie = max(mie, d * mask);
+        }
+        { // stratus (low, i.e. fog or mist)
+            float mask = maskBase;
+            const float 
+                base = 0.025,//0.25, 
+                thickness = 0.05;
+            //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
+            mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
+            mask *= smoothstep(base - thickness, base, h); // - bottom
+            mask = max(0.0, mask - 0.25);
+            
+            float d = fBm(4u, (vec3(0.3126) + p) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
+            //d = 1.0;
+            d *= 0.5; // - worked well for fog
+            //d *= 0.125; // stratus or cirrus
+            
+            mie = max(mie, d * mask);
+        }
     }
     //mie *= 0.5; // - testing. Does seem to produce nicely diffuse clouds, at least in combination with raised Mie light intensity
     
@@ -213,6 +236,7 @@ void main()
     
     rayleigh = (rayleigh - offsetR) / scaleR;
     mie = (mie - offsetM) / scaleM;
+    if (mie > 0.0) mie += abs(rand3D(op)) / 255.0; // - dither test
     vec2 data = vec2(rayleigh, mie); // - old order
     data = vec2(mie, rayleigh);
     imageStore(brickImage, ivec3(writeOffs), vec4(clamp(data, vec2(0.0), vec2(1.0)), 0, 0));

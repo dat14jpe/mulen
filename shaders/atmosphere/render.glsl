@@ -314,7 +314,7 @@ void main()
                 float rayleighDensity = 0.0, mieDensity = 0.0;
                 ComputeBaseDensities(rayleighDensity, mieDensity, r);
                 vec4 voxelData = texture(brickTexture, tc);
-                mieDensity += //5.0 * // - testing (to do: tune factors, somewhere central)
+                mieDensity += 4.0 * // - testing (to do: tune factors, somewhere central)
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
