@@ -62,6 +62,7 @@ namespace Mulen {
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
             ImGui::SliderInt("Depth", &depthLimit, 1u, 16u);
+            ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
             if (ImGui::Button("Re-init"))
             {
                 atmosphere.ReloadShaders(shaderPath);
@@ -116,6 +117,7 @@ namespace Mulen {
         }
 
         // Camera controls
+        if (!ImGui::IsAnyItemActive())
         {
             Object::Position accel{ 0.0 };
             if (window.IsKeyPressed(GLFW_KEY_A)) accel.x -= 1;
@@ -227,6 +229,7 @@ namespace Mulen {
         }
 
         atmosphere.SetLightRotates(rotateLight);
+        atmosphere.SetDownscaleFactor(downscaleFactor);
         atmosphere.Update(update, camera, depthLimit);
         atmosphere.Render(size, glfwGetTime(), camera);
 

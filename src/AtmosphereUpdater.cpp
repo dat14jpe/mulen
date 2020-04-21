@@ -131,11 +131,20 @@ namespace Mulen {
     void AtmosphereUpdater::GenerateBricks(GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Generation");
-        glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
-        auto& shader = SetShader(atmosphere.updateBricksShader);
-        shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
-        glDispatchCompute((GLuint)num, 1u, 1u);
-        glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        {
+            glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
+            auto& shader = SetShader(atmosphere.updateBricksShader);
+            shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+            glDispatchCompute((GLuint)num, 1u, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        }
+        {
+            // - to do: "optimisation" pass (compute constancy flags, possibly more)
+            auto& shader = SetShader(atmosphere.updateFlagsShader);
+            shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+            glDispatchCompute((GLuint)num, 1u, 1u);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
     }
 
     void AtmosphereUpdater::LightBricks(GpuState& state, uint64_t first, uint64_t num)

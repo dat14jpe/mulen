@@ -28,7 +28,7 @@ namespace Mulen {
 
         bool update = true, rotateLight = true,
             upright = true, collision = true, fly = true;
-        int depthLimit = 10u;
+        int depthLimit = 10u, downscaleFactor = 2u;
 
         bool InitializeAtmosphere();
         void SetVSync(bool);

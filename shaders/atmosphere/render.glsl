@@ -1,6 +1,5 @@
 #version 450
 #include "common.glsl"
-#include "../geometry.glsl"
 #include "../noise.glsl"
 
 /*layout(location = 0) out vec4 outValue;
@@ -11,6 +10,7 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 #include "compute.glsl"
 
 uniform layout(binding=0, rgba16f) image2D lightImage;
+uniform layout(binding=1, rgba16f) image2D transmittanceImage;
 
 
 float GetDepth(vec4 clipCoords)
@@ -43,19 +43,22 @@ vec3 TransmittanceFromPoint(vec3 p)
     return GetTransmittanceToSun(r, mu);
 }
 
+uniform uvec2 fragOffset, fragFactor;
+
 void main()
 {
-    const vec2 fragCoords = vec2(gl_GlobalInvocationID.xy) + vec2(0.5);
+    const ivec2 ifragCoords = ivec2(fragOffset + fragFactor * gl_GlobalInvocationID.xy);
+    const vec2 fragCoords = vec2(ifragCoords) + vec2(0.5);
     const vec2 coords = fragCoords / vec2(imageSize(lightImage));
-    if (coords.x >= 1.0 || coords.y >= 1.0) return; // outside the render
+    if (coords.x >= 1.0 || coords.y >= 1.0) return; // outside the target
     const vec4 clipCoords = vec4(coords * 2.0 - 1.0, 1.0, 1.0);
     
-    vec3 backLight = texelFetch(lightTexture, ivec2(fragCoords), 0).xyz;
+    vec3 backLight = texelFetch(lightTexture, ifragCoords, 0).xyz;
     //vec3 backLight = imageLoad(lightImage, ivec2(fragCoords), 0).xyz;
     const float atmScale = atmosphereRadius;
     
     const vec3 ori = vec3(invViewMat * vec4(0, 0, 0, 1));
-    vec3 dir = normalize(vec3(invViewProjMat * clipCoords));
+    const vec3 dir = normalize(vec3(invViewProjMat * clipCoords));
     float solidDepth = length(ViewspaceFromDepth(clipCoords, GetDepth(clipCoords)));
     const float actualSolidDepth = solidDepth;
     
@@ -63,20 +66,16 @@ void main()
     vec3 transmittance = vec3(1.0);
     vec3 color = vec3(0.0);
     
-    const float outerR = Rt; // upper atmosphere radius (not *cloud* level, but far above it)
-    float outerMin, outerMax, innerMin, innerMax;
-    const bool intersectsOuter = IntersectSphere(ori, dir, planetLocation, outerR, outerMin, outerMax);
-    const float innerR = planetRadius + atmosphereHeight * 0.5; // - to do: make 1.7 more like... 0.5? Maybe
-    const bool intersectsInner = IntersectSphere(ori, dir, planetLocation, innerR, innerMin, innerMax);
+    AtmosphereIntersection ai = IntersectAtmosphere(ori, dir);
     
     const bool AddSecondOuter = true;//false;
     
     // - to do: fully correct and encompassing logic
     // - to do: consider depth buffer occlusion before inner atmosphere
-    const float outerLength = intersectsInner ? innerMin - outerMin : outerMax - outerMin; // - to do: use this
-    if (intersectsOuter && outerLength > 0.0)
+    const float outerLength = ai.intersectsInner ? ai.innerMin - ai.outerMin : ai.outerMax - ai.outerMin;
+    if (ai.intersectsOuter && outerLength > 0.0)
     {
-        vec3 p = ori + dir * outerMin - planetLocation;
+        vec3 p = ori + dir * ai.outerMin - planetLocation;
         float r = length(p);
         float mu = dot(dir, p) / r;
         float mu_s = dot(lightDir, p) / r;
@@ -86,9 +85,9 @@ void main()
         vec3 scattering = GetScattering(r, mu, mu_s, nu, intersectsGround);
         transmittance *= GetTransmittance(r, mu, outerLength, true);
         
-        if (intersectsInner)
+        if (ai.intersectsInner)
         {
-            vec3 p = ori + dir * innerMin - planetLocation;
+            vec3 p = ori + dir * ai.innerMin - planetLocation;
             float r = length(p);
             float mu = dot(dir, p) / r;
             float mu_s = dot(lightDir, p) / r;
@@ -99,9 +98,9 @@ void main()
     }
     // - to do: use outer atmosphere intersection separately, add precomputed scattering there
     
-    if (intersectsInner)
+    if (ai.intersectsInner)
     {
-        float tmin = innerMin, tmax = innerMax;
+        float tmin = ai.innerMin, tmax = ai.innerMax;
         solidDepth = min(solidDepth, tmax);
         
         /*solidDepth = min(solidDepth, 5e4); // - debugging
@@ -314,7 +313,7 @@ void main()
                 float rayleighDensity = 0.0, mieDensity = 0.0;
                 ComputeBaseDensities(rayleighDensity, mieDensity, r);
                 vec4 voxelData = texture(brickTexture, tc);
-                mieDensity += 4.0 * // - testing (to do: tune factors, somewhere central)
+                mieDensity += voxelData.x * mieMul; // - could work now that the data has been simplified
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
                 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
@@ -378,17 +377,17 @@ void main()
         }
         
         { // - debug visualisation
-            //if (numSteps > 500) color.r = 1.0;
+            //if (numSteps > 500) color.r = 0.1;
             //if (numBricks > 80) color.g = 0.0;
             //color.r += 0.003 * float(numBricks);
             //if (0u == (numSteps & 1u)) color.r += 0.1;
         }
         
         if (AddSecondOuter)
-        if (intersectsOuter && (!intersectsInner || innerMax < actualSolidDepth))
+        if (ai.intersectsOuter && (!ai.intersectsInner || ai.innerMax < actualSolidDepth))
         {
             // - to do: handle depth buffer value possibly interrupting this
-            vec3 p = ori + dir * innerMax - planetLocation;
+            vec3 p = ori + dir * ai.innerMax - planetLocation;
             float r = length(p);
             float mu = dot(dir, p) / r;
             float mu_s = dot(lightDir, p) / r;
@@ -419,7 +418,8 @@ void main()
     
     transmittance *= exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
     color *= 3.0; // - testing (to do: tune light intensity instead)
-    color += backLight * transmittance;
+    //color += backLight * transmittance;
     //color = vec3(1.0); // - testing
-    imageStore(lightImage, ivec2(gl_GlobalInvocationID), vec4(color, 0.0));
+    imageStore(lightImage, ifragCoords, vec4(color, 0.0));
+    imageStore(transmittanceImage, ifragCoords, vec4(transmittance, 0.0));
 }

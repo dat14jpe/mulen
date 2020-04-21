@@ -1,7 +1,6 @@
 #version 450
 
 #include "../noise.glsl"
-#include "../geometry.glsl"
 #include "common.glsl"
 const uint Padding = 1;
 const uint P2 = Padding * 2;

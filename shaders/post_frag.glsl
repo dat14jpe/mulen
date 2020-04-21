@@ -12,13 +12,13 @@ void main()
 {
     vec3 color = vec3(texture(lightTexture, ndc.xy * 0.5 + 0.5));
     
-    // - to do: tone mapping
+    // Tone mapping:
     color = ACESFitted(color); // - experimental
     
     // Gamma correction:
     color = pow(color, vec3(1.0 / 2.2));
     
-    // Dithering (remove colour banding due to limited output bit depth):
+    // Dithering (break up colour banding due to limited output bit depth):
     const float invColorDepth = 1.0 / 256.0;
     color += vec3(random(gl_FragCoord.xy)) * invColorDepth;
     

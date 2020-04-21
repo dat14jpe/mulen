@@ -34,21 +34,29 @@ namespace Mulen {
 
         // Render:
         Util::Shader postShader;
-        Util::Framebuffer fbos[2];
-        Util::Texture depthTexture, lightTextures[2];
+        Util::Framebuffer fbo;
+        Util::Texture depthTexture, lightTexture;
+        struct FrameTextures
+        {
+            // - to do: probably also depth texture (to find the closest old pixel where needed)
+            Util::Texture light, transmittance;
+        } frameTextures[2]; // previous and current
+        unsigned frame = 0u;
+        unsigned downscaleFactor = 1u;
 
         GpuState gpuStates[2];
         Util::Texture brickLightTextureTemp;
         Util::VertexArray vao;
-        Util::Shader backdropShader, renderShader;
+        Util::Shader backdropShader, renderShader, resolveShader;
         glm::uvec3 texMap;
         Util::Texture octreeMap; // per-frame frustum-encompassing octree map
+        Object::Mat4 prevViewProjMat;
         
         // Update:
         Util::Texture brickUploadTexture;
         size_t maxToUpload; // maximum per frame
         Util::Buffer gpuUploadNodes, gpuUploadBricks;
-        Util::Shader updateShader, updateBricksShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
+        Util::Shader updateShader, updateBricksShader, updateFlagsShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
 
         // Prepass:
         Util::Shader transmittanceShader, inscatterFirstShader;
@@ -88,5 +96,6 @@ namespace Mulen {
         }
 
         void SetLightRotates(bool b) { rotateLight = b; }
+        void SetDownscaleFactor(unsigned f) { downscaleFactor = f; }
     };
 }

@@ -157,11 +157,12 @@ namespace Mulen {
         if (!loadShader(inscatterFirstShader, "inscatter_first", true)) return false;
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
+        if (!loadShader(updateFlagsShader, "update_flags", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
         if (!loadShader(lightFilterShader, "filter_lighting", true)) return false;
         if (!loadShader(updateOctreeMapShader, "update_octree_map", true)) return false;
-        //if (!loadShader(renderShader, "render", false)) return false;
         if (!loadShader(renderShader, "render", true)) return false;
+        if (!loadShader(resolveShader, "resolve", true)) return false;
         return true;
     }
 
@@ -271,12 +272,25 @@ namespace Mulen {
         if (depthTexture.GetWidth() != res.x || depthTexture.GetHeight() != res.y)
         {
             depthTexture.Create(GL_TEXTURE_2D, 1u, GL_DEPTH24_STENCIL8, res.x, res.y);
-            for (auto i = 0u; i < 2u; ++i)
+
+            lightTexture.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, res.x, res.y);
+            fbo.Create();
+            fbo.SetDepthBuffer(depthTexture, 0u);
+            fbo.SetColorBuffer(0u, lightTexture, 0u);
+
+            for (auto i = 0u; i < std::extent<decltype(frameTextures)>::value; ++i)
             {
-                lightTextures[i].Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, res.x, res.y);
-                fbos[i].Create();
-                fbos[i].SetDepthBuffer(depthTexture, 0u);
-                fbos[i].SetColorBuffer(0u, lightTextures[i], 0u);
+                auto& t = frameTextures[i];
+                auto setTextureClamp = [](Util::Texture& tex, GLenum clamp)
+                {
+                    glTextureParameteri(tex.GetId(), GL_TEXTURE_WRAP_S, clamp);
+                    glTextureParameteri(tex.GetId(), GL_TEXTURE_WRAP_T, clamp);
+                };
+                // - to do: depth too
+                t.light.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, res.x, res.y);
+                setTextureClamp(t.light, GL_CLAMP_TO_EDGE);
+                t.transmittance.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, res.x, res.y);
+                setTextureClamp(t.transmittance, GL_CLAMP_TO_EDGE);
             }
         }
 
@@ -286,6 +300,24 @@ namespace Mulen {
         const auto viewProjMat = projMat * viewMat;
         const auto invWorldMat = glm::inverse(worldMat);
         const auto invViewProjMat = glm::inverse(projMat * viewMat);
+        const auto prevViewProjMat = this->prevViewProjMat;
+        this->prevViewProjMat = viewProjMat;
+
+        auto computeFragOffset = [&](unsigned i)
+        {
+            // - to do: better pattern
+            // (possibly Bayer matrix, though that might not be easily accomplished for 3) https://en.wikipedia.org/wiki/Ordered_dithering
+
+            if (downscaleFactor == 2u) // - for testing
+            {
+                glm::uvec2 offsets[] = { {0u, 0u}, {1u, 1u}, {1u, 0u}, {0u, 1u} };
+                return offsets[i];
+            }
+
+            return glm::uvec2(i % downscaleFactor, i / downscaleFactor);
+        };
+        const auto fragOffset = computeFragOffset(frame % (downscaleFactor * downscaleFactor));
+        ++frame;
 
         auto setUpShader = [&](Util::Shader& shader) -> Util::Shader&
         {
@@ -296,12 +328,18 @@ namespace Mulen {
             shader.UniformMat4("invProjMat", glm::inverse(projMat));
             shader.UniformMat4("invWorldMat", invWorldMat);
             shader.UniformMat4("viewProjMat", viewProjMat);
+            shader.UniformMat4("prevViewProjMat", prevViewProjMat);
             shader.Uniform3f("planetLocation", GetPosition() - camera.GetPosition());
+
+            // - to do: actual values
+            shader.Uniform2u("fragOffset", fragOffset);
+            shader.Uniform2u("fragFactor", glm::uvec2{ downscaleFactor });
+
             SetUniforms(shader);
             return shader;
         };
 
-        fbos[0].Bind();
+        fbo.Bind();
         auto& state = gpuStates[(u.updateStateIndex + 1u) % std::extent<decltype(gpuStates)>::value];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         state.brickTexture.Bind(0u);
@@ -430,16 +468,37 @@ namespace Mulen {
             auto& shader = setUpShader(backdropShader);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
-        
+
+        // - to do: correct (and rotating indices)
+        auto& previous = frameTextures[frame % 2u];
+        auto& current = frameTextures[(frame + 1u) % 2u];
+
+        auto bindImage = [](Util::Texture& tex, unsigned unit) 
+        { 
+            glBindImageTexture(unit, tex.GetId(), 0, GL_FALSE, 0, GL_READ_WRITE, tex.GetFormat()); 
+        };
+        bindImage(current.light, 0u);
+        bindImage(current.transmittance, 1u);
+        bindImage(lightTexture, 2u);
+
         { // atmosphere
-            lightTextures[0].Bind(4u);
+            //lightTexture.Bind(4u);
             auto& shader = setUpShader(renderShader);
             shader.Uniform3f("mapPosition", mapPosition);
             shader.Uniform3f("mapScale", mapScale);
-            auto& tex = lightTextures[1];
-            glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_READ_WRITE, tex.GetFormat());
             const glm::uvec3 workGroupSize{ 8u, 8u, 1u };
-            glDispatchCompute((tex.GetWidth() + workGroupSize.x - 1u) / workGroupSize.x, (tex.GetHeight() + workGroupSize.y - 1u) / workGroupSize.y, 1u);
+            // - to do: correctly downscale resolution
+            auto downscaleRes = (res + glm::ivec2(downscaleFactor - 1)) / glm::ivec2(downscaleFactor);
+            glDispatchCompute((downscaleRes.x + workGroupSize.x - 1u) / workGroupSize.x, (downscaleRes.y + workGroupSize.y - 1u) / workGroupSize.y, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        }
+
+        { // combine old and current frame atmosphere renders, and apply to prior lighting
+            auto& shader = setUpShader(resolveShader);
+            previous.light.Bind(4);
+            previous.transmittance.Bind(5);
+            const glm::uvec3 workGroupSize{ 8u, 8u, 1u };
+            glDispatchCompute((res.x + workGroupSize.x - 1u) / workGroupSize.x, (res.y + workGroupSize.y - 1u) / workGroupSize.y, 1u);
             glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
         }
 
@@ -449,7 +508,7 @@ namespace Mulen {
             Util::Framebuffer::BindBackbuffer();
             auto& shader = postShader;
             shader.Bind();
-            lightTextures[1].Bind(0u);
+            lightTexture.Bind(0u);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
     }

@@ -1,9 +1,10 @@
 
+#include "../geometry.glsl"
 
 const float PI = 3.14159265358979323846;
 
 // - to do: UBO
-uniform mat4  viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat;
+uniform mat4  viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat, prevViewProjMat;
 uniform uint  rootGroupIndex;
 uniform float time;
 uniform float Fcoef_half;
@@ -19,7 +20,7 @@ const int TransmittanceWidth = 256, TransmittanceHeight = 64;
 const float ScatterRSize = 32, ScatterMuSize = 128, ScatterMuSSize = 32, ScatterNuSize = 8;
 const float MuSMin = -0.2; // cos(102 degrees), which was chosen for Earth in particular
 
-const float mieMul = 0.25 * 100.0; // - to do: tune, put elsewhere
+const float mieMul = 0.25 * 100.0 * 4.0 * 4.0; // - to do: tune, put elsewhere
 
 
 // Physical values:
@@ -43,7 +44,8 @@ uniform vec3 mapPosition, mapScale;
 #define SSBO_VOXEL_UPLOAD        1
 #define SSBO_VOXEL_UPLOAD_BRICKS 2
 #define NodeArity 8
-const uint InvalidIndex = 0xffffffffu;
+const uint IndexMask = 0xffffffu;
+const uint InvalidIndex = 0xffffffffu & IndexMask;
 #define BrickRes 8
 
 struct Node
@@ -126,52 +128,68 @@ bool IsIntersection(float tmin, float tmax)
 }
 
 
+
+struct OctreeTraversalData
+{
+    vec3 p;
+    uint depth;
+    uint ni, gi;
+    vec3 center;
+    float size;
+};
+
+void OctreeTraversalIteration(inout OctreeTraversalData o)
+{
+    ivec3 ioffs = clamp(ivec3(o.p - o.center + 1.0), ivec3(0), ivec3(1));
+    uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
+    o.ni = o.gi * NodeArity + child;
+    o.size *= 0.5;
+    o.center += (vec3(ioffs) * 2.0 - 1.0) * o.size;
+    o.gi = nodeGroups[o.gi].nodes[child].children;
+    // - to do: possibly extract other bits/flags (or maybe leave that to the info field)
+    o.gi &= IndexMask;
+    ++o.depth;
+}
+
+
 // - to do: add "desired size" parameter to allow early stop
 // p components in [-1, 1] range
 uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
 {
-    uint depth = 0u - 1u;
-    uint ni = InvalidIndex;
-    uint gi = rootGroupIndex;
-    vec3 center = vec3(0.0);
-    float size = 1.0;
-    while (InvalidIndex != gi)
+    OctreeTraversalData o;
+    o.p = p;
+    o.depth = 0u - 1u;
+    o.ni = InvalidIndex;
+    o.gi = rootGroupIndex;
+    o.center = vec3(0.0);
+    o.size = 1.0;
+    while (InvalidIndex != o.gi)
     {
-        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
-        uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
-        ni = gi * NodeArity + child;
-        size *= 0.5;
-        center += (vec3(ioffs) * 2.0 - 1.0) * size;
-        gi = nodeGroups[gi].nodes[child].children;
-        ++depth;
+        OctreeTraversalIteration(o);
     }
-    nodeCenter = center;
-    nodeSize = size;
-    nodeDepth = depth;
-    return ni;
+    nodeCenter = o.center;
+    nodeSize = o.size;
+    nodeDepth = o.depth;
+    return o.ni;
 }
 uint OctreeDescendMaxDepth(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth, uint maxDepth)
 {
-    uint depth = 0u - 1u;
-    uint ni = InvalidIndex;
-    uint gi = rootGroupIndex;
-    vec3 center = vec3(0.0);
-    float size = 1.0;
-    while (InvalidIndex != gi)
+    OctreeTraversalData o;
+    o.p = p;
+    o.depth = 0u - 1u;
+    o.ni = InvalidIndex;
+    o.gi = rootGroupIndex;
+    o.center = vec3(0.0);
+    o.size = 1.0;
+    while (InvalidIndex != o.gi)
     {
-        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
-        uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
-        ni = gi * NodeArity + child;
-        size *= 0.5;
-        center += (vec3(ioffs) * 2.0 - 1.0) * size;
-        gi = nodeGroups[gi].nodes[child].children;
-        ++depth;
-        if (depth == maxDepth) break;
+        OctreeTraversalIteration(o);
+        if (o.depth == maxDepth) break;
     }
-    nodeCenter = center;
-    nodeSize = size;
-    nodeDepth = depth;
-    return ni;
+    nodeCenter = o.center;
+    nodeSize = o.size;
+    nodeDepth = o.depth;
+    return o.ni;
 }
 
 
@@ -181,32 +199,26 @@ const uint IndexBits = 32u - DepthBits - ChildBits;
 // sampleLoc somewhere on range [0, 1]
 uint OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, in vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
 {
+    OctreeTraversalData o;
+    o.p = p;
     uint info = texture(mapTexture, sampleLoc).x;
-    uint gi = info & ((1u << IndexBits) - 1u);
-    uint depth = (info >> (IndexBits + ChildBits)) & ((1u << DepthBits) - 1u);
-    float nodesAtDepth = float(1u << (depth + 1u));
+    o.depth = (info >> (IndexBits + ChildBits)) & ((1u << DepthBits) - 1u);
+    o.gi = info & ((1u << IndexBits) - 1u);
+    float nodesAtDepth = float(1u << (o.depth + 1u));
     vec3 pn = vec3(ivec3((p * 0.5 + 0.5) * nodesAtDepth)) / nodesAtDepth;
-    float size = 1.0 / nodesAtDepth;
-    vec3 center = pn * 2.0 - 1.0 + vec3(size);
-    uint ni = InvalidIndex;
+    o.size = 1.0 / nodesAtDepth;
+    o.center = pn * 2.0 - 1.0 + vec3(o.size);
+    o.ni = InvalidIndex;
     
-    // - maybe have a loopless variant, possibly using a handful of nested low-res map textures? To do
-    while (InvalidIndex != gi)
+    while (InvalidIndex != o.gi)
     {
-        ivec3 ioffs = clamp(ivec3(p - center + 1.0), ivec3(0), ivec3(1));
-        uint child = uint(ioffs.x) + uint(ioffs.y) * 2u + uint(ioffs.z) * 4u;
-        ni = gi * NodeArity + child;
-        size *= 0.5;
-        center += (vec3(ioffs) * 2.0 - 1.0) * size;
-        gi = nodeGroups[gi].nodes[child].children;
-        ++depth;
-        //break; // - performance testing
+        OctreeTraversalIteration(o);
     }
     
-    nodeCenter = center;
-    nodeSize = size;
-    nodeDepth = depth;
-    return ni;
+    nodeCenter = o.center;
+    nodeSize = o.size;
+    nodeDepth = o.depth;
+    return o.ni;
 }
 
 uint OctreeDescendMap(in vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
@@ -248,6 +260,24 @@ float PhaseMie(float v)
         * pow(1.0 + mieG * mieG - 2.0 * mieG * v, -1.5)
         / (2.0 + mieG * mieG);*/
 }
+
+
+struct AtmosphereIntersection
+{
+    float outerR, innerR; // - to do: probably make these uniforms instead
+    float outerMin, outerMax, innerMin, innerMax;
+    bool intersectsOuter, intersectsInner;
+};
+AtmosphereIntersection IntersectAtmosphere(vec3 ori, vec3 dir)
+{
+    AtmosphereIntersection ai;
+    ai.outerR = Rt; // upper atmosphere radius (not *cloud* level, but far above it)
+    ai.innerR = planetRadius + atmosphereHeight * 0.5; // - to do: make uniform
+    ai.intersectsOuter = IntersectSphere(ori, dir, planetLocation, ai.outerR, ai.outerMin, ai.outerMax);
+    ai.intersectsInner = IntersectSphere(ori, dir, planetLocation, ai.innerR, ai.innerMin, ai.innerMax);
+    return ai;
+}
+
 
 
 // see https://github.com/ebruneton/precomputed_atmospheric_scattering/blob/master/atmosphere/functions.glsl
