@@ -16,12 +16,11 @@ uniform uint brickUploadOffset;
 float SampleLighting(vec3 p)
 {
     // - this could easily use a less general approach (maybe a list of immediate node group neighbours from the CPU)
-    vec3 nodeCenter;
-    float nodeSize;
-    uint depth;
-    uint ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-    vec3 lc = (p - nodeCenter) / nodeSize * 0.5 + 0.5;
-    const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
+    OctreeTraversalData o;
+    o.p = p;
+    OctreeDescendMap(o);
+    vec3 lc = (p - o.center) / o.size * 0.5 + 0.5;
+    const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
     vec3 tc = BrickSampleCoordinates(brickOffs, lc);
     return texture(brickLightTexture, tc).x;
 }

@@ -44,14 +44,13 @@ bool RenderPlanet(vec3 ori, vec3 dir)
         // - the sample position probably needs to be dithered in time... no?
         vec3 p = (hitp + dir * randOffs - center) / atmosphereScale / planetRadius;
         //p *= 1.00005; // - testing. Doesn't reduce the artefact pattern very quickly
-        vec3 nodeCenter;
-        float nodeSize;
-        uint depth;
-        uint ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-        if (ni != InvalidIndex)
+        OctreeTraversalData o;
+        o.p = p;
+        OctreeDescendMap(o);
+        if (o.ni != InvalidIndex)
         {
-            const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
-            vec3 lc = (p - nodeCenter) / nodeSize;
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
+            vec3 lc = (p - o.center) / o.size;
             vec3 tc = lc * 0.5 + 0.5;
             tc = clamp(tc, vec3(0.0), vec3(1.0));
             tc = BrickSampleCoordinates(brickOffs, tc);

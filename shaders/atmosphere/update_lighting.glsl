@@ -54,7 +54,7 @@ vec3 offsetOrigin(vec3 p, vec3 dir, float voxelSize)
         ;
 }
 
-float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float nodeSize, uint ni, const float stepFactor)
+float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, const float stepFactor)
 {
     const float atmScale = atmosphereRadius;
     
@@ -77,27 +77,46 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float 
         {
             maxDist = min(maxDist, tmin);
         }*/
-     
-        uint depth; // - to do: initialise correctly
         
         uint numBricks = 0u, numSteps = 0u;
         
         vec3 p = (ori + dist * dir) / atmScale;
-        ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
+        o.p = p;
+        OctreeDescendMap(o);
         
-        while (InvalidIndex != ni)
+        uint it = 0u;
+        while (InvalidIndex != o.ni)
         {
-            nodeCenter *= atmScale;
-            nodeSize *= atmScale;
-            const float step = nodeSize / atmScale * stepFactor;
-            const float atmStep = step * atmScale;
+            ++it;
             
-            AabbIntersection(tmin, tmax, vec3(-nodeSize) + nodeCenter, vec3(nodeSize) + nodeCenter, ori, dir);
+            o.center *= atmScale;
+            o.size *= atmScale;
+            const float step = o.size / atmScale * stepFactor;
+            float atmStep = step * atmScale;
+            
+            AabbIntersection(tmin, tmax, vec3(-o.size) + o.center, vec3(o.size) + o.center, ori, dir);
             tmax = min(tmax, maxDist);
             
-            const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
-            vec3 localStart = (ori - nodeCenter) / nodeSize;
-            vec3 lc = localStart + dist / nodeSize * dir;
+            if ((o.flags & EmptyBrickBit) != 0u)
+            {
+                // - simple test:
+                //atmStep *= 4.0;
+                // (this does improve overall speed a bit - probably relatively
+                // little because it also allows for physically longer and thus
+                // more accurate shadows? Might be)
+                // - scratch the above results: the nodes are just *all* marked as empty, aren't they...
+                // (... which might indicate longer step sizes are overall usable?)
+                // (well, we should rather be using lower levels of detail. To do: do that)
+                
+                // - to do: skip the brick correctly
+                dist = tmax; // - testing // - does seem like a gain (maybe 1/3?). Investigate more
+                //if (it == 1u) return 0.0; // - testing (to see where bricks are marked as empty)
+            }
+            //if (it == 1u) return 1.0; // - testing
+            
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
+            vec3 localStart = (ori - o.center) / o.size;
+            vec3 lc = localStart + dist / o.size * dir;
             
             //do // do while to not erroneously miss the first voxel if it's on the border
             while (dist < tmax && numSteps < maxSteps)
@@ -126,26 +145,28 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, vec3 nodeCenter, float 
                 prevDensityM = densityM;
                 
                 dist += atmStep;
-                lc = localStart + dist / nodeSize * dir;
+                lc = localStart + dist / o.size * dir;
                 ++numSteps;
             } //while (dist < tmax && numSteps < maxSteps);
             ++numBricks;
             
             if (opticalDepthM > threshold) break; // - testing
             
-            const uint old = ni;
+            const uint old = o.ni;
             vec3 p = (ori + dist * dir) / atmScale;
             //if (length(p * atmScale) < planetRadius * 0.99) break; // - testing (but this should be done accurately and once with a maxDist update)
             if (dist > maxDist) break;
-            ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-            if (old == ni) break; // - error (but can this even happen?)
+            o.p = p;
+            OctreeDescendMap(o);
+            if (old == o.ni) break; // - error (but can this even happen?)
             
             if (numBricks >= 64u) break; // - testing
             // - maybe also try breaking if transmittance is too high (though needlessly evaluating it might be expensive in itself)
         }
     }
     
-    if (opticalDepthM > threshold) opticalDepthM = 1e9; // - trying to avoid sampling pattern from early exit. Maybe too harsh way
+    //if (opticalDepthM > threshold) opticalDepthM = 1e9; // - trying to avoid sampling pattern from early exit. Maybe too harsh way
+    if (opticalDepthM > threshold) return 0.0; // - trying to avoid sampling pattern from early exit. Maybe too harsh way
     float opticalDepth = opticalDepthM * betaMEx;
     return exp(-opticalDepth);
 }
@@ -183,21 +204,20 @@ float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFac
         {
             vec3 p = (ori + dist * dir) / atmScale;
             //p += offsetOrigin(p, dir, voxelSize / atmScale) * dist * 1e-5; // - testing
-            vec3 nodeCenter;
-            float nodeSize;
-            uint depth;
-            uint ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-            if (InvalidIndex == ni) break;
+            OctreeTraversalData o;
+            o.p = p;
+            OctreeDescendMap(o);
+            if (InvalidIndex == o.ni) break;
             
-            nodeCenter *= atmScale;
-            nodeSize *= atmScale;
-            const float step = nodeSize / atmScale * stepFactor;
+            o.center *= atmScale;
+            o.size *= atmScale;
+            const float step = o.size / atmScale * stepFactor;
             const float atmStep = step * atmScale;
             
-            const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
-            vec3 localStart = (ori - nodeCenter) / nodeSize;
-            vec3 lc = localStart + dist / nodeSize * dir;
-            lc = (p * atmScale - nodeCenter) / nodeSize;
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
+            vec3 localStart = (ori - o.center) / o.size;
+            vec3 lc = localStart + dist / o.size * dir;
+            lc = (p * atmScale - o.center) / o.size;
             
             vec3 tc = lc * 0.5 + 0.5;
             tc = clamp(tc, vec3(0.0), vec3(1.0));
@@ -235,7 +255,7 @@ float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFac
             prevDensityM = densityM;
             
             dist += atmStep;
-            lc = localStart + dist / nodeSize * dir;
+            lc = localStart + dist / o.size * dir;
             ++numSteps;
         }
     }
@@ -287,6 +307,7 @@ void main()
         //shadow = min(1.0, shadow); // - test (probably bad, for interpolation. Or not?)
         //shadow = 1.0; // - debugging banding
         light = vec3(1.0);
+        //light *= 0.0; // - testing // - even with this there are light "grooves" near the surface; this means interior voxels are the cause. Fix it
         
         //ori += offsetOrigin(p, dir, voxelSize); // - trying this *after* the planet shadowing. But it's not helping.
         
@@ -299,10 +320,11 @@ void main()
             dist += sqrt(2.0) * voxelSize; // avoid self-shadowing
             //ori += 0.5 * voxelSize * normalize(p); // trying to avoid more self-shadowing, but... incorrect?
             
-            vec3 nodeCenter = upload.nodeLocation.xyz;
-            float nodeSize = upload.nodeLocation.w;
-            uint ni = upload.nodeIndex;
-            light *= TraceTransmittance(ori, dir, dist, nodeCenter, nodeSize, ni, stepFactor);
+            OctreeTraversalData o;
+            o.center = upload.nodeLocation.xyz;
+            o.size = upload.nodeLocation.w;
+            o.ni = upload.nodeIndex;
+            light *= TraceTransmittance(ori, dir, dist, o, stepFactor);
             //light *= ConeTraceTransmittance(ori, dir, dist, stepFactor, voxelSize);
             
             
@@ -325,7 +347,7 @@ void main()
                 {
                     float x = float(ix) / (res - 1) * 2 - 1, y = float(iy) / (res - 1) * 2 - 1;
                     vec3 p = ori + (a * x + b * y) * voxelSize * 0.5;
-                    light += TraceTransmittance(p, dir, dist, nodeCenter, nodeSize, ni, stepFactor);
+                    light += TraceTransmittance(p, dir, dist, o, stepFactor);
                     num += 1.0;
                 }
                 light /= num;

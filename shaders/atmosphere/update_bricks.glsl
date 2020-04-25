@@ -5,7 +5,7 @@
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"
 
-uniform layout(binding=0, r16) writeonly image3D brickImage;
+uniform layout(binding=0, r8) writeonly image3D brickImage;
 uniform uint brickUploadOffset;
 
 float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
@@ -25,7 +25,7 @@ void main()
 {
     const uint loadId = GetWorkGroupIndex() + brickUploadOffset;
     const UploadBrick upload = uploadBricks[loadId];
-    uvec3 writeOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
+    const uvec3 voxelOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
     
     vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
     vec3 p = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp) * atmosphereScale;
@@ -209,7 +209,7 @@ void main()
         { // stratus (low, i.e. fog or mist)
             float mask = maskBase;
             const float 
-                base = 0.025,//0.25, 
+                base = 0.0,//0.025,//0.25, 
                 thickness = 0.05;
             //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
             mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
@@ -239,5 +239,5 @@ void main()
     if (mie > 0.0) mie += abs(rand3D(op)) / 255.0; // - dither test
     vec2 data = vec2(rayleigh, mie); // - old order
     data = vec2(mie, rayleigh);
-    imageStore(brickImage, ivec3(writeOffs), vec4(clamp(data, vec2(0.0), vec2(1.0)), 0, 0));
+    imageStore(brickImage, ivec3(voxelOffs), vec4(clamp(data, vec2(0.0), vec2(1.0)), 0, 0));
 }

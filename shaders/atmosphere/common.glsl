@@ -44,8 +44,9 @@ uniform vec3 mapPosition, mapScale;
 #define SSBO_VOXEL_UPLOAD        1
 #define SSBO_VOXEL_UPLOAD_BRICKS 2
 #define NodeArity 8
-const uint IndexMask = 0xffffffu;
-const uint InvalidIndex = 0xffffffffu & IndexMask;
+const uint IndexMask     = 0x00ffffffu;
+const uint InvalidIndex  = 0xffffffffu & IndexMask;
+const uint EmptyBrickBit = 0x80000000u;
 #define BrickRes 8
 
 struct Node
@@ -136,6 +137,7 @@ struct OctreeTraversalData
     uint ni, gi;
     vec3 center;
     float size;
+    uint flags;
 };
 
 void OctreeTraversalIteration(inout OctreeTraversalData o)
@@ -146,7 +148,7 @@ void OctreeTraversalIteration(inout OctreeTraversalData o)
     o.size *= 0.5;
     o.center += (vec3(ioffs) * 2.0 - 1.0) * o.size;
     o.gi = nodeGroups[o.gi].nodes[child].children;
-    // - to do: possibly extract other bits/flags (or maybe leave that to the info field)
+    o.flags = o.gi & ~IndexMask;
     o.gi &= IndexMask;
     ++o.depth;
 }
@@ -154,10 +156,8 @@ void OctreeTraversalIteration(inout OctreeTraversalData o)
 
 // - to do: add "desired size" parameter to allow early stop
 // p components in [-1, 1] range
-uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
+void OctreeDescend(inout OctreeTraversalData o)
 {
-    OctreeTraversalData o;
-    o.p = p;
     o.depth = 0u - 1u;
     o.ni = InvalidIndex;
     o.gi = rootGroupIndex;
@@ -167,15 +167,9 @@ uint OctreeDescend(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nod
     {
         OctreeTraversalIteration(o);
     }
-    nodeCenter = o.center;
-    nodeSize = o.size;
-    nodeDepth = o.depth;
-    return o.ni;
 }
-uint OctreeDescendMaxDepth(vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth, uint maxDepth)
+void OctreeDescendMaxDepth(inout OctreeTraversalData o, uint maxDepth)
 {
-    OctreeTraversalData o;
-    o.p = p;
     o.depth = 0u - 1u;
     o.ni = InvalidIndex;
     o.gi = rootGroupIndex;
@@ -186,10 +180,6 @@ uint OctreeDescendMaxDepth(vec3 p, out vec3 nodeCenter, out float nodeSize, out 
         OctreeTraversalIteration(o);
         if (o.depth == maxDepth) break;
     }
-    nodeCenter = o.center;
-    nodeSize = o.size;
-    nodeDepth = o.depth;
-    return o.ni;
 }
 
 
@@ -197,15 +187,13 @@ const uint DepthBits = 5u, ChildBits = 8u;
 const uint IndexBits = 32u - DepthBits - ChildBits;
 
 // sampleLoc somewhere on range [0, 1]
-uint OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, in vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
+void OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, inout OctreeTraversalData o)
 {
-    OctreeTraversalData o;
-    o.p = p;
     uint info = texture(mapTexture, sampleLoc).x;
     o.depth = (info >> (IndexBits + ChildBits)) & ((1u << DepthBits) - 1u);
     o.gi = info & ((1u << IndexBits) - 1u);
     float nodesAtDepth = float(1u << (o.depth + 1u));
-    vec3 pn = vec3(ivec3((p * 0.5 + 0.5) * nodesAtDepth)) / nodesAtDepth;
+    vec3 pn = vec3(ivec3((o.p * 0.5 + 0.5) * nodesAtDepth)) / nodesAtDepth;
     o.size = 1.0 / nodesAtDepth;
     o.center = pn * 2.0 - 1.0 + vec3(o.size);
     o.ni = InvalidIndex;
@@ -214,17 +202,12 @@ uint OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, in vec3 p, ou
     {
         OctreeTraversalIteration(o);
     }
-    
-    nodeCenter = o.center;
-    nodeSize = o.size;
-    nodeDepth = o.depth;
-    return o.ni;
 }
 
-uint OctreeDescendMap(in vec3 p, out vec3 nodeCenter, out float nodeSize, out uint nodeDepth)
+void OctreeDescendMap(inout OctreeTraversalData o)
 {
-    vec3 sampleLoc = p * 0.5 + 0.5;
-    return OctreeDescendMap(octreeMapTexture, sampleLoc, p, nodeCenter, nodeSize, nodeDepth);
+    vec3 sampleLoc = o.p * 0.5 + 0.5;
+    OctreeDescendMap(octreeMapTexture, sampleLoc, o);
 }
 
 

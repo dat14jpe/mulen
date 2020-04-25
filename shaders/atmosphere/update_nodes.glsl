@@ -9,5 +9,9 @@ void main()
 {
     const uint loadId = GetGlobalIndex();
     UploadNodeGroup upload = uploadNodes[loadId];
+    for (uint ci = 0u; ci < NodeArity; ++ci)
+    {
+        upload.nodeGroup.nodes[ci].children &= IndexMask;
+    }
     nodeGroups[upload.groupIndex] = upload.nodeGroup;
 }

@@ -130,16 +130,15 @@ namespace Mulen {
 
     void AtmosphereUpdater::GenerateBricks(GpuState& state, uint64_t first, uint64_t num)
     {
-        //auto t = timer.Begin("Generation");
+        glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_READ_WRITE, BrickFormat);
         {
-            glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickFormat);
+            //auto t = timer.Begin("Generation");
             auto& shader = SetShader(atmosphere.updateBricksShader);
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
             glDispatchCompute((GLuint)num, 1u, 1u);
-            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }
-        {
-            // - to do: "optimisation" pass (compute constancy flags, possibly more)
+        { // "optimisation" pass (compute constancy flags, possibly more)
             auto& shader = SetShader(atmosphere.updateFlagsShader);
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
             glDispatchCompute((GLuint)num, 1u, 1u);
@@ -208,6 +207,7 @@ namespace Mulen {
         state.octreeMap.Bind(2u);
 
         auto fraction = 0.0;
+        // - to do: tune this (maybe dynamically?)
         const auto generationFraction = 0.2;
         const auto lightingFraction = 0.6;
         const auto filterFraction = 0.2;

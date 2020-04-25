@@ -146,14 +146,13 @@ void main()
             }
             
             vec3 hit = ori + dir * dist - planetLocation;
-            uint depth;
-            vec3 nodeCenter;
-            float nodeSize;
-            uint ni = OctreeDescendMap(hit / atmScale, nodeCenter, nodeSize, depth);
-            nodeCenter *= atmScale;
-            nodeSize *= atmScale;
-            const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
-            vec3 lc = (hit - nodeCenter) / nodeSize;
+            OctreeTraversalData o;
+            o.p = hit / atmScale;
+            OctreeDescendMap(o);
+            o.center *= atmScale;
+            o.size *= atmScale;
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
+            vec3 lc = (hit - o.center) / o.size;
             
             vec3 tc = lc * 0.5 + 0.5;
             vec3 ltc = tc;
@@ -212,19 +211,17 @@ void main()
         // - to do: find a way to not make clouds too dark/noisy without extreme numbers of steps
         // (maybe try to adaptively decrease step size at cloud boundaries?)
         
-        const float stepFactor = 0.1; // - arbitrary factor (to-be-tuned)
+        const float stepFactor = 0.2;//0.1; // - arbitrary factor (to-be-tuned)
             stepSize;
         
         const vec3 globalStart = hit;
-        uint depth;
-        vec3 nodeCenter;
-        float nodeSize;
-        uint ni;
-        {
-            vec3 p = globalStart / atmScale;
-            ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
-            //ni = OctreeDescendMap(frustumOctreeMap, (p - mapPosition) / mapScale, p, nodeCenter, nodeSize, depth);
-        }
+        OctreeTraversalData o;
+        o.p = globalStart / atmScale;
+        OctreeDescendMap(o);
+        /*
+        o.p = (o.p - mapPosition) / mapScale;
+        OctreeDescendMap(frustumOctreeMap, o);
+        */
         
         float dist = 0.0; // - to do: make it so this can be set to tmin?
         dist += 1e-5;// don't start at a face/edge/corner
@@ -232,7 +229,7 @@ void main()
         //randTimeOffs = vec2(0); // - testing
         // - experiment (should the factor be proportional to step size?)
         const float randOffs = (rand3D(vec3(fragCoords, randTimeOffs)) * 0.5 + 0.5) * 2 * stepFactor;
-        dist += randOffs * nodeSize * atmScale;
+        dist += randOffs * o.size * atmScale;
         
         // - to do: think about whether randomness needs to be applied per-brick or just once
         // (large differences in depth could make the former necessary, no?)
@@ -247,27 +244,28 @@ void main()
         
         // Trace through bricks:
         uint numBricks = 0u, numSteps = 0u;
-        while (InvalidIndex != ni)
+        vec3 T = vec3(1.0);
+        while (InvalidIndex != o.ni)
         {
-            nodeCenter *= atmScale;
-            nodeSize *= atmScale;
-            const float step = nodeSize / atmScale * stepFactor;
+            o.center *= atmScale;
+            o.size *= atmScale;
+            const float step = o.size / atmScale * stepFactor;
             const float atmStep = step * atmScale;
             
-            AabbIntersection(tmin, tmax, vec3(-nodeSize) + nodeCenter, vec3(nodeSize) + nodeCenter, hit, dir);
+            AabbIntersection(tmin, tmax, vec3(-o.size) + o.center, vec3(o.size) + o.center, hit, dir);
             tmax = min(tmax, solidDepth - outerMin);
             //if (isinf(tmin)) continue; // - testing
             
             //if (dist >= tmax) color += vec3(0.1); // - debugging
             //if (isinf(tmin) || isnan(tmin)) color += vec3(0.1); // - debugging
             
-            const float randStep = randOffs * nodeSize;
+            const float randStep = randOffs * o.size;
             // - causing glitches. Hmm.
             //dist = ceil((tmin - randStep) / atmStep) * atmStep + randStep; // - try to avoid banding even in multi-LOD
-            //dist += randOffs * nodeSize; // - to do: do this, but only when changing depth (or initially)?
+            //dist += randOffs * o.size; // - to do: do this, but only when changing depth (or initially)?
             
-            const vec3 brickOffs = vec3(BrickIndexTo3D(ni));
-            vec3 localStart = (globalStart - nodeCenter) / nodeSize;
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
+            vec3 localStart = (globalStart - o.center) / o.size;
             
             // Precomputed transmittance for start and end in node, to interpolate per-voxel:
             // - unfortunately interpolating these causes visible artefacts around the terminator
@@ -278,7 +276,6 @@ void main()
             
             float startDist = dist;
             int numStepsInNode = int(max(1.0, (tmax - dist) / atmStep));
-            vec3 T = vec3(1.0);
             // Iterating at least once is required to avoid returning-to-the-same-node edge cases,
             // so a do-while loop is practical.
             //while (dist < tmax)
@@ -286,7 +283,7 @@ void main()
             //for (int localStep = 1; localStep <= numStepsInNode;)// ++localStep)
             //for (int inner = 0; inner < 2; ++inner, ++localStep)
             {
-                vec3 lc = localStart + dist / nodeSize * dir;
+                vec3 lc = localStart + dist / o.size * dir;
                 vec3 tc = lc * 0.5 + 0.5;
                 tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
                 tc = BrickSampleCoordinates(brickOffs, tc);
@@ -345,26 +342,31 @@ void main()
                 dist += atmStep; // - for while loops
                 //dist = startDist + atmStep * float(localStep); // - for for loops
                 ++numSteps;
+                
+                //if (length(T) < 1e-3) break; // stop early if transmittance is low // - too slow to have in here
             } while (dist < tmax);
             ++numBricks;
             
-            if (length(T) < 1e-3) break; // stop early if transmittance is low
+            // - used to have 1e-3, but that was high enough to visible show the node grid lines. 1e-4 works.
+            // (maybe try to keep a higher threshold in directions not pointing towards the sun? To do)
+            if (length(T) < 1e-4) break; // stop early if transmittance is low
             
             //dist = tmax + 1e-4; // - testing (but this is dangerous. To do: better epsilon)
             
             if (dist + outerMin > solidDepth) break;
-            const uint old = ni;
+            const uint old = o.ni;
             vec3 p = (hit + dist * dir) / atmScale;
             
-            
-            ni = OctreeDescendMap(p, nodeCenter, nodeSize, depth);
+            o.p = p;
+            OctreeDescendMap(o);
             
             // - using a map fit for the frustum:
             // (this turned out to only give a very small improvement - perhaps roughly 1/30 of render time in the better cases)
-            //ni = OctreeDescendMap(frustumOctreeMap, (p - mapPosition) / mapScale, p, nodeCenter, nodeSize, depth);
+            //o.p = (o.p - mapPosition) / mapScale;
+            //OctreeDescendMap(frustumOctreeMap, o);
             
             // - not necessary now that the loop above is a do-while
-            /*if (old == ni)
+            /*if (old == o.ni)
             {
                 dist += atmStep; // - testing. Seems like this works wonders vs the black spots, but maybe not *entirely* eliminates them
                 //color.r += 1.0; // - debugging (this covers all black spots, it seems. Bingo. But why does this happen erroneously?)

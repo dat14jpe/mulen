@@ -24,9 +24,10 @@ namespace Mulen {
         glm::dvec2 lastCursorPos;
         Camera camera;
         Atmosphere atmosphere;
+
         Util::Timer timer;
 
-        bool update = true, rotateLight = true,
+        bool update = true, rotateLight = false,//true,
             upright = true, collision = true, fly = true;
         int depthLimit = 10u, downscaleFactor = 2u;
 

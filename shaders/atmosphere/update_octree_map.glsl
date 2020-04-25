@@ -14,27 +14,29 @@ void main()
     const uvec3 writeOffs = gl_GlobalInvocationID;
     //const vec3 unitPos = (vec3(writeOffs) + vec3(0.5)) / resolution;
     const vec3 p = (vec3(writeOffs) + vec3(0.5)) * mapScale + mapPosition;
-    vec3 nodeCenter;
-    float nodeSize;
-    uint depth;
     //const uint maxDepth = 5u; // - to do: make this the 2-logarithm of the resolution
     // - to do: enable acceleration using the octree-spanning map when making smaller (i.e. per-frustum) maps
-    uint ni = OctreeDescendMaxDepth(p, nodeCenter, nodeSize, depth, maxDepth);
+    OctreeTraversalData o;
+    o.p = p;
+    OctreeDescendMaxDepth(o, maxDepth);
+    const uint ni = o.ni;
     uint gi = nodeGroups[ni / NodeArity].nodes[ni % NodeArity].children;
+    gi &= IndexMask;
     if (InvalidIndex == gi)
     {
         gi = ni / NodeArity;
-        depth -= 1u;
+        o.depth -= 1u;
     }
     
     uint result = gi;
     for (uint i = 0u; i < NodeArity; ++i)
     {
-        if (nodeGroups[gi].nodes[i].children != InvalidIndex)
+        uint gi = nodeGroups[gi].nodes[i].children & IndexMask;
+        if (gi != InvalidIndex)
         {
             result |= 1u << (i + IndexBits);
         }
     }
-    result |= depth << (IndexBits + ChildBits);
+    result |= o.depth << (IndexBits + ChildBits);
     imageStore(octreeMapImage, ivec3(writeOffs), uvec4(result));
 }
