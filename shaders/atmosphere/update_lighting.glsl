@@ -2,11 +2,10 @@
 
 #include "../noise.glsl"
 #include "common.glsl"
-layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
+layout(local_size_x = LightBrickRes, local_size_y = LightBrickRes, local_size_z = LightBrickRes) in;
 #include "compute.glsl"
 
 uniform layout(binding=0, r16f) writeonly image3D lightImage;
-uniform uint brickUploadOffset;
 
 float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
 {
@@ -130,17 +129,19 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
             }
             //if (it == 1u) return 1.0; // - testing
             
-            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni / NodeArity));
             vec3 localStart = (ori - o.center) / o.size;
             
             //do // do while to not erroneously miss the first voxel if it's on the border
             while (dist < tmax)
             {
                 vec3 lc = localStart + dist / o.size * dir;
-                vec3 tc = lc * 0.5 + 0.5;
+                /*vec3 tc = lc * 0.5 + 0.5;
                 tc = clamp(tc, vec3(0.0), vec3(1.0));
-                tc = BrickSampleCoordinates(brickOffs, tc);
-                vec4 voxelData = texture(brickTexture, tc);
+                // - to do: correct tc for combined bricks
+                tc = BrickSampleCoordinates(brickOffs, tc, CombinedBrickRes);
+                vec4 voxelData = texture(brickTexture, tc);*/
+                vec4 voxelData = SampleBrick(brickTexture, o.ni, lc * 0.5 + 0.5, brickOffs, CombinedBrickRes);
                 
                 float mie = voxelData.x;
                 float densityM = MieDensityFromSample(mie);
@@ -167,6 +168,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
     return exp(-opticalDepth);
 }
 
+#ifdef toBeUpdatedMaybe
 float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFactor, const float voxelSize)
 {
     const float atmScale = atmosphereRadius;
@@ -259,15 +261,15 @@ float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFac
     float opticalDepth = opticalDepthM * betaMEx;
     return exp(-opticalDepth);
 }
+#endif
 
 void main()
 {
-    const uint loadId = GetWorkGroupIndex() + brickUploadOffset;
-    const UploadBrick upload = uploadBricks[loadId];
-    uvec3 writeOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
+    const UploadBrick upload = GetBrickUpload();
+    uvec3 writeOffs = BrickIndexTo3D(upload.groupIndex) * LightBrickRes + gl_LocalInvocationID;
     
-    const uint nodeIndex = upload.nodeIndex;
-    const uint depth = DepthFromInfo(nodeGroups[nodeIndex / NodeArity].info);
+    //const uint nodeIndex = upload.nodeIndex;
+    const uint depth = DepthFromInfo(nodeGroups[upload.groupIndex].info);
     
     vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
     vec3 gp = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp);
@@ -325,7 +327,7 @@ void main()
             OctreeTraversalData o;
             o.center = upload.nodeLocation.xyz;
             o.size = upload.nodeLocation.w;
-            o.ni = upload.nodeIndex;
+            //o.ni = upload.nodeIndex;
             light *= TraceTransmittance(ori, dir, dist, o, stepFactor, depth);
             //light *= ConeTraceTransmittance(ori, dir, dist, stepFactor, voxelSize);
             

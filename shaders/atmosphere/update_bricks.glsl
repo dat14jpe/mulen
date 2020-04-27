@@ -2,11 +2,10 @@
 
 #include "../noise.glsl"
 #include "common.glsl"
-layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
+layout(local_size_x = CombinedBrickRes, local_size_y = CombinedBrickRes, local_size_z = 1) in;
 #include "compute.glsl"
 
 uniform layout(binding=0, r8) writeonly image3D brickImage;
-uniform uint brickUploadOffset;
 
 float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
 {
@@ -23,11 +22,11 @@ float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
 
 void main()
 {
-    const uint loadId = GetWorkGroupIndex() + brickUploadOffset;
-    const UploadBrick upload = uploadBricks[loadId];
-    const uvec3 voxelOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
+    const UploadBrick upload = GetBrickUpload(CombinedBrickRes);
+    const uvec3 localVoxel = gl_LocalInvocationID + uvec3(0u, 0u, gl_WorkGroupID.x);
+    const uvec3 voxelOffs = BrickIndexTo3D(upload.groupIndex) * CombinedBrickRes + localVoxel;
     
-    vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
+    vec3 lp = vec3(localVoxel) / float(CombinedBrickRes - 1u) * 2 - 1;
     vec3 p = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp) * atmosphereScale;
     const vec3 op = p;
     
@@ -35,7 +34,7 @@ void main()
     {
         // generation jitter vs banding:
         // (didn't seem to really work well, unfortunately)
-        p += upload.nodeLocation.w / float(BrickRes - 1u) * vec3(rand3D(p.xyz), rand3D(p.zyx), rand3D(p.yxz));
+        p += upload.nodeLocation.w / float(CombinedBrickRes - 1u) * vec3(rand3D(p.xyz), rand3D(p.zyx), rand3D(p.yxz));
     }
     // - debugging generation aliasing:
     {

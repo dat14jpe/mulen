@@ -49,13 +49,14 @@ bool RenderPlanet(vec3 ori, vec3 dir)
         OctreeDescendMap(o);
         if (o.ni != InvalidIndex)
         {
-            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
-            vec3 lc = (p - o.center) / o.size;
-            vec3 tc = lc * 0.5 + 0.5;
-            tc = clamp(tc, vec3(0.0), vec3(1.0));
-            tc = BrickSampleCoordinates(brickOffs, tc);
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni / NodeArity));
+            vec3 lc = (p - o.center) / o.size * 0.5 + 0.5;
+            vec3 tc = clamp(lc, vec3(0.0), vec3(1.0));
+            // - to do: correct coordinates now that bricks are per *group*
+            tc = BrickSampleCoordinates(brickOffs, tc, LightBrickRes);
             
-            vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+            //vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+            vec3 storedLight = SampleBrick(brickLightTexture, o.ni, lc, brickOffs, LightBrickRes).rgb;
             storedLight = storedLight.xxx;
             
             {

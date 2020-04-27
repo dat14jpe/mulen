@@ -136,13 +136,13 @@ namespace Mulen {
             //auto t = timer.Begin("Generation");
             auto& shader = SetShader(atmosphere.updateBricksShader);
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
-            glDispatchCompute((GLuint)num, 1u, 1u);
+            glDispatchCompute(CombinedBrickRes, 1u, (GLuint)num);
             glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }
         { // "optimisation" pass (compute constancy flags, possibly more)
             auto& shader = SetShader(atmosphere.updateFlagsShader);
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
-            glDispatchCompute((GLuint)num, 1u, 1u);
+            glDispatchCompute(1u, 1u, (GLuint)num * NodeArity);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
     }
@@ -299,32 +299,17 @@ namespace Mulen {
         it.nodesToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageBrick(Iteration& it, UploadType type, NodeIndex nodeIndex, const glm::vec4& nodePos)
+    void AtmosphereUpdater::StageBrick(Iteration& it, UploadType type, NodeIndex groupIndex, const glm::vec4& nodePos)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
-        const auto brickIndex = nodeIndex;
+        const auto brickIndex = groupIndex;
         uint32_t genData = 0u; // - to do: also add upload brick data index, when applicable
         genData |= uint32_t(type) << 24u;
 
-        glm::vec3 nodeCenter{ 0.0, 0.0, 0.0 };
-        float nodeSize = 1.0;
-        /*for (auto ni = nodeIndex; ni != InvalidIndex; ni = atmosphere.octree.GetGroup(Octree::NodeToGroup(ni)).parent)
-        {
-            glm::ivec3 ioffs = glm::ivec3(ni & 1u, (ni >> 1u) & 1u, (ni >> 2u) & 1u) * 2 - 1;
-            nodeCenter += glm::vec3(ioffs) * nodeSize;
-            nodeSize *= 2.0;
-        }
-        nodeCenter /= nodeSize;
-        nodeSize = 1.0f / nodeSize;*/
-
-        nodeCenter = glm::vec3(nodePos);
-        nodeSize = nodePos.w;
-
         UploadBrick upload{};
-        upload.nodeIndex = nodeIndex;
-        upload.brickIndex = brickIndex;
+        upload.groupIndex = groupIndex;
         upload.genData = genData;
-        upload.nodeLocation = glm::vec4(glm::vec3(nodeCenter), (float)nodeSize);
+        upload.nodeLocation = nodePos;
 
         // - to do: add various generation parameters (e.g. wind vector/temperature/humidity)
         it.bricksToUpload.push_back(upload);
@@ -339,8 +324,8 @@ namespace Mulen {
             childPos.w *= 0.5;
             childPos += glm::vec4(glm::vec3(glm::ivec3(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u) * 2 - 1) * childPos.w, 0.0);
             const auto ni = Octree::GroupAndChildToNode(gi, ci);
-            StageBrick(it, UploadType::Split, ni, childPos);
         }
+        StageBrick(it, UploadType::Split, gi, nodePos);
     }
 
     void AtmosphereUpdater::UpdateLoop()

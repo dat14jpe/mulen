@@ -20,9 +20,9 @@ namespace Mulen {
     };
     struct UploadBrick
     {
-        NodeIndex nodeIndex, brickIndex;
+        NodeIndex groupIndex;
         uint32_t genData;
-        uint32_t padding0;
+        uint32_t padding[2];
         glm::vec4 nodeLocation;
     };
 

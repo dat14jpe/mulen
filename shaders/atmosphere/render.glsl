@@ -156,7 +156,8 @@ void main()
             
             vec3 tc = lc * 0.5 + 0.5;
             vec3 ltc = tc;
-            tc = BrickSampleCoordinates(brickOffs, tc);
+            // - to do: correct tc for combined bricks
+            tc = BrickSampleCoordinates(brickOffs, tc, LightBrickRes);
             vec3 storedLight = vec3(texture(brickLightTexture, tc));
             
             tc *= vec3(textureSize(brickLightTexture, 0));
@@ -268,7 +269,7 @@ void main()
             //dist = ceil((tmin - randStep) / atmStep) * atmStep + randStep; // - try to avoid banding even in multi-LOD
             //dist += randOffs * o.size; // - to do: do this, but only when changing depth (or initially)?
             
-            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
+            const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni / NodeArity));
             vec3 localStart = (globalStart - o.center) / o.size;
             
             // Precomputed transmittance for start and end in node, to interpolate per-voxel:
@@ -290,9 +291,14 @@ void main()
                 vec3 lc = localStart + dist / o.size * dir;
                 vec3 tc = lc * 0.5 + 0.5;
                 tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
-                tc = BrickSampleCoordinates(brickOffs, tc);
+                // - to do: add node-within-group offset to tc
+                /*tc = (tc + vec3(uvec3(o.ni, o.ni >> 1u, o.ni >> 2u) & uvec3(1u))) * 0.5;
+                tc = BrickSampleCoordinates(brickOffs, tc, CombinedBrickRes);*/
                 
-                vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+                // - to do: correct separate texture coordinates for light texture (dependent on light brick resolution)
+                //vec3 storedLight = vec3(texture(brickLightTexture, tc));
+                vec3 storedLight = SampleBrick(brickLightTexture, o.ni, lc, brickOffs, LightBrickRes).rgb;
+                //storedLight = vec3(1.0); // - temporary, testing new brick setup
                 
                 vec3 p = hit + dist * dir;
                 float r = length(p);
@@ -313,7 +319,8 @@ void main()
                 
                 float rayleighDensity = 0.0, mieDensity = 0.0;
                 ComputeBaseDensities(rayleighDensity, mieDensity, r);
-                vec4 voxelData = texture(brickTexture, tc);
+                vec4 voxelData = SampleBrick(brickTexture, o.ni, lc, brickOffs, CombinedBrickRes);
+                    //texture(brickTexture, tc);
                 mieDensity += voxelData.x * mieMul; // - could work now that the data has been simplified
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 

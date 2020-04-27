@@ -21,33 +21,34 @@ namespace Mulen {
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
         const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u); // - to do: just multiply by 3, or even 1 (though that last 1 is quite optimistic...)
-        const size_t numBricks = numNodeGroups * NodeArity;
-        octree.Init(numNodeGroups, numBricks);
+        const size_t numCombinedBricks = numNodeGroups;
+        octree.Init(numNodeGroups, numCombinedBricks);
 
         Util::Texture::Dim maxWidth, brickRes, width, height, depth;
         maxWidth = 4096u; // - to do: retrieve actual system-dependent limit programmatically
-        brickRes = BrickRes;
-        const auto cellsPerBrick = (BrickRes - 1u) * (BrickRes - 1u) * (BrickRes - 1u);
+        brickRes = CombinedBrickRes;
+        const auto cellRes = brickRes - 1u;
+        const auto cellsPerBrick = cellRes * cellRes * cellRes;
         width = maxWidth - (maxWidth % brickRes);
         texMap.x = width / brickRes;
-        texMap.y = glm::min(maxWidth / brickRes, unsigned(numBricks + texMap.x - 1u) / texMap.x);
-        texMap.z = (unsigned(numBricks) + texMap.x * texMap.y - 1u) / (texMap.x * texMap.y);
+        texMap.y = glm::min(maxWidth / brickRes, unsigned(numCombinedBricks + texMap.x - 1u) / texMap.x);
+        texMap.z = (unsigned(numCombinedBricks) + texMap.x * texMap.y - 1u) / (texMap.x * texMap.y);
         width = texMap.x * brickRes;
         height = texMap.y * brickRes;
         depth = texMap.z * brickRes;
-        std::cout << numNodeGroups << " node groups (" << numBricks << " bricks, " << (cellsPerBrick * numBricks) / 1000000u << " M voxel cells)\n";
+        std::cout << numNodeGroups << " node groups (" << numNodeGroups * NodeArity << " nodes, " << (cellsPerBrick * numCombinedBricks) / 1000000u << " M voxel cells)\n";
         std::cout << "Atmosphere texture size: " << texMap.x << "*" << texMap.y << "*" << texMap.z << " bricks, "
             << width << "*" << height << "*" << depth << " texels (multiple of "
             << width * height * depth / (1024 * 1024) << " MB)\n";
 
-        auto setUpBrickTexture = [&](Util::Texture& tex, GLenum internalFormat, GLenum filter)
+        auto setUpBrickTexture = [&](Util::Texture& tex, GLenum internalFormat, GLenum filter, unsigned res)
         {
-            tex.Create(GL_TEXTURE_3D, 1u, internalFormat, width, height, depth);
+            tex.Create(GL_TEXTURE_3D, 1u, internalFormat, res * texMap.x, res * texMap.y, res * texMap.z);
             setTextureFilter(tex, filter);
         };
         auto setUpBrickLightTexture = [&](Util::Texture& tex)
         {
-            setUpBrickTexture(tex, BrickLightFormat, GL_LINEAR);
+            setUpBrickTexture(tex, BrickLightFormat, GL_LINEAR, LightBrickRes);
         };
         auto setUpMapTexture = [&](Util::Texture& tex)
         {
@@ -62,7 +63,7 @@ namespace Mulen {
         {
             auto& state = gpuStates[i];
             state.gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
-            setUpBrickTexture(state.brickTexture, BrickFormat, GL_LINEAR);
+            setUpBrickTexture(state.brickTexture, BrickFormat, GL_LINEAR, brickRes);
             setUpBrickLightTexture(state.brickLightTexture);
             setUpMapTexture(state.octreeMap);
         }

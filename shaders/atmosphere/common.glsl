@@ -48,6 +48,8 @@ const uint IndexMask     = 0x00ffffffu;
 const uint InvalidIndex  = 0xffffffffu & IndexMask;
 const uint EmptyBrickBit = 0x80000000u;
 #define BrickRes 8
+#define CombinedBrickRes 15
+#define LightBrickRes 8
 
 struct Node
 {
@@ -68,7 +70,7 @@ struct UploadNodeGroup
 };
 struct UploadBrick
 {
-    uint nodeIndex, brickIndex;
+    uint groupIndex;
     uint genData;
     vec4 nodeLocation; // size in w
 };
@@ -97,9 +99,19 @@ uvec3 BrickIndexTo3D(uint brickIndex)
     p.x = brickIndex % bres.x;
     return p;
 }
-vec3 BrickSampleCoordinates(vec3 brick3D, vec3 localCoords)
+vec3 BrickSampleCoordinates(vec3 brick3D, vec3 localCoords, uint brickRes)
 {
-    return (brick3D + (vec3(0.5) + localCoords * vec3(float(BrickRes - 1u))) / float(BrickRes)) / vec3(bricksRes);
+    return (brick3D + (vec3(0.5) + localCoords * vec3(float(brickRes - 1u))) / float(brickRes)) / vec3(bricksRes);
+}
+
+vec4 SampleBrick(sampler3D t, uint ni, vec3 lc, vec3 brickOffs, uint brickRes)
+{
+    vec3 tc = lc * 0.5 + 0.5;
+    tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
+    // - to do: add node-within-group offset to tc
+    tc = (tc + vec3(uvec3(ni, ni >> 1u, ni >> 2u) & uvec3(1u))) * 0.5;
+    tc = BrickSampleCoordinates(brickOffs, tc, brickRes);
+    return texture(t, tc);
 }
 
 

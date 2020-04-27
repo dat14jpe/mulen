@@ -11,6 +11,8 @@ namespace Mulen {
     static constexpr NodeIndex NodeArity = 8u; // - not liable to change; named to increase readability
 
     static constexpr uint32_t BrickRes = 7u + 1u; // (+1 since values are at corners)
+    static constexpr uint32_t LightBrickRes = BrickRes;
+    static constexpr uint32_t CombinedBrickRes = BrickRes * 2u - 1u; // (-1 since inner faces are shared)
     struct Voxel
     {
         float density; // - to do: revise, possibly
