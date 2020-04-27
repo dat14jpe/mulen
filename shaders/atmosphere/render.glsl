@@ -247,10 +247,14 @@ void main()
         vec3 T = vec3(1.0);
         while (InvalidIndex != o.ni)
         {
+            const bool isEmpty = (o.flags & EmptyBrickBit) != 0u;
+            
             o.center *= atmScale;
             o.size *= atmScale;
             const float step = o.size / atmScale * stepFactor;
-            const float atmStep = step * atmScale;
+            const float atmStep = step * atmScale
+                //* (float(isEmpty) + 1.0) // - experimental optimisation (causing banding, unfortunately)
+                ;
             
             AabbIntersection(tmin, tmax, vec3(-o.size) + o.center, vec3(o.size) + o.center, hit, dir);
             tmax = min(tmax, solidDepth - outerMin);

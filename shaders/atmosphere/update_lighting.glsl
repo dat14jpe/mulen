@@ -54,7 +54,7 @@ vec3 offsetOrigin(vec3 p, vec3 dir, float voxelSize)
         ;
 }
 
-float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, const float stepFactor)
+float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, const float stepFactor, const uint maxDepth)
 {
     const float atmScale = atmosphereRadius;
     
@@ -84,10 +84,24 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
         o.p = p;
         OctreeDescendMap(o);
         
+        uint old = InvalidIndex;
         uint it = 0u;
-        while (InvalidIndex != o.ni)
+        //while (InvalidIndex != o.ni)
+        while (true)
         {
             ++it;
+            ++numBricks;
+            
+            OctreeTraversalData o;
+            o.p = (ori + dist * dir) / atmScale;
+            OctreeDescendMap(o);
+            if (InvalidIndex == o.ni || old == o.ni) break;
+            old = o.ni;
+            
+            if (opticalDepthM > threshold) break; // - testing
+            if (dist > maxDist) break;
+            // - (more than 64 are "needed", though... even 8 give "local" cloud shadows)
+            if (numBricks >= 128u) break; // - testing
             
             o.center *= atmScale;
             o.size *= atmScale;
@@ -97,6 +111,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
             AabbIntersection(tmin, tmax, vec3(-o.size) + o.center, vec3(o.size) + o.center, ori, dir);
             tmax = min(tmax, maxDist);
             
+            //if (false)
             if ((o.flags & EmptyBrickBit) != 0u)
             {
                 // - simple test:
@@ -109,18 +124,19 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
                 // (well, we should rather be using lower levels of detail. To do: do that)
                 
                 // - to do: skip the brick correctly
-                dist = tmax; // - testing // - does seem like a gain (maybe 1/3?). Investigate more
+                dist = tmax + atmStep * 1.0; // - testing // - does seem like a gain (maybe 1/3?). Investigate more
                 //if (it == 1u) return 0.0; // - testing (to see where bricks are marked as empty)
+                continue;
             }
             //if (it == 1u) return 1.0; // - testing
             
             const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
             vec3 localStart = (ori - o.center) / o.size;
-            vec3 lc = localStart + dist / o.size * dir;
             
             //do // do while to not erroneously miss the first voxel if it's on the border
-            while (dist < tmax && numSteps < maxSteps)
+            while (dist < tmax)
             {
+                vec3 lc = localStart + dist / o.size * dir;
                 vec3 tc = lc * 0.5 + 0.5;
                 tc = clamp(tc, vec3(0.0), vec3(1.0));
                 tc = BrickSampleCoordinates(brickOffs, tc);
@@ -129,40 +145,20 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
                 float mie = voxelData.x;
                 float densityM = MieDensityFromSample(mie);
                 
-                densityM = max(0.0, (mie * scaleM + offsetM) * mieMul); // - a test
-                
-                // - debugging aliasing with hardcoded cutoff(s)
-                {
-                    float p = length(ori + dir * dist) / planetRadius;
-                    const float atmHeight = 0.01;
-                    const float relativeCloudTop = 0.4; // - to do: tune
-                    if ((p - 1.0) / atmHeight > relativeCloudTop) densityM = 0.0;
-                    //densityM = 0.0;
-                    //mieDensity *= 1.0 - smoothstep(relativeCloudTop * 0.75, relativeCloudTop, (p - 1.0) / atmHeight);
-                }
-                
+                densityM = mie * mieMul;
                 opticalDepthM += (prevDensityM + densityM) * 0.5 * atmStep;
                 prevDensityM = densityM;
                 
                 dist += atmStep;
-                lc = localStart + dist / o.size * dir;
                 ++numSteps;
             } //while (dist < tmax && numSteps < maxSteps);
-            ++numBricks;
-            
-            if (opticalDepthM > threshold) break; // - testing
-            
-            const uint old = o.ni;
-            vec3 p = (ori + dist * dir) / atmScale;
-            //if (length(p * atmScale) < planetRadius * 0.99) break; // - testing (but this should be done accurately and once with a maxDist update)
-            if (dist > maxDist) break;
-            o.p = p;
-            OctreeDescendMap(o);
-            if (old == o.ni) break; // - error (but can this even happen?)
-            
-            if (numBricks >= 64u) break; // - testing
-            // - maybe also try breaking if transmittance is too high (though needlessly evaluating it might be expensive in itself)
         }
+        
+        // - testing performance impact of not sampling any voxel data:
+        // (interestingly, it's about the same. Traversal seems heavy, then)
+        //return 1.0 - float(numBricks) / 256.0;
+        //return 1.0; // - testing
+        //return numBricks > 63u ? 0.0 : 1.0;
     }
     
     //if (opticalDepthM > threshold) opticalDepthM = 1e9; // - trying to avoid sampling pattern from early exit. Maybe too harsh way
@@ -270,6 +266,9 @@ void main()
     const UploadBrick upload = uploadBricks[loadId];
     uvec3 writeOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
     
+    const uint nodeIndex = upload.nodeIndex;
+    const uint depth = DepthFromInfo(nodeGroups[nodeIndex / NodeArity].info);
+    
     vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
     vec3 gp = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp);
     vec3 p = gp * atmosphereScale;
@@ -296,7 +295,10 @@ void main()
     const vec3 dir = lightDir;
     vec3 ori = p * planetRadius;
     
-    const float stepFactor = 0.1 * stepSize; // - to-be-tuned
+    const float stepFactor = 
+        //0.1
+        0.4 // - probably too high, no? Use lower depth instead (to do)
+        * stepSize; // - to-be-tuned
     
     vec3 light = vec3(1.0);
     {
@@ -324,7 +326,7 @@ void main()
             o.center = upload.nodeLocation.xyz;
             o.size = upload.nodeLocation.w;
             o.ni = upload.nodeIndex;
-            light *= TraceTransmittance(ori, dir, dist, o, stepFactor);
+            light *= TraceTransmittance(ori, dir, dist, o, stepFactor, depth);
             //light *= ConeTraceTransmittance(ori, dir, dist, stepFactor, voxelSize);
             
             
@@ -347,7 +349,7 @@ void main()
                 {
                     float x = float(ix) / (res - 1) * 2 - 1, y = float(iy) / (res - 1) * 2 - 1;
                     vec3 p = ori + (a * x + b * y) * voxelSize * 0.5;
-                    light += TraceTransmittance(p, dir, dist, o, stepFactor);
+                    light += TraceTransmittance(p, dir, dist, o, stepFactor, depth);
                     num += 1.0;
                 }
                 light /= num;

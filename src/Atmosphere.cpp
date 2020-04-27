@@ -99,7 +99,7 @@ namespace Mulen {
     {
         auto lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
         // - light rotation test:
-        auto lightSpeed = 1e-3;
+        auto lightSpeed = 1.0 / 1000.0;
         auto lightRot = glm::angleAxis(lightTime * 3.141592653589793 * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
         lightDir = glm::rotate(lightRot, lightDir);
 

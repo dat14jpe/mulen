@@ -156,30 +156,38 @@ void OctreeTraversalIteration(inout OctreeTraversalData o)
 
 // - to do: add "desired size" parameter to allow early stop
 // p components in [-1, 1] range
-void OctreeDescend(inout OctreeTraversalData o)
+void OctreeDescendInit(inout OctreeTraversalData o)
 {
     o.depth = 0u - 1u;
     o.ni = InvalidIndex;
     o.gi = rootGroupIndex;
     o.center = vec3(0.0);
     o.size = 1.0;
+}
+void OctreeDescendLoop(inout OctreeTraversalData o)
+{
     while (InvalidIndex != o.gi)
     {
         OctreeTraversalIteration(o);
     }
 }
-void OctreeDescendMaxDepth(inout OctreeTraversalData o, uint maxDepth)
+void OctreeDescendLoopMaxDepth(inout OctreeTraversalData o, uint maxDepth)
 {
-    o.depth = 0u - 1u;
-    o.ni = InvalidIndex;
-    o.gi = rootGroupIndex;
-    o.center = vec3(0.0);
-    o.size = 1.0;
     while (InvalidIndex != o.gi)
     {
         OctreeTraversalIteration(o);
-        if (o.depth == maxDepth) break;
+        if (o.depth >= maxDepth) break;
     }
+}
+void OctreeDescend(inout OctreeTraversalData o)
+{
+    OctreeDescendInit(o);
+    OctreeDescendLoop(o);
+}
+void OctreeDescendMaxDepth(inout OctreeTraversalData o, uint maxDepth)
+{
+    OctreeDescendInit(o);
+    OctreeDescendLoopMaxDepth(o, maxDepth);
 }
 
 
@@ -187,7 +195,7 @@ const uint DepthBits = 5u, ChildBits = 8u;
 const uint IndexBits = 32u - DepthBits - ChildBits;
 
 // sampleLoc somewhere on range [0, 1]
-void OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, inout OctreeTraversalData o)
+void OctreeDescendMapInit(in usampler3D mapTexture, in vec3 sampleLoc, inout OctreeTraversalData o)
 {
     uint info = texture(mapTexture, sampleLoc).x;
     o.depth = (info >> (IndexBits + ChildBits)) & ((1u << DepthBits) - 1u);
@@ -197,18 +205,27 @@ void OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, inout OctreeT
     o.size = 1.0 / nodesAtDepth;
     o.center = pn * 2.0 - 1.0 + vec3(o.size);
     o.ni = InvalidIndex;
-    
-    while (InvalidIndex != o.gi)
-    {
-        OctreeTraversalIteration(o);
-    }
 }
-
+void OctreeDescendMap(in usampler3D mapTexture, in vec3 sampleLoc, inout OctreeTraversalData o)
+{
+    OctreeDescendMapInit(mapTexture, sampleLoc, o);
+    OctreeDescendLoop(o);
+}
 void OctreeDescendMap(inout OctreeTraversalData o)
 {
     vec3 sampleLoc = o.p * 0.5 + 0.5;
     OctreeDescendMap(octreeMapTexture, sampleLoc, o);
 }
+void OctreeDescendMapMaxDepth(inout OctreeTraversalData o, uint maxDepth)
+{
+    //OctreeDescendMap(o); return;
+    // - to do: find out why this doesn't quite work
+    
+    vec3 sampleLoc = o.p * 0.5 + 0.5;
+    OctreeDescendMapInit(octreeMapTexture, sampleLoc, o);
+    OctreeDescendLoopMaxDepth(o, maxDepth);
+}
+// - to do: depth-limited map descension
 
 
 float RayleighDensityFromSample(float v)

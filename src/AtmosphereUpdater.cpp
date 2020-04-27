@@ -27,6 +27,7 @@ namespace Mulen {
         const Object::Position sphereCenter{ 0.0 };
         const auto height = 0.005, radius = 1.0; // - to do: check/correct these values
         const auto atmRadius2 = (radius + height) * (radius + height);
+        const auto innerRadius = radius; // - to do: modify, as "safety" margin
 
         auto bmin = p - size, bmax = p + size;
         const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
@@ -38,7 +39,7 @@ namespace Mulen {
             {
                 for (int x = -1; x <= 1; x += 2)
                 {
-                    if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > radius* radius) return true;
+                    if (glm::distance2(sphereCenter, p + glm::dvec3(x, y, z) * size) > innerRadius * innerRadius) return true;
                 }
             }
         }

@@ -41,11 +41,8 @@ void main()
         minDensity = min(minDensity, layers[z].x);
         maxDensity = max(maxDensity, layers[z].y);
     }
-    /*const*/ bool isEmpty = minDensity == 0.0 && maxDensity == 0.0;
-    //isEmpty = (upload.nodeIndex & 1u) == 0u; // - also gives error, so... it's not the computation's fault. Hmm.
-    //isEmpty = false;
+    const bool isEmpty = minDensity == 0.0 && maxDensity == 0.0;
     if (isEmpty) nodeGroups[gi].nodes[ni].children |= EmptyBrickBit;
     
-    // - *seems* like emptiness is still not computed or stored correctly. Hmm...
-    // (debug via update_lighting.glsl)
+    // - maybe to do: other flags
 }

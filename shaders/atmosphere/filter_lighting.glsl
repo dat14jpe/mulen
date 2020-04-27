@@ -18,7 +18,7 @@ float SampleLighting(vec3 p)
     // - this could easily use a less general approach (maybe a list of immediate node group neighbours from the CPU)
     OctreeTraversalData o;
     o.p = p;
-    OctreeDescendMap(o);
+    OctreeDescendMap(o); // - to do: limit depth
     vec3 lc = (p - o.center) / o.size * 0.5 + 0.5;
     const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
     vec3 tc = BrickSampleCoordinates(brickOffs, lc);
