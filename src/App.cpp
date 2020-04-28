@@ -13,7 +13,7 @@ namespace Mulen {
         , atmosphere{ timer }
     {
         Reload();
-        SetVSync(vsync);
+        window.SetVSync(true);
 
         InitializeAtmosphere();
         camera.SetPosition(Object::Position(0, 0, atmosphere.GetPlanetRadius() * 2.25));
@@ -26,12 +26,6 @@ namespace Mulen {
         const size_t budget = 256u * (1u << 20u);
         atmosphere.Init({ budget, budget });
         return true;
-    }
-
-    void App::SetVSync(bool vsync)
-    {
-        this->vsync = vsync;
-        glfwSwapInterval(vsync ? 1 : 0);
     }
 
     bool App::Reload()
@@ -248,10 +242,11 @@ namespace Mulen {
             if (Reload()) std::cout << "Reloaded\n";
             break;
         case GLFW_KEY_F4:
-            SetVSync(!vsync);
+            window.SetVSync(!window.GetVSync());
             break;
         case GLFW_KEY_F11:
-            window.IsMaximized() ? window.Maximize() : window.Restore();
+            //window.IsMaximized() ? window.Maximize() : window.Restore();
+            window.SetFullscreen(!window.IsFullscreen());
             break;
         case GLFW_KEY_F6:
             showGui = !showGui;

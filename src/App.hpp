@@ -17,7 +17,7 @@ namespace Mulen {
 
         const std::string shaderPath = "shaders/";
 
-        bool showGui = true, vsync = true;
+        bool showGui = true;
         float mouseSensitivity = 0.25f;
         ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -32,7 +32,6 @@ namespace Mulen {
         int depthLimit = 10u, downscaleFactor = 4u;
 
         bool InitializeAtmosphere();
-        void SetVSync(bool);
         bool Reload();
         void OnFrame() override;
         void OnKey(int key, int scancode, int action, int mods) override;

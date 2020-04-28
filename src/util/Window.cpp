@@ -122,3 +122,27 @@ Window::~Window()
     glfwDestroyWindow(window);
     glfwTerminate();
 }
+
+bool Window::IsFullscreen()
+{
+    return glfwGetWindowMonitor(window) != nullptr;
+}
+
+void Window::SetFullscreen(bool fullscreen)
+{
+    if (IsFullscreen() == fullscreen) return;
+    if (fullscreen)
+    {
+        glfwGetWindowPos(window, &storedPosition.x, &storedPosition.y);
+        glfwGetWindowSize(window, &storedSize.x, &storedSize.y);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, 0);
+        SetVSync(vsync);
+    }
+    else
+    {
+        glfwSetWindowMonitor(window, nullptr, storedPosition.x, storedPosition.y, storedSize.x, storedSize.y, 0);
+    }
+}

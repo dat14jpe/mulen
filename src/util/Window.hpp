@@ -7,6 +7,8 @@
 
 class Window {
     GLFWwindow* window;
+    bool vsync = true;
+    glm::ivec2 storedPosition, storedSize;
 
 public:
     Window(const std::string& title, const glm::uvec2& size);
@@ -30,6 +32,15 @@ public:
     bool IsMaximized() { return glfwGetWindowAttrib(window, GLFW_MAXIMIZED); }
     void Maximize() { glfwMaximizeWindow(window); }
     void Restore() { glfwRestoreWindow(window); }
+    void SetFullscreen(bool);
+    bool IsFullscreen(); 
+    
+    bool GetVSync() const { return vsync; }
+    void SetVSync(bool vsync)
+    {
+        this->vsync = vsync;
+        glfwSwapInterval(vsync ? 1 : 0);
+    }
 
     bool IsKeyPressed(int key)
     {
