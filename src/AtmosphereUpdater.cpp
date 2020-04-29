@@ -103,6 +103,7 @@ namespace Mulen {
     {
         shader.Bind();
         atmosphere.SetUniforms(shader);
+        shader.Uniform1f("time", glm::vec1{ (float)atmosphere.lightTime });
         return shader;
     }
 

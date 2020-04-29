@@ -88,6 +88,9 @@ void main()
         //mie = min(0.0, mie); // - testing
         mie = -20; // - testing
     }
+    
+    const vec3 animDir = cross(normalize(p), vec3(0.0, 0.0, 1.0)); // - experimental
+    
     //if (false) // - debugging
     { // new noisy clouds attempt
         float d = 0.0;
@@ -109,6 +112,10 @@ void main()
         }
         */
         //d = 1.0; // - testing
+        
+        // - testing "movement" over time:
+        np += animDir * 1e-3 * time;
+        
         d = (fBm(11u, np * 16.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
         d -= 0.5; // - more broken up and dramatic (in high resolution)
         
@@ -198,8 +205,11 @@ void main()
         mask *= smoothstep(base - thickness, base, h); // - bottom
         mask = max(0.0, mask - 0.25);
         
+        vec3 p2 = p - animDir * 1e-5 * time;
+        vec3 p3 = p + animDir * 1e-5 * time;
+        
         { // cirrus
-            float d = fBm(4u, (vec3(0.65) + p) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
+            float d = fBm(4u, (vec3(0.65) + p2) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
             //d = 1.0;
             //d *= 0.5; // - worked well for fog
             d *= 0.0625; // stratus or cirrus
@@ -216,7 +226,7 @@ void main()
             mask *= smoothstep(base - thickness, base, h); // - bottom
             mask = max(0.0, mask - 0.25);
             
-            float d = fBm(4u, (vec3(0.3126) + p) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
+            float d = fBm(4u, (vec3(0.3126) + p3) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
             //d = 1.0;
             d *= 0.5; // - worked well for fog
             //d *= 0.125; // stratus or cirrus
