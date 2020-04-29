@@ -520,6 +520,6 @@ namespace Mulen {
         auto endTime = Util::Timer::Clock::now();
         auto time = endTime - startTime;
         auto duration = time / std::chrono::milliseconds(1);
-        std::cout << "Atmosphere update in " << duration << " ms\n";
+        //std::cout << "Atmosphere update in " << duration << " ms\n";
     }
 }

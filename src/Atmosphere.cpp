@@ -32,6 +32,7 @@ namespace Mulen {
         texMap.x = width / brickRes;
         texMap.y = glm::min(maxWidth / brickRes, unsigned(numBricks + texMap.x - 1u) / texMap.x);
         texMap.z = (unsigned(numBricks) + texMap.x * texMap.y - 1u) / (texMap.x * texMap.y);
+        texMap.x = texMap.y = texMap.z = std::ceil(std::pow(double(numBricks), 1.0 / 3.0));
         width = texMap.x * brickRes;
         height = texMap.y * brickRes;
         depth = texMap.z * brickRes;
@@ -444,6 +445,7 @@ namespace Mulen {
             updater.UpdateMap(octreeMap, mapPosition, mapScale, exponent);
 
 
+            if (false)
             { // - debugging
                 static auto count = 0u;
                 if (count++ % 60u == 0u)
