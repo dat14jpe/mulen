@@ -9,6 +9,7 @@
 #include "Atmosphere.hpp"
 #include "Camera.hpp"
 #include "util/Timer.hpp"
+#include "Screenshotter.hpp"
 
 namespace Mulen {
     class App : public Window::App {
@@ -35,7 +36,10 @@ namespace Mulen {
         bool Reload();
         void OnFrame() override;
         void OnKey(int key, int scancode, int action, int mods) override;
+        void OnDrop(int count, const char** paths) override;
 
         bool draggingView = false;
+
+        Screenshotter screenshotter;
     };
 }

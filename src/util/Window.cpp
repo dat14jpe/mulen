@@ -78,6 +78,10 @@ static void mouseButtonCallback(GLFWwindow* window, int button, int action, int 
 {
     GetApp(window)->OnMouseButton(button, action, mods);
 }
+static void dropCallback(GLFWwindow* window, int count, const char** paths)
+{
+    GetApp(window)->OnDrop(count, paths);
+}
 
 Window::Window(const std::string& title, const glm::uvec2& size)
 {
@@ -93,6 +97,7 @@ void Window::Run(Window::App& app)
     glfwSetKeyCallback(window, keyCallback);
     glfwSetCursorPosCallback(window, cursorPosCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetDropCallback(window, dropCallback);
 
     while (!glfwWindowShouldClose(window))
     {

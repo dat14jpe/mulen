@@ -10,20 +10,25 @@ set(LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 set(OUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # GLFW
-set(GLFW_DIR "${LIB_DIR}/glfw")
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(${GLFW_DIR})
+find_package(glfw3)
+if (NOT glfw3_FOUND)
+  set(GLFW_DIR "${LIB_DIR}/glfw")
+  set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  add_subdirectory(${GLFW_DIR})
+endif()
+
+# GLM
+find_package(glm)
+if (NOT glm_FOUND)
+  set(GLM_DIR "${LIB_DIR}/glm")
+endif()
 
 # glad
 set(GLAD_DIR "${LIB_DIR}/glad")
 add_library("glad" "${GLAD_DIR}/src/glad.c")
 target_include_directories("glad" PRIVATE "${GLAD_DIR}/include")
-
-# GLM
-set(GLM_DIR "${LIB_DIR}/glm")
-# - maybe to do: compile to static library
 
 # Imgui
 set(IMGUI_DIR "${LIB_DIR}/imgui")

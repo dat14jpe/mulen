@@ -12,6 +12,10 @@ add_library(${LIB_NAME}
     Window.cpp
     Timer.hpp
     Timer.cpp
+    Screenshotter.hpp
+    Screenshotter.cpp
+    lodepng.h
+    lodepng.cpp
 )
 set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 17)
 

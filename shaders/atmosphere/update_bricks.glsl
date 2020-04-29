@@ -205,8 +205,8 @@ void main()
         mask *= smoothstep(base - thickness, base, h); // - bottom
         mask = max(0.0, mask - 0.25);
         
-        vec3 p2 = p - animDir * 1e-5 * time;
-        vec3 p3 = p + animDir * 1e-5 * time;
+        vec3 p2 = p - animDir * 5e-5 * time;
+        vec3 p3 = p + animDir * 5e-5 * time;
         
         { // cirrus
             float d = fBm(4u, (vec3(0.65) + p2) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;

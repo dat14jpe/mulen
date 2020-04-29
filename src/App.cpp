@@ -1,5 +1,6 @@
 #include "App.hpp"
 #include <glm/gtx/quaternion.hpp>
+#include "util/lodepng.h"
 
 // - for testing:
 std::ostream& operator<<(std::ostream& os, const glm::vec4& m) {
@@ -257,6 +258,15 @@ namespace Mulen {
         case GLFW_KEY_U:
             update = !update;
             break;
+        case GLFW_KEY_F3:
+            screenshotter.TakeScreenshot(window, camera);
+            break;
         }
+    }
+
+    void App::OnDrop(int count, const char** paths)
+    {
+        if (!count) return;
+        screenshotter.ReceiveScreenshot(paths[0u], camera);
     }
 }

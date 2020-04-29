@@ -13,6 +13,8 @@ add_executable(${CMAKE_PROJECT_NAME}
     Camera.cpp
     Object.hpp
     Object.cpp
+    Screenshotter.hpp
+    Screenshotter.cpp
 )
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 

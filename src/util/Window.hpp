@@ -22,6 +22,7 @@ public:
         virtual void OnKey(int key, int scancode, int action, int mods) {}
         virtual void OnCursorPosition(glm::dvec2 position) {}
         virtual void OnMouseButton(int button, int action, int mods) {}
+        virtual void OnDrop(int count, const char** paths) {}
     };
 
     void Run(App& app);
