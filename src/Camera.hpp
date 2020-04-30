@@ -8,7 +8,15 @@ namespace Mulen {
         Position acceleration{ 0.0 }, velocity{ 0.0 };
 
     public:
+        // - to do: move all update and radius computation logic fully into this class
+        bool needsUpdate = false;
         double radius;
+
+        // Tell the camera to recompute e.g. radius on next frame (since e.g. position was modified directly).
+        void FlagForUpdate()
+        {
+            needsUpdate = true;
+        }
 
         void Update(double dt);
 

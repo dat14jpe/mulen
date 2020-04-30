@@ -197,7 +197,7 @@ namespace Mulen {
             }
             lastCursorPos = cursorPos;
             camera.Update(dt);
-            if (camera.GetVelocity() != Object::Position{ 0.0 })
+            if (camera.needsUpdate || camera.GetVelocity() != Object::Position{ 0.0 })
             {
                 auto cp = camera.GetPosition(), ap = atmosphere.GetPosition();
                 auto R = atmosphere.GetPlanetRadius();
@@ -209,6 +209,8 @@ namespace Mulen {
                     camera.radius = minR + R;
                     camera.SetPosition(ap + glm::normalize(cp - ap) * camera.radius);
                 }
+
+                camera.needsUpdate = false;
             }
 
             if (window.IsKeyPressed(GLFW_KEY_U) || upright)

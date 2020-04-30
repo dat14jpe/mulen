@@ -20,7 +20,16 @@ struct Object
         position = p;
     }
 
-    const Orientation& GetOrientation() const { return orientation; }
+    const Orientation& GetOrientation() const
+    { 
+        return orientation;
+    }
+
+    void SetOrientation(const Orientation& o)
+    {
+        orientation = o;
+    }
+
     void ApplyRotation(const Orientation& q)
     {
         orientation = glm::normalize(q * orientation);

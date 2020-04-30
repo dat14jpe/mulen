@@ -1,6 +1,7 @@
 #include "Screenshotter.hpp"
 #include "util/Window.hpp"
 #include "util/lodepng.h"
+#include "Camera.hpp"
 #include <iostream>
 #include <iomanip>
 #include <ctime>
@@ -8,6 +9,8 @@
 #include <filesystem>
 
 namespace Mulen {
+    static const auto keyPrefix = std::string("mulen_");
+
     static std::string DetermineFileName()
     {
         const auto dir = "screenshots", id = "_Mulen_", extension = ".png";
@@ -39,10 +42,16 @@ namespace Mulen {
     {
         const auto filename = DetermineFileName(); // (maybe do this in the other thread instead?)
 
-        // - to do: encode camera parameters
+        // Encode camera parameters as strings in the PNG.
+        const auto p = camera.GetPosition();
+        const auto o = camera.GetOrientation();
+        auto positionStr = std::to_string(p.x) + ' ' + std::to_string(p.y) + ' ' + std::to_string(p.z);
+        auto orientationStr = std::to_string(o.x) + ' ' + std::to_string(o.y) + ' ' + std::to_string(o.z) + ' ' + std::to_string(o.w);
+        // - to do: add more important values (max allowed depth among them)
 
         Util::Screenshotter::KeyValuePairs keyValuePairs;
-        keyValuePairs["mulen_test2"] = "Here we go again. You ready?";
+        keyValuePairs[keyPrefix + "camera_position"] = positionStr;
+        keyValuePairs[keyPrefix + "camera_orientation"] = orientationStr;
         screenshotter.TakeScreenshot(filename, window.GetSize(), std::move(keyValuePairs));
     }
 
@@ -65,19 +74,39 @@ namespace Mulen {
 
         if (state.info_png.text_num)
         {
+            bool cameraWasUpdated = false;
             for (auto i = 0u; i < state.info_png.text_num; ++i)
             {
                 std::string key = state.info_png.text_keys[i];
                 std::string str = state.info_png.text_strings[i];
-                const std::string prefix = "mulen_";
-                if (key.find(prefix) == 0)
+                if (key.find(keyPrefix) == 0)
                 {
-                    std::cout << "\"" << key << "\": \"" << str << "\"" << std::endl;
-                    // - to do: decode Mulen data
+                    const auto k = key.substr(keyPrefix.length());
+                    std::stringstream ss(str);
+                    if (k == "camera_position")
+                    {
+                        Object::Position p;
+                        ss >> p.x >> p.y >> p.z;
+                        camera.SetPosition(p);
+                        cameraWasUpdated = true;
+                    }
+                    else if (k == "camera_orientation")
+                    {
+                        Object::Orientation o;
+                        ss >> o.x >> o.y >> o.z >> o.w;
+                        camera.SetOrientation(o);
+                        cameraWasUpdated = true;
+                    }
+                    else
+                    {
+                        std::cout << "Unknown key-value pair in image: \"" << key << "\" = \"" << str << "\"" << std::endl;
+                    }
                 }
             }
 
-            // - to do: set camera according to screenshot values, if present
+            camera.FlagForUpdate();
+            // - maybe we need to mark the camera for updates, somehow? Yes, eventually
+            // - to do: maybe check if any values were missing
         }
     }
 }
