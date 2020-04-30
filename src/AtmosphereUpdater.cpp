@@ -4,7 +4,7 @@
 #include <queue>
 #include <unordered_set>
 #include <iostream>
-#include "Util/Timer.hpp"
+#include "util/Timer.hpp"
 
 namespace Mulen {
 
