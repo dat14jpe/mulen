@@ -53,6 +53,15 @@ static GLFWwindow* initialize(const std::string& title, const glm::uvec2& size)
     ImGui_ImplOpenGL3_Init();
     // - to do: check for errors
 
+    if (glfwRawMouseMotionSupported())
+    {
+        glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    }
+    else
+    {
+        // - to do: log this?
+    }
+
     return window;
 }
 

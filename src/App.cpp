@@ -56,7 +56,7 @@ namespace Mulen {
             ImGui::Checkbox("Upright", &upright);
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
-            ImGui::SliderInt("Depth", &depthLimit, 1u, 16u);
+            ImGui::SliderInt("Depth", &depthLimit, 1u, maxDepthLimit);
             ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
             if (ImGui::Button("Re-init"))
             {
@@ -139,7 +139,7 @@ namespace Mulen {
             cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
             cursorPos.x *= aspect;
             const bool
-                rotateView = window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT),
+                rotateView = window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) || fpsMode,
                 rotateOrbit = window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
             if (rotateView || rotateOrbit)
             {
@@ -260,8 +260,18 @@ namespace Mulen {
         case GLFW_KEY_U:
             update = !update;
             break;
+        case GLFW_KEY_PRINT_SCREEN:
         case GLFW_KEY_F3:
             screenshotter.TakeScreenshot(window, camera);
+            break;
+        case GLFW_KEY_ENTER:
+            window.DisableCursor(fpsMode = !fpsMode);
+            break;
+        case GLFW_KEY_KP_ADD:
+            depthLimit += depthLimit < maxDepthLimit ? 1 : 0;
+            break;
+        case GLFW_KEY_KP_SUBTRACT:
+            depthLimit -= depthLimit > 0 ? 1 : 0;
             break;
         }
     }

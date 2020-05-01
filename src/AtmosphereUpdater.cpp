@@ -18,7 +18,6 @@ namespace Mulen {
 
     bool AtmosphereUpdater::NodeInAtmosphere(const Iteration& it, const glm::dvec4& childPos)
     {
-        //return true; // - the current version (20200302) is apparently equivalent to this, which is... wow. Entirely wrong.
         auto& a = atmosphere;
 
         // - simple test to only split those in spherical atmosphere shell:
@@ -438,7 +437,7 @@ namespace Mulen {
 
                 if (InvalidIndex == children)
                 {
-                    if (depth == MaxDepth) continue;
+                    if (depth >= MaxDepth) continue;
                     // - to do: check for splittability more thoroughly
                     splitPrio.push({ ni, priority });
                     continue;

@@ -23,6 +23,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${GLAD_DIR}/include")
 target_link_libraries(${CMAKE_PROJECT_NAME} glfw)
 target_link_libraries(${CMAKE_PROJECT_NAME} "glad" "${CMAKE_DL_LIBS}")
 target_link_libraries(${CMAKE_PROJECT_NAME} imgui)
+
+# Look for appropriate thread library (needed at least on some Linux setups)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} Threads::Threads)

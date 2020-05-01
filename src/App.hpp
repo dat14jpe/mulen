@@ -28,9 +28,11 @@ namespace Mulen {
 
         Util::Timer timer;
 
+        bool fpsMode = false;
         bool update = true, rotateLight = false,//true,
             upright = true, collision = true, fly = true;
         int depthLimit = 10u, downscaleFactor = 4u;
+        const int maxDepthLimit = 16u;
 
         bool InitializeAtmosphere();
         bool Reload();

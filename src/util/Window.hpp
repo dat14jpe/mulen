@@ -35,6 +35,11 @@ public:
     void Restore() { glfwRestoreWindow(window); }
     void SetFullscreen(bool);
     bool IsFullscreen(); 
+
+    void DisableCursor(bool disable)
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, disable ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    }
     
     bool GetVSync() const { return vsync; }
     void SetVSync(bool vsync)
