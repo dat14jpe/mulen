@@ -13,7 +13,7 @@ namespace Mulen {
 
     static std::string DetermineFileName()
     {
-        const auto dir = "screenshots", id = "_Mulen_", extension = ".png";
+        const auto dir = u8"screenshots", id = u8"_Mulen_", extension = u8".png";
         std::filesystem::create_directories(dir);
 
         // Find maximum image index in use.

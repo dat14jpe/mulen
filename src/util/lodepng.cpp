@@ -24,11 +24,23 @@ freely, subject to the following restrictions:
 */
 
 /*
+
+20200501:
+This file was modified to use std::filesystem to handle UTF-8 paths.
+This is not the original version of the file.
+
+*/
+
+
+/*
 The manual and changelog are in the header file "lodepng.h"
 Rename this file to lodepng.cpp to use it for C++, or to lodepng.c to use it for C.
 */
 
 #include "lodepng.h"
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 
 #ifdef LODEPNG_COMPILE_DISK
 #include <limits.h> /* LONG_MAX */
@@ -342,6 +354,7 @@ static void lodepng_set32bitInt(unsigned char* buffer, unsigned value) {
 
 /* returns negative value on error. This should be pure C compatible, so no fstat. */
 static long lodepng_filesize(const char* filename) {
+#ifdef NonUTF8
   FILE* file;
   long size;
   file = fopen(filename, "rb");
@@ -358,10 +371,15 @@ static long lodepng_filesize(const char* filename) {
 
   fclose(file);
   return size;
+#endif
+
+  auto path = std::filesystem::u8path(filename, filename + strlen(filename));
+  return std::filesystem::file_size(path);
 }
 
 /* load file into buffer that already has the correct allocated size. Returns error code.*/
 static unsigned lodepng_buffer_file(unsigned char* out, size_t size, const char* filename) {
+#ifdef NonUTF8
   FILE* file;
   size_t readsize;
   file = fopen(filename, "rb");
@@ -371,6 +389,14 @@ static unsigned lodepng_buffer_file(unsigned char* out, size_t size, const char*
   fclose(file);
 
   if(readsize != size) return 78;
+  return 0;
+#endif
+
+
+  auto path = std::filesystem::u8path(filename, filename + strlen(filename));
+  std::ifstream f{ path, std::ios::binary };
+  f.read(reinterpret_cast<char*>(out), size);
+  if (f.bad()) return 78;
   return 0;
 }
 
@@ -387,11 +413,19 @@ unsigned lodepng_load_file(unsigned char** out, size_t* outsize, const char* fil
 
 /*write given buffer to the file, overwriting the file, it doesn't append to it.*/
 unsigned lodepng_save_file(const unsigned char* buffer, size_t buffersize, const char* filename) {
+#ifdef NonUTF8
   FILE* file;
   file = fopen(filename, "wb" );
   if(!file) return 79;
   fwrite(buffer, 1, buffersize, file);
   fclose(file);
+  return 0;
+#endif
+
+  auto path = std::filesystem::u8path(filename, filename + strlen(filename));
+  std::ofstream f{ path, std::ios::binary };
+  f.write(reinterpret_cast<const char*>(buffer), buffersize);
+  if (f.bad()) return 78;
   return 0;
 }
 
