@@ -239,7 +239,7 @@ namespace Mulen {
         switch (key)
         {
         case GLFW_KEY_ESCAPE:
-            window.Close();
+            fpsMode ? window.DisableCursor(fpsMode = false) : window.Close();
             break;
         case GLFW_KEY_F5:
             if (Reload()) std::cout << "Reloaded\n";
