@@ -114,7 +114,7 @@ void main()
         //d = 1.0; // - testing
         
         // - testing "movement" over time:
-        np += animDir * 1e-3 * time;
+        np += animDir * 1e-3 * animationTime;
         
         d = (fBm(11u, np * 16.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
         d -= 0.5; // - more broken up and dramatic (in high resolution)

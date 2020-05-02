@@ -12,6 +12,8 @@ namespace Mulen {
         bool needsUpdate = false;
         double radius;
 
+        bool upright = true;
+
         // Tell the camera to recompute e.g. radius on next frame (since e.g. position was modified directly).
         void FlagForUpdate()
         {

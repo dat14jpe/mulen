@@ -9,7 +9,7 @@ in vec4 ndc;
 
 bool RenderPlanet(vec3 ori, vec3 dir)
 {
-    const vec3 center = planetLocation;
+    const vec3 center = planetLocation.xyz;
     float t0, t1;
     if (!IntersectSphere(ori, dir, center, planetRadius, t0, t1)) return false;
     if (t0 <= 0.0) return false; // don't block if we're inside the planet (since it's fun to look out into the atmosphere shell)
@@ -24,7 +24,7 @@ bool RenderPlanet(vec3 ori, vec3 dir)
     vec3 hitp = ori + t0 * dir;
     vec3 normal = normalize(hitp - center);
     
-    vec3 color = vec3(max(0.0, dot(normal, lightDir))); // Lambertian
+    vec3 color = vec3(max(0.0, dot(normal, lightDir.xyz))); // Lambertian
     //color = vec3(1.0); // - testing only atmosphere lighting
     vec3 diffuseColor = vec3(1.0);
     diffuseColor = vec3(0.01, 0.05, 0.1);
@@ -34,7 +34,7 @@ bool RenderPlanet(vec3 ori, vec3 dir)
     //color = vec3(0.0);
     
     { // sunglint (specular)
-        vec3 d = reflect(lightDir, normal);
+        vec3 d = reflect(lightDir.xyz, normal);
         float s = pow(max(0.0, dot(d, dir)), 80.0);
         color += s * vec3(1.0);
     }
@@ -61,7 +61,7 @@ bool RenderPlanet(vec3 ori, vec3 dir)
             {
                 vec3 p = hitp - center;
                 float r = length(p);
-                float mu = dot(p / r, normalize(lightDir));
+                float mu = dot(p / r, normalize(lightDir.xyz));
                 color *= GetTransmittanceToSun(r, mu);
             }
             
@@ -79,7 +79,7 @@ bool RenderPlanet(vec3 ori, vec3 dir)
 
 bool RenderSun(vec3 ori, vec3 dir)
 {
-    const vec3 center = lightDir * sun.x;
+    const vec3 center = lightDir.xyz * sun.x;
     float t0, t1;
     if (!IntersectSphere(ori, dir, center, sun.y, t0, t1)) return false;
     // - to do: simple bloom effect around it? A dedicated bloom pass would be better, but maybe

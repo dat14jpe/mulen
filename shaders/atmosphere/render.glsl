@@ -37,7 +37,7 @@ void ComputeBaseDensities(out float rayleighDensity, out float mieDensity, float
 vec3 TransmittanceFromPoint(vec3 p)
 {
     float r = length(p);
-    float mu = dot(p / r, normalize(lightDir)); // - about 0.3 ms faster *with* the unnecessary lightDir normalisation. Hmm...
+    float mu = dot(p / r, normalize(lightDir.xyz)); // - about 0.3 ms faster *with* the unnecessary lightDir.xyz normalisation. Hmm...
     return vec3(GetSunOcclusion(r, mu)); // - just this for now
     //return GetTransmittanceToAtmosphereTop(r, mu); // - doesn't help;
     return GetTransmittanceToSun(r, mu);
@@ -75,11 +75,11 @@ void main()
     const float outerLength = ai.intersectsInner ? ai.innerMin - ai.outerMin : ai.outerMax - ai.outerMin;
     if (ai.intersectsOuter && outerLength > 0.0)
     {
-        vec3 p = ori + dir * ai.outerMin - planetLocation;
+        vec3 p = ori + dir * ai.outerMin - planetLocation.xyz;
         float r = length(p);
         float mu = dot(dir, p) / r;
-        float mu_s = dot(lightDir, p) / r;
-        float nu = dot(dir, lightDir);
+        float mu_s = dot(lightDir.xyz, p) / r;
+        float nu = dot(dir, lightDir.xyz);
         bool intersectsGround = false; // - to do
         //intersectsGround = solidDepth < outerMax;
         vec3 scattering = GetScattering(r, mu, mu_s, nu, intersectsGround);
@@ -87,10 +87,10 @@ void main()
         
         if (ai.intersectsInner)
         {
-            vec3 p = ori + dir * ai.innerMin - planetLocation;
+            vec3 p = ori + dir * ai.innerMin - planetLocation.xyz;
             float r = length(p);
             float mu = dot(dir, p) / r;
-            float mu_s = dot(lightDir, p) / r;
+            float mu_s = dot(lightDir.xyz, p) / r;
             scattering -= transmittance * GetScattering(r, mu, mu_s, nu, intersectsGround);
         }
         color += max(vec3(0.0), scattering);
@@ -111,7 +111,7 @@ void main()
         {
             float tmin2, tmax2;
             float R2 = planetRadius * 0.95;
-            if (IntersectSphere(ori, dir, planetLocation, R2, tmin2, tmax2))
+            if (IntersectSphere(ori, dir, planetLocation.xyz, R2, tmin2, tmax2))
             {
                 //if (false)
                 //if (tmin2 == 0.0)
@@ -131,21 +131,21 @@ void main()
             float voxelSize = 15.6431 * 1e3;
             
             float R = planetRadius + (elevation * voxelSize);
-            if (!IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) return;
+            if (!IntersectSphere(ori, dir, planetLocation.xyz, R, tmin, tmax)) return;
             
             dist = tmin;
             
             float pz = 0.0;
             pz = 2.2e5; // - arbitrary
-            if ((ori + dir * dist - planetLocation).z > pz)
+            if ((ori + dir * dist - planetLocation.xyz).z > pz)
             {
                 vec3 pn = vec3(0, 0, 1);
                 float pd = dot(-dir, pn);
-                dist = dot(ori - (planetLocation + pn * pz), pn) / pd;
-                if (length(ori + dir * dist - planetLocation) > R) return;
+                dist = dot(ori - (planetLocation.xyz + pn * pz), pn) / pd;
+                if (length(ori + dir * dist - planetLocation.xyz) > R) return;
             }
             
-            vec3 hit = ori + dir * dist - planetLocation;
+            vec3 hit = ori + dir * dist - planetLocation.xyz;
             OctreeTraversalData o;
             o.p = hit / atmScale;
             OctreeDescendMap(o);
@@ -206,7 +206,7 @@ void main()
         }
         
         const float outerMin = tmin;
-        const vec3 hit = ori + dir * tmin - planetLocation;
+        const vec3 hit = ori + dir * tmin - planetLocation.xyz;
         
         // - to do: find a way to not make clouds too dark/noisy without extreme numbers of steps
         // (maybe try to adaptively decrease step size at cloud boundaries?)
@@ -237,7 +237,7 @@ void main()
         
         const uint maxSteps = 2048u; // - arbitrary, for testing
         
-        const float mu = dot(lightDir, dir);
+        const float mu = dot(lightDir.xyz, dir);
         const float phaseR = PhaseRayleigh(mu);
         const float phaseM = PhaseMie(mu);
         float lastRayleighDensity = 0.0, lastMieDensity = 0.0; // - or should these be the logarithms? Investigate
@@ -296,7 +296,7 @@ void main()
                 
                 vec3 p = hit + dist * dir;
                 float r = length(p);
-                float mu = dot(p / r, normalize(lightDir)); // - about 0.3 ms faster *with* the unnecessary lightDir normalisation. Hmm...
+                float mu = dot(p / r, normalize(lightDir.xyz)); // - about 0.3 ms faster *with* the unnecessary lightDir.xyz normalisation. Hmm...
                 storedLight = storedLight.xxx;
                 
                 // (too simple - the phase function needs to be accounted for too, separately for the more indirect lighting)
@@ -317,8 +317,8 @@ void main()
                 mieDensity += voxelData.x * mieMul; // - could work now that the data has been simplified
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
-                T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
-                color += (phaseR * betaR * rayleighDensity + 
+                T = transmittance * exp(-(opticalDepthR * betaR.xyz + opticalDepthM * betaMEx));
+                color += (phaseR * betaR.xyz * rayleighDensity + 
                     //6 * // - testing (this brightens the clouds to great improvement. Must be tuned, somehow)
                     phaseM * betaMSca * mieDensity) 
                     * T * storedLight * atmStep;
@@ -393,12 +393,12 @@ void main()
         if (ai.intersectsOuter && (!ai.intersectsInner || ai.innerMax < actualSolidDepth))
         {
             // - to do: handle depth buffer value possibly interrupting this
-            vec3 p = ori + dir * ai.innerMax - planetLocation;
+            vec3 p = ori + dir * ai.innerMax - planetLocation.xyz;
             float r = length(p);
             float mu = dot(dir, p) / r;
-            float mu_s = dot(lightDir, p) / r;
-            float nu = dot(dir, lightDir);
-            vec3 T = transmittance * exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+            float mu_s = dot(lightDir.xyz, p) / r;
+            float nu = dot(dir, lightDir.xyz);
+            vec3 T = transmittance * exp(-(opticalDepthR * betaR.xyz + opticalDepthM * betaMEx));
             color += T * GetScattering(r, mu, mu_s, nu, false);
             // - to do: transmittance, also considering potentially occluding depth buffer value
             //transmittance *= GetTransmittance(r, mu, outerLength, true);
@@ -422,7 +422,7 @@ void main()
     const vec3 lightIntensity = vec3(1.0) * sun.z;
     color *= lightIntensity;
     
-    transmittance *= exp(-(opticalDepthR * betaR + opticalDepthM * betaMEx));
+    transmittance *= exp(-(opticalDepthR * betaR.xyz + opticalDepthM * betaMEx));
     color *= 3.0; // - testing (to do: tune light intensity instead)
     //color += backLight * transmittance;
     //color = vec3(1.0); // - testing

@@ -68,12 +68,12 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
     
     float tmin, tmax;
     float R = planetRadius + atmosphereHeight;
-    if (IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) // atmosphere intersection
+    if (IntersectSphere(ori, dir, vec3(0.0), R, tmin, tmax)) // atmosphere intersection
     {
         const uint maxSteps = 512u; // - arbitrary, for testing
         float maxDist = tmax;
         
-        /*if (IntersectSphere(ori, dir, planetLocation, planetRadius - voxelSize, tmin, tmax))
+        /*if (IntersectSphere(ori, dir, vec3(0.0), planetRadius - voxelSize, tmin, tmax))
         {
             maxDist = min(maxDist, tmin);
         }*/
@@ -178,18 +178,18 @@ float ConeTraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFac
     //ori += normalize(ori) * voxelSize * 0.5 * rand3D(ori / 6371000.0);
     /*if (length(ori) / planetRadius < 1.0)
     {
-        ori = planetLocation + normalize(ori - planetLocation) * planetRadius;
+        ori = normalize(ori) * planetRadius;
     }*/
     
     
     float tmin, tmax;
     float R = planetRadius + atmosphereHeight;
-    if (IntersectSphere(ori, dir, planetLocation, R, tmin, tmax)) // atmosphere intersection
+    if (IntersectSphere(ori, dir, vec3(0.0), R, tmin, tmax)) // atmosphere intersection
     {
         const uint maxSteps = 1024u; // - arbitrary, for testing
         float maxDist = tmax;
         
-        /*if (IntersectSphere(ori, dir, planetLocation, planetRadius - voxelSize, tmin, tmax))
+        /*if (IntersectSphere(ori, dir, vec3(0.0), planetRadius - voxelSize, tmin, tmax))
         {
             maxDist = min(maxDist, tmin);
         }*/
@@ -292,7 +292,7 @@ void main()
         if (length(p) < 1.01) p = normalize(p);
     }
     
-    const vec3 dir = lightDir;
+    const vec3 dir = lightDir.xyz;
     vec3 ori = p * planetRadius;
     
     const float stepFactor = 
@@ -315,7 +315,7 @@ void main()
         
         //if (false)
         if (shadow > 0.0
-            && length(ori - planetLocation) < planetRadius + atmosphereHeight // only ray trace for voxels within the atmosphere
+            && length(ori) < planetRadius + atmosphereHeight // only ray trace for voxels within the atmosphere
             )
         {
             //dist += 1 * stepFactor * upload.nodeLocation.w * atmScale; // avoid self-shadowing

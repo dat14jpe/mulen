@@ -26,7 +26,7 @@ vec3 ComputeTransmittance(float r0, float mu)
         lastDensityM = densityM;
         // (maybe add ozone and homogeneous Mie here too (at least ozone))
     }
-    vec3 opticalDepth = betaR * opticalDepthR + vec3(betaMEx * opticalDepthM);
+    vec3 opticalDepth = betaR.xyz * opticalDepthR + vec3(betaMEx * opticalDepthM);
     return exp(-opticalDepth);
 }
 

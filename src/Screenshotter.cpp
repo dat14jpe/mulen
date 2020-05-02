@@ -2,6 +2,7 @@
 #include "util/Window.hpp"
 #include "util/lodepng.h"
 #include "Camera.hpp"
+#include "Atmosphere.hpp"
 #include <iostream>
 #include <iomanip>
 #include <ctime>
@@ -38,7 +39,7 @@ namespace Mulen {
         return std::string(dir) + '/' + dateStr + id + std::to_string(newIndex) + extension;
     }
 
-    void Screenshotter::TakeScreenshot(Window& window, Camera& camera)
+    void Screenshotter::TakeScreenshot(Window& window, const Camera& camera, const Atmosphere& atmosphere)
     {
         const auto filename = DetermineFileName(); // (maybe do this in the other thread instead?)
 
@@ -52,10 +53,13 @@ namespace Mulen {
         Util::Screenshotter::KeyValuePairs keyValuePairs;
         keyValuePairs[keyPrefix + "camera_position"] = positionStr;
         keyValuePairs[keyPrefix + "camera_orientation"] = orientationStr;
+        keyValuePairs[keyPrefix + "camera_upright"] = std::to_string(camera.upright);
+        keyValuePairs[keyPrefix + "atmosphere_animation_time"] = std::to_string(atmosphere.GetAnimationTime());
+        keyValuePairs[keyPrefix + "atmosphere_light_time"] = std::to_string(atmosphere.GetLightTime());
         screenshotter.TakeScreenshot(filename, window.GetSize(), std::move(keyValuePairs));
     }
 
-    void Screenshotter::ReceiveScreenshot(std::string filename, Camera& camera)
+    void Screenshotter::ReceiveScreenshot(std::string filename, Camera& camera, Atmosphere& atmosphere)
     {
         // Try to decode as PNG (maybe in another thread, eventually?) and retrieve Mulen-specific data if there:
         std::vector<unsigned char> png;
@@ -97,6 +101,23 @@ namespace Mulen {
                         camera.SetOrientation(o);
                         cameraWasUpdated = true;
                     }
+                    else if (k == "camera_upright")
+                    {
+                        ss >> camera.upright;
+                        cameraWasUpdated = true;
+                    }
+                    else if (k == "atmosphere_animation_time")
+                    {
+                        double t;
+                        ss >> t;
+                        atmosphere.SetAnimationTime(t);
+                    }
+                    else if (k == "atmosphere_light_time")
+                    {
+                        double t;
+                        ss >> t;
+                        atmosphere.SetLightTime(t);
+                    }
                     else
                     {
                         std::cout << "Unknown key-value pair in image: \"" << key << "\" = \"" << str << "\"" << std::endl;
@@ -105,7 +126,6 @@ namespace Mulen {
             }
 
             camera.FlagForUpdate();
-            // - maybe we need to mark the camera for updates, somehow? Yes, eventually
             // - to do: maybe check if any values were missing
         }
     }

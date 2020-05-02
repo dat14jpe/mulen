@@ -10,6 +10,7 @@
 #include "Camera.hpp"
 #include "util/Timer.hpp"
 #include "Screenshotter.hpp"
+#include "LightSource.hpp"
 
 namespace Mulen {
     class App : public Window::App {
@@ -24,15 +25,17 @@ namespace Mulen {
 
         glm::dvec2 lastCursorPos;
         Camera camera;
+        LightSource light;
         Atmosphere atmosphere;
 
         Util::Timer timer;
 
         bool fpsMode = false;
-        bool update = true, rotateLight = false,//true,
-            upright = true, collision = true, fly = true;
-        int depthLimit = 10u, downscaleFactor = 4u;
+        bool collision = true, fly = true;
+        Atmosphere::UpdateParams atmUpdateParams;
+        int downscaleFactor = 4u;
         const int maxDepthLimit = 16u;
+        double lastTime;
 
         bool InitializeAtmosphere();
         bool Reload();

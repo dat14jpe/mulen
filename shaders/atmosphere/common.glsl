@@ -3,17 +3,41 @@
 
 const float PI = 3.14159265358979323846;
 
-// - to do: UBO
-uniform mat4  viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat, prevViewProjMat;
-uniform uint  rootGroupIndex;
-uniform float time;
-uniform float Fcoef_half;
-uniform float stepSize;
-uniform float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
-uniform vec3  planetLocation;
-uniform vec3  lightDir;
-uniform vec3  sun; // distance, radius, intensity (already attenuated)
-uniform float Rt, Rg; // atmosphere top and bottom (ground) radii
+
+#define UBO_GLOBAL               0
+#define SSBO_VOXEL_NODES         0
+#define SSBO_VOXEL_UPLOAD        1
+#define SSBO_VOXEL_UPLOAD_BRICKS 2
+#define NodeArity 8
+#define BrickRes 8
+const uint IndexMask     = 0x00ffffffu;
+const uint InvalidIndex  = 0xffffffffu & IndexMask;
+const uint EmptyBrickBit = 0x80000000u;
+
+
+layout(std140, binding = UBO_GLOBAL) 
+uniform GlobalUniforms
+{
+    mat4  viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat, prevViewProjMat;
+    vec4  planetLocation;
+    vec4  lightDir;
+    vec4  sun; // distance, radius, intensity (already attenuated)
+    vec4 betaR;
+    
+    uint  rootGroupIndex;
+    float time, animationTime;
+    float Fcoef_half;
+    float stepSize;
+    float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
+    float Rt, Rg; // atmosphere top and bottom (ground) radii
+    
+    // Physical values:
+    float HR, HM;
+    float betaMEx, betaMSca, mieG;
+
+    // Sample scaling:
+    float offsetR, scaleR, offsetM, scaleM;
+};
 
 const int TransmittanceWidth = 256, TransmittanceHeight = 64;
 
@@ -22,13 +46,6 @@ const float MuSMin = -0.2; // cos(102 degrees), which was chosen for Earth in pa
 
 const float mieMul = 0.25 * 100.0 * 4.0 * 4.0; // - to do: tune, put elsewhere
 
-
-// Physical values:
-uniform vec3 betaR;
-uniform float HR, HM, betaMEx, betaMSca, mieG;
-
-// Sample scaling:
-uniform float offsetR, scaleR, offsetM, scaleM;
 
 uniform layout(binding=0) sampler3D  brickTexture;
 uniform layout(binding=1) sampler3D  brickLightTexture;
@@ -40,14 +57,6 @@ uniform layout(binding=7) usampler3D frustumOctreeMap;
 
 uniform vec3 mapPosition, mapScale;
 
-#define SSBO_VOXEL_NODES         0
-#define SSBO_VOXEL_UPLOAD        1
-#define SSBO_VOXEL_UPLOAD_BRICKS 2
-#define NodeArity 8
-const uint IndexMask     = 0x00ffffffu;
-const uint InvalidIndex  = 0xffffffffu & IndexMask;
-const uint EmptyBrickBit = 0x80000000u;
-#define BrickRes 8
 
 struct Node
 {
@@ -225,7 +234,6 @@ void OctreeDescendMapMaxDepth(inout OctreeTraversalData o, uint maxDepth)
     OctreeDescendMapInit(octreeMapTexture, sampleLoc, o);
     OctreeDescendLoopMaxDepth(o, maxDepth);
 }
-// - to do: depth-limited map descension
 
 
 float RayleighDensityFromSample(float v)
@@ -273,8 +281,8 @@ AtmosphereIntersection IntersectAtmosphere(vec3 ori, vec3 dir)
     AtmosphereIntersection ai;
     ai.outerR = Rt; // upper atmosphere radius (not *cloud* level, but far above it)
     ai.innerR = planetRadius + atmosphereHeight * 0.5; // - to do: make uniform
-    ai.intersectsOuter = IntersectSphere(ori, dir, planetLocation, ai.outerR, ai.outerMin, ai.outerMax);
-    ai.intersectsInner = IntersectSphere(ori, dir, planetLocation, ai.innerR, ai.innerMin, ai.innerMax);
+    ai.intersectsOuter = IntersectSphere(ori, dir, planetLocation.xyz, ai.outerR, ai.outerMin, ai.outerMax);
+    ai.intersectsInner = IntersectSphere(ori, dir, planetLocation.xyz, ai.innerR, ai.innerMin, ai.innerMax);
     return ai;
 }
 
@@ -407,7 +415,7 @@ void ComputeSingleScattering
         rayleigh += dray;
         mie += dmie;
     }
-    rayleigh *= betaR * dx;
+    rayleigh *= betaR.xyz * dx;
     mie *= betaMSca * dx;
 }
 

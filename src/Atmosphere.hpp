@@ -11,6 +11,7 @@ namespace Util {
 
 namespace Mulen {
     class Camera;
+    class LightSource;
 
     class Atmosphere : public Object
     {
@@ -26,13 +27,12 @@ namespace Mulen {
         double betaMSca = 2e-5; // Mie scattering
         double betaMEx = betaMSca / 0.9; // Mie extinction
 
-        double sunDistance = 1.5e11, sunRadius = 6.957e8, sunIntensity = 1e1; // - to do: make intensity physically based
-
 
         Octree octree; // - to do: multiple octrees (2 or 3?) for multithreaded updates
         NodeIndex rootGroupIndex;
 
         // Render:
+        Util::Buffer uniformBuffer;
         Util::Shader postShader;
         Util::Framebuffer fbo;
         Util::Texture depthTexture, lightTexture;
@@ -68,11 +68,12 @@ namespace Mulen {
 
         Util::Timer& timer;
 
-        double time = 0.0, lightTime = 0.0;
-        bool rotateLight = true;
+        double renderTime = 0.0;
+        double time = 0.0, lightTime = 0.0; // *animation* time and *light* time
 
         AtmosphereUpdater updater;
 
+        void UpdateUniforms(const Camera&, const LightSource&);
 
     public:
         Atmosphere(Util::Timer& timer) : timer{ timer }, updater{ *this } {}
@@ -84,8 +85,14 @@ namespace Mulen {
         bool Init(const Params&);
         bool ReloadShaders(const std::string& shaderPath);
 
-        void Update(bool update, const Camera&, unsigned depthLimit);
-        void Render(const glm::ivec2& res, double time, const Camera&);
+
+        struct UpdateParams
+        {
+            bool update, animate, rotateLight;
+            int depthLimit;
+        };
+        void Update(double dt, const UpdateParams&, const Camera&, const LightSource&);
+        void Render(const glm::ivec2& res, const Camera&, const LightSource&);
 
         double GetPlanetRadius() const { return planetRadius; }
         double GetHeight() const { return height; }
@@ -95,7 +102,11 @@ namespace Mulen {
             return updater.GetRenderIteration().maxDepth;
         }
 
-        void SetLightRotates(bool b) { rotateLight = b; }
+        double GetAnimationTime() const { return time; }
+        double GetLightTime() const { return lightTime; }
+        void SetAnimationTime(double t) { time = t; }
+        void SetLightTime(double t) { lightTime = t; }
+
         void SetDownscaleFactor(unsigned f) { downscaleFactor = f; }
     };
 }

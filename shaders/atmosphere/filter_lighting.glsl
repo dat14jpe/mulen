@@ -44,7 +44,7 @@ void main()
     const float voxelSize = 2.0 / float(BrickRes - 1u) * upload.nodeLocation.w * atmosphereScale * planetRadius;
     
     vec3 ori = p * planetRadius;
-    const float H = length(ori - planetLocation);
+    const float H = length(ori);// - planetLocation.xyz);
     const bool notInShell = 
         H > planetRadius + atmosphereHeight + voxelSize || // outside atmosphere
         H < planetRadius - voxelSize; // inside planet;
@@ -96,7 +96,7 @@ void main()
             // (for now, it seems to brighten clouds up too much, probably from the unshadowed air above them)
             // Maybe there should be an attempt to sample in a cone directed towards the light, instead of cubically?
             
-            //offs = offs * max(0.0, abs(dot(lightDir, normalize(offs)))); // - experimental
+            //offs = offs * max(0.0, abs(dot(lightDir.xyz, normalize(offs)))); // - experimental
             
             vec3 p = lp + offs * localVoxelSize;
             if (!any(greaterThan(abs(p), vec3(1.0))))
@@ -113,5 +113,6 @@ void main()
         light /= float(res * res * res);
     }
     
+    //light = float(0.0);
     imageStore(lightImage, ivec3(writeOffs), vec4(light, vec3(0.0)));
 }

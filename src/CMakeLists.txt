@@ -15,6 +15,7 @@ add_executable(${CMAKE_PROJECT_NAME}
     Object.cpp
     Screenshotter.hpp
     Screenshotter.cpp
+    LightSource.hpp
 )
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 

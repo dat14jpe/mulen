@@ -3,9 +3,33 @@
 #include <math.h>
 #include <functional>
 #include "util/Timer.hpp"
+#include "LightSource.hpp"
 
 
 namespace Mulen {
+
+    struct Uniforms
+    {
+        // Observe the padding required by OpenGL std140 layout:
+
+        glm::mat4 viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat, prevViewProjMat;
+
+        glm::vec4 planetLocation, lightDir, sun;
+        glm::vec4 betaR;
+
+        unsigned rootGroupIndex;
+        float time, animationTime,
+            Fcoef_half, stepSize, 
+            atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
+        float Rt, Rg;
+
+        float HR, HM;
+        float betaMEx, betaMSca, mieG;
+
+        float offsetR, scaleR, offsetM, scaleM;
+    };
+
+
     bool Atmosphere::Init(const Atmosphere::Params& p)
     {
         vao.Create();
@@ -32,7 +56,7 @@ namespace Mulen {
         texMap.x = width / brickRes;
         texMap.y = glm::min(maxWidth / brickRes, unsigned(numBricks + texMap.x - 1u) / texMap.x);
         texMap.z = (unsigned(numBricks) + texMap.x * texMap.y - 1u) / (texMap.x * texMap.y);
-        texMap.x = texMap.y = texMap.z = std::ceil(std::pow(double(numBricks), 1.0 / 3.0));
+        texMap.x = texMap.y = texMap.z = static_cast<unsigned>(std::ceil(std::pow(double(numBricks), 1.0 / 3.0)));
         width = texMap.x * brickRes;
         height = texMap.y * brickRes;
         depth = texMap.z * brickRes;
@@ -98,47 +122,8 @@ namespace Mulen {
 
     void Atmosphere::SetUniforms(Util::Shader& shader)
     {
-        auto lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
-        // - light rotation test:
-        auto lightSpeed = 1.0 / 1000.0;
-        auto lightRot = glm::angleAxis(lightTime * 3.141592653589793 * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
-        lightDir = glm::rotate(lightRot, lightDir);
-
-        // - to do: use a UBO instead
-        shader.Uniform1u("rootGroupIndex", glm::uvec1{ rootGroupIndex });
         shader.Uniform3u("uBricksRes", glm::uvec3{ texMap });
         shader.Uniform3f("bricksRes", glm::vec3{ texMap });
-        shader.Uniform1f("stepSize", glm::vec1{ 1 });
-        shader.Uniform1f("planetRadius", glm::vec1{ (float)planetRadius });
-        shader.Uniform1f("atmosphereRadius", glm::vec1{ (float)(planetRadius * scale) });
-        shader.Uniform1f("atmosphereScale", glm::vec1{ (float)scale });
-        shader.Uniform1f("atmosphereHeight", glm::vec1{ (float)height });
-        shader.Uniform3f("lightDir", lightDir);
-        shader.Uniform3f("sun", glm::vec3{ sunDistance, sunRadius, sunIntensity });
-
-        shader.Uniform1f("HR", glm::vec1((float)HR));
-        shader.Uniform3f("betaR", betaR);
-        shader.Uniform1f("HM", glm::vec1((float)HM));
-        shader.Uniform1f("betaMEx", glm::vec1((float)betaMEx));
-        shader.Uniform1f("betaMSca", glm::vec1((float)betaMSca));
-        shader.Uniform1f("mieG", glm::vec1((float)mieG));
-        shader.Uniform1f("Rg", glm::vec1{ (float)planetRadius });
-        shader.Uniform1f("Rt", glm::vec1{ (float)(planetRadius + height * 2.0) });
-
-        // - tuning these is important to avoid visual banding/clamping
-        shader.Uniform1f("offsetR", glm::vec1{ 2.0f });
-        shader.Uniform1f("scaleR", glm::vec1{ -20.0f });
-        auto offsetM = 20.0f, scaleM = -80.0f;
-        offsetM = 0.0; scaleM = 1.0; // - testing
-        shader.Uniform1f("offsetM", glm::vec1{ offsetM });
-        shader.Uniform1f("scaleM", glm::vec1{ scaleM });
-
-        // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
-        // - to do: use actual far plane (parameter from outside the Atmosphere class?)
-        const double farplane = 1e8;
-        const double Fcoef = 2.0 / log2(farplane + 1.0);
-        shader.Uniform1f("Fcoef", glm::vec1{ float(Fcoef) });
-        shader.Uniform1f("Fcoef_half", glm::vec1{ float(0.5 * Fcoef) });
     }
 
     bool Atmosphere::ReloadShaders(const std::string& path)
@@ -167,8 +152,88 @@ namespace Mulen {
         return true;
     }
 
-    void Atmosphere::Update(bool update, const Camera& camera, unsigned depthLimit)
+    void Atmosphere::UpdateUniforms(const Camera& camera, const LightSource& light)
     {
+        // - to do: light direction also from LightSource object
+        auto lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
+        // - light rotation test:
+        auto lightSpeed = 1.0 / 1000.0;
+        auto lightRot = glm::angleAxis(lightTime * 3.141592653589793 * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
+        lightDir = glm::rotate(lightRot, lightDir);
+
+        const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position - camera.GetPosition());
+        const auto viewMat = camera.GetOrientationMatrix();
+        const auto projMat = camera.GetProjectionMatrix();
+        const auto viewProjMat = projMat * viewMat;
+        const auto invWorldMat = glm::inverse(worldMat);
+        const auto invViewProjMat = glm::inverse(projMat * viewMat);
+        const auto prevViewProjMat = this->prevViewProjMat;
+        this->prevViewProjMat = viewProjMat;
+
+        Uniforms uniforms = {};
+
+        uniforms.viewProjMat = viewProjMat;
+        uniforms.invViewMat = glm::inverse(viewMat);
+        uniforms.invProjMat = glm::inverse(projMat);
+        uniforms.invViewProjMat = invViewProjMat;
+        uniforms.worldMat = worldMat;
+        uniforms.prevViewProjMat = prevViewProjMat;
+        uniforms.time = static_cast<float>(renderTime);
+        uniforms.animationTime = static_cast<float>(time);
+        uniforms.planetLocation = glm::vec4(GetPosition() - camera.GetPosition(), 0.0);
+
+        uniforms.rootGroupIndex = rootGroupIndex;
+        uniforms.stepSize = 1;
+        uniforms.planetRadius = (float)planetRadius;
+        uniforms.atmosphereRadius = (float)(planetRadius * scale);
+        uniforms.atmosphereScale = (float)scale;
+        uniforms.atmosphereHeight = (float)height;
+        uniforms.lightDir = glm::vec4(lightDir, 0.0);
+        uniforms.sun = glm::vec4{ light.distance, light.radius, light.intensity, 0.0 };
+
+        uniforms.HR = (float)HR;
+        uniforms.betaR = glm::vec4(betaR, 0.0);
+        uniforms.HM = (float)HM;
+        uniforms.betaMEx = (float)betaMEx;
+        uniforms.betaMSca = (float)betaMSca;
+        uniforms.mieG = (float)mieG;
+        uniforms.Rg = (float)planetRadius;
+        uniforms.Rt = (float)(planetRadius + height * 2.0);
+
+        // - tuning these is important to avoid visual banding/clamping
+        uniforms.offsetR = 2.0f;
+        uniforms.scaleR = -20.0f;
+        auto offsetM = 20.0f, scaleM = -80.0f;
+        offsetM = 0.0; scaleM = 1.0; // - testing
+        uniforms.offsetM = offsetM;
+        uniforms.scaleM = scaleM;
+
+        // https://outerra.blogspot.com/2013/07/logarithmic-depth-buffer-optimizations.html
+        // - to do: use actual far plane (parameter from outside the Atmosphere class?)
+        const double farplane = 1e8;
+        const double Fcoef = 2.0 / log2(farplane + 1.0);
+        //uniforms.Fcoef = float(Fcoef);
+        uniforms.Fcoef_half = float(0.5 * Fcoef);
+
+
+        if (uniformBuffer.GetSize() < sizeof(Uniforms))
+        {
+            uniformBuffer.Create(sizeof(Uniforms), GL_DYNAMIC_STORAGE_BIT);
+        }
+        uniformBuffer.Upload(0u, sizeof(Uniforms), &uniforms);
+        uniformBuffer.BindBase(GL_UNIFORM_BUFFER, 0u);
+    }
+
+    void Atmosphere::Update(double dt, const UpdateParams& params, const Camera& camera, const LightSource& light)
+    {
+        renderTime += dt;
+        if (params.rotateLight) lightTime += dt;
+        if (params.animate) time += dt;
+
+        // - to do: make it clear that the UBO update is in here
+        UpdateUniforms(camera, light);
+
+
         // - to do: divide this over multiple frames (while two past states are being interpolated)
         {
             // Update atmosphere:
@@ -244,30 +309,24 @@ namespace Mulen {
             u.FilterLighting(state, 0u, it.bricksToUpload.size());
         }
 
-        if (update) // are we doing continuous updates?
+        if (params.update) // are we doing continuous updates?
         {
             const auto period = 1.0; // - to do: make this configurable
             auto cameraPos = camera.GetPosition() - GetPosition();
             cameraPos /= planetRadius * scale;
 
-            AtmosphereUpdater::IterationParameters params;
-            params.time = time;
-            params.cameraPosition = cameraPos;
+            AtmosphereUpdater::IterationParameters updaterParams;
+            updaterParams.time = time;
+            updaterParams.cameraPosition = cameraPos;
+            updaterParams.depthLimit = params.depthLimit;
 
-            // - depth 10 gives voxel resolution circa 1 km
-            // (to do: try to *selectively* reach at least depth 13, to enable smaller clouds. Around 16 would be perfect, but likely much too expensive)
-            params.depthLimit = depthLimit;
-
-            updater.OnFrame(params, period);
+            updater.OnFrame(updaterParams, period);
         }
     }
 
-    void Atmosphere::Render(const glm::ivec2& res, double time, const Camera& camera)
+    void Atmosphere::Render(const glm::ivec2& res, const Camera& camera, const LightSource& light)
     {
         auto& u = updater;
-
-        if (rotateLight) lightTime += time - this->time;
-        this->time = time;
 
         // Resize the render targets if resolution has changed.
         if (depthTexture.GetWidth() != res.x || depthTexture.GetHeight() != res.y)
@@ -295,14 +354,6 @@ namespace Mulen {
             }
         }
 
-        const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position - camera.GetPosition());
-        const auto viewMat = camera.GetOrientationMatrix();
-        const auto projMat = camera.GetProjectionMatrix();
-        const auto viewProjMat = projMat * viewMat;
-        const auto invWorldMat = glm::inverse(worldMat);
-        const auto invViewProjMat = glm::inverse(projMat * viewMat);
-        const auto prevViewProjMat = this->prevViewProjMat;
-        this->prevViewProjMat = viewProjMat;
 
         auto computeFragOffset = [&](unsigned i)
         {
@@ -323,19 +374,8 @@ namespace Mulen {
         auto setUpShader = [&](Util::Shader& shader) -> Util::Shader&
         {
             shader.Bind();
-            shader.Uniform1f("time", glm::vec1(static_cast<float>(time)));
-            shader.UniformMat4("invViewProjMat", invViewProjMat);
-            shader.UniformMat4("invViewMat", glm::inverse(viewMat));
-            shader.UniformMat4("invProjMat", glm::inverse(projMat));
-            shader.UniformMat4("invWorldMat", invWorldMat);
-            shader.UniformMat4("viewProjMat", viewProjMat);
-            shader.UniformMat4("prevViewProjMat", prevViewProjMat);
-            shader.Uniform3f("planetLocation", GetPosition() - camera.GetPosition());
-
-            // - to do: actual values
             shader.Uniform2u("fragOffset", fragOffset);
             shader.Uniform2u("fragFactor", glm::uvec2{ downscaleFactor });
-
             SetUniforms(shader);
             return shader;
         };
@@ -399,7 +439,7 @@ namespace Mulen {
 
             // Transform min/max to "octree space" (i.e. on [-1, 1]) and clamp:
             const auto octreeMin = glm::vec3(-1.0), octreeMax = glm::vec3(1.0);
-            const float octreeScale = static_cast<double>(planetRadius * scale);
+            const auto octreeScale = static_cast<float>(planetRadius * scale);
             min = glm::clamp(min / octreeScale, octreeMin, octreeMax);
             max = glm::clamp(max / octreeScale, octreeMin, octreeMax);
 
@@ -426,7 +466,7 @@ namespace Mulen {
                     return false; // the AABB doesn't fit in this level; we need to go bigger sizes
                 }
 
-                texel1 = texel0 + decltype(texel0)(res);
+                texel1 = texel0 + static_cast<decltype(texel0)>(res);
                 mapMin = texel0 * texelSize - 1.0f;
                 mapMax = texel1 * texelSize - 1.0f;
                 return true; // the AABB can be mapped at this level

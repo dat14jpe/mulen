@@ -12,9 +12,19 @@ namespace Mulen {
     App::App(Window& window)
         : Window::App{ window }
         , atmosphere{ timer }
+        , lastTime{ glfwGetTime() }
     {
+        atmUpdateParams.depthLimit = 12u;
+        atmUpdateParams.animate = false;
+        atmUpdateParams.rotateLight = false;
+        atmUpdateParams.update = true;
+
         Reload();
         window.SetVSync(true);
+
+        light.distance = 1.5e11;
+        light.radius = 6.957e8;
+        light.intensity = 1e1; // - to do: make physically based
 
         InitializeAtmosphere();
         camera.SetPosition(Object::Position(0, 0, atmosphere.GetPlanetRadius() * 2.25));
@@ -36,7 +46,9 @@ namespace Mulen {
 
     void App::OnFrame()
     {
-        const auto dt = 1.0f / ImGui::GetIO().Framerate;
+        const auto time = glfwGetTime();
+        const auto dt = time - lastTime;//1.0f / ImGui::GetIO().Framerate;
+        lastTime = time;
         const auto size = glm::max(glm::ivec2(1), window.GetSize());
         const float aspect = float(size.x) / float(size.y);
         const float fovy = 45.0f;
@@ -51,12 +63,13 @@ namespace Mulen {
             ImGui::Begin("Atmosphere");
 
             ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
-            ImGui::Checkbox("Update", &update);
-            ImGui::Checkbox("Rotate light", &rotateLight);
-            ImGui::Checkbox("Upright", &upright);
+            ImGui::Checkbox("Update", &atmUpdateParams.update);
+            ImGui::Checkbox("Rotate light", &atmUpdateParams.rotateLight);
+            ImGui::Checkbox("Animate", &atmUpdateParams.animate);
+            ImGui::Checkbox("Upright", &camera.upright);
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
-            ImGui::SliderInt("Depth", &depthLimit, 1u, maxDepthLimit);
+            ImGui::SliderInt("Depth", &atmUpdateParams.depthLimit, 1u, maxDepthLimit);
             ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
             if (ImGui::Button("Re-init"))
             {
@@ -213,7 +226,7 @@ namespace Mulen {
                 camera.needsUpdate = false;
             }
 
-            if (window.IsKeyPressed(GLFW_KEY_U) || upright)
+            if (window.IsKeyPressed(GLFW_KEY_U) || camera.upright)
             {
                 // Idea: rotate so that view right vector is perpendicular to planet normal at current location.
                 auto viewMat = camera.GetViewMatrix();
@@ -225,10 +238,9 @@ namespace Mulen {
             }
         }
 
-        atmosphere.SetLightRotates(rotateLight);
         atmosphere.SetDownscaleFactor(downscaleFactor);
-        atmosphere.Update(update, camera, depthLimit);
-        atmosphere.Render(size, glfwGetTime(), camera);
+        atmosphere.Update(dt, atmUpdateParams, camera, light);
+        atmosphere.Render(size, camera, light);
 
         timer.EndFrame();
     }
@@ -255,23 +267,23 @@ namespace Mulen {
             showGui = !showGui;
             break;
         case GLFW_KEY_L:
-            rotateLight = !rotateLight;
+            atmUpdateParams.rotateLight = !atmUpdateParams.rotateLight;
             break;
         case GLFW_KEY_U:
-            update = !update;
+            atmUpdateParams.update = !atmUpdateParams.update;
             break;
         case GLFW_KEY_PRINT_SCREEN:
         case GLFW_KEY_F3:
-            screenshotter.TakeScreenshot(window, camera);
+            screenshotter.TakeScreenshot(window, camera, atmosphere);
             break;
         case GLFW_KEY_ENTER:
             window.DisableCursor(fpsMode = !fpsMode);
             break;
         case GLFW_KEY_KP_ADD:
-            depthLimit += depthLimit < maxDepthLimit ? 1 : 0;
+            atmUpdateParams.depthLimit += atmUpdateParams.depthLimit < maxDepthLimit ? 1 : 0;
             break;
         case GLFW_KEY_KP_SUBTRACT:
-            depthLimit -= depthLimit > 0 ? 1 : 0;
+            atmUpdateParams.depthLimit -= atmUpdateParams.depthLimit > 0 ? 1 : 0;
             break;
         }
     }
@@ -279,6 +291,6 @@ namespace Mulen {
     void App::OnDrop(int count, const char** paths)
     {
         if (!count) return;
-        screenshotter.ReceiveScreenshot(paths[0u], camera);
+        screenshotter.ReceiveScreenshot(paths[0u], camera, atmosphere);
     }
 }
