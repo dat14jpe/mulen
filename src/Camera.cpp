@@ -6,7 +6,8 @@ namespace Mulen {
         // - to do: proper integration (seeming FPS-invariance should be a given)
         const auto dampening = 0.8;
         position += velocity * dt;
-        velocity *= pow(dampening, 60.0 * dt);
+        //velocity *= pow(dampening, 60.0 * dt);
+        velocity *= exp(-dampening * 20.0 * dt);
         velocity += acceleration * dt;
         acceleration = Position{ 0.0 };
     }

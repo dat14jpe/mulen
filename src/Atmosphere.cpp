@@ -297,16 +297,20 @@ namespace Mulen {
             gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * it.nodesToUpload.size(), it.nodesToUpload.data());
             gpuUploadBricks.Upload(0, sizeof(UploadBrick) * it.bricksToUpload.size(), it.bricksToUpload.data());
 
-            auto& state = gpuStates[0];
-            state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
-            state.brickTexture.Bind(0u);
-            state.octreeMap.Bind(2u);
+            // - to do: smarter (distributed/copying) initial setup
+            for (size_t i = 0u; i < std::extent<decltype(gpuStates)>::value; ++i)
+            {
+                auto& state = gpuStates[(1 + i) % std::extent<decltype(gpuStates)>::value];
+                state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
+                state.brickTexture.Bind(0u);
+                state.octreeMap.Bind(2u);
 
-            u.UpdateNodes(it.nodesToUpload.size());
-            u.UpdateMap(state.octreeMap);
-            u.GenerateBricks(state, 0u, it.bricksToUpload.size());
-            u.LightBricks(state, 0u, it.bricksToUpload.size());
-            u.FilterLighting(state, 0u, it.bricksToUpload.size());
+                u.UpdateNodes(it.nodesToUpload.size());
+                u.UpdateMap(state.octreeMap);
+                u.GenerateBricks(state, 0u, it.bricksToUpload.size());
+                u.LightBricks(state, 0u, it.bricksToUpload.size());
+                u.FilterLighting(state, 0u, it.bricksToUpload.size());
+            }
         }
 
         if (params.update) // are we doing continuous updates?
@@ -381,7 +385,11 @@ namespace Mulen {
         };
 
         fbo.Bind();
-        auto& state = gpuStates[(u.updateStateIndex + 1u) % std::extent<decltype(gpuStates)>::value];
+        const auto numStates = std::extent<decltype(gpuStates)>::value;
+        const auto prevStateIndex = (u.updateStateIndex + 1u) % numStates;
+        const auto nextStateIndex = (u.updateStateIndex + 2u) % numStates;
+        auto& state = gpuStates[prevStateIndex];
+        auto& nextState = gpuStates[nextStateIndex];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         state.brickTexture.Bind(0u);
         state.brickLightTexture.Bind(1u);
@@ -390,6 +398,8 @@ namespace Mulen {
         transmittanceTexture.Bind(5u);
         scatterTexture.Bind(6u);
         octreeMap.Bind(7u);
+        nextState.brickTexture.Bind(8u);
+        nextState.brickLightTexture.Bind(9u);
         vao.Bind();
 
         glm::vec3 mapPosition, mapScale;

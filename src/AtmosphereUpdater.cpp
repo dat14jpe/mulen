@@ -150,7 +150,7 @@ namespace Mulen {
     void AtmosphereUpdater::LightBricks(GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Lighting");
-        glBindImageTexture(0u, atmosphere.brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+       glBindImageTexture(0u, atmosphere.brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
         auto& shader = SetShader(atmosphere.updateLightShader);
         shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
         glDispatchCompute((GLuint)num, 1u, 1u);
@@ -160,7 +160,8 @@ namespace Mulen {
     void AtmosphereUpdater::FilterLighting(GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Light filter");
-        glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+        //glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+        glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_READ_WRITE, BrickFormat);
         auto& shader = SetShader(atmosphere.lightFilterShader);
         shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
         atmosphere.brickLightTextureTemp.Bind(1u);

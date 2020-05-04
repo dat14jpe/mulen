@@ -44,7 +44,7 @@ namespace Mulen {
         unsigned frame = 0u;
         unsigned downscaleFactor = 1u;
 
-        GpuState gpuStates[2];
+        GpuState gpuStates[3];
         Util::Texture brickLightTextureTemp;
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader, resolveShader;

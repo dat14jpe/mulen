@@ -54,6 +54,8 @@ uniform layout(binding=3) sampler2D  depthTexture;
 uniform layout(binding=5) sampler2D  transmittanceTexture;
 uniform layout(binding=6) sampler3D  scatterTexture;
 uniform layout(binding=7) usampler3D frustumOctreeMap;
+uniform layout(binding=8) sampler3D  nextBrickTexture;
+uniform layout(binding=9) sampler3D  nextBrickLightTexture;
 
 uniform vec3 mapPosition, mapScale;
 

@@ -5,7 +5,7 @@
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"
 
-uniform layout(binding=0, r16f) writeonly image3D lightImage;
+uniform layout(binding=0, r8) writeonly image3D lightImage;
 uniform uint brickUploadOffset;
 
 float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)

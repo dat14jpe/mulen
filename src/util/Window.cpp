@@ -87,12 +87,18 @@ static void mouseButtonCallback(GLFWwindow* window, int button, int action, int 
 {
     GetApp(window)->OnMouseButton(button, action, mods);
 }
+static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    GetApp(window)->OnScroll(xoffset, yoffset);
+}
 static void dropCallback(GLFWwindow* window, int count, const char** paths)
 {
     GetApp(window)->OnDrop(count, paths);
 }
 
 Window::Window(const std::string& title, const glm::uvec2& size)
+    : storedPosition{}
+    , storedSize{}
 {
     //glfwWindowHint(GLFW_MAXIMIZED, GL_TRUE);
     glfwSetErrorCallback(errorCallback); // - maybe shouldn't exactly be in Window
@@ -106,6 +112,7 @@ void Window::Run(Window::App& app)
     glfwSetKeyCallback(window, keyCallback);
     glfwSetCursorPosCallback(window, cursorPosCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetScrollCallback(window, scrollCallback);
     glfwSetDropCallback(window, dropCallback);
 
     while (!glfwWindowShouldClose(window))

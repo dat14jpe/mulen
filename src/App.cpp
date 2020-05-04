@@ -247,6 +247,8 @@ namespace Mulen {
 
     void App::OnKey(int key, int scancode, int action, int mods)
     {
+        // - to do: check for not being in GUI? Possibly, but maybe only for some keys
+
         if (action != GLFW_PRESS) return;
         switch (key)
         {
@@ -286,6 +288,12 @@ namespace Mulen {
             atmUpdateParams.depthLimit -= atmUpdateParams.depthLimit > 0 ? 1 : 0;
             break;
         }
+    }
+
+    void App::OnScroll(double xoffset, double yoffset)
+    {
+        // - to do: check for not being in GUI? Probably
+
     }
 
     void App::OnDrop(int count, const char** paths)

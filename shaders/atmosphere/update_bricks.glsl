@@ -5,7 +5,7 @@
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"
 
-uniform layout(binding=0, r8) writeonly image3D brickImage;
+uniform layout(binding=0, rg8) writeonly image3D brickImage;
 uniform uint brickUploadOffset;
 
 float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
@@ -205,14 +205,15 @@ void main()
         mask *= smoothstep(base - thickness, base, h); // - bottom
         mask = max(0.0, mask - 0.25);
         
-        vec3 p2 = p - animDir * 5e-5 * time;
-        vec3 p3 = p + animDir * 5e-5 * time;
+        vec3 p2 = p - animDir * 5e-5 * animationTime;
+        vec3 p3 = p + animDir * 5e-5 * animationTime;
         
         { // cirrus
             float d = fBm(4u, (vec3(0.65) + p2) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
             //d = 1.0;
             //d *= 0.5; // - worked well for fog
-            d *= 0.0625; // stratus or cirrus
+            //d *= 0.0625; // stratus or cirrus
+            d *= 0.125;
             
             mie = max(mie, d * mask);
         }

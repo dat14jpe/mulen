@@ -9,7 +9,8 @@ layout(local_size_x = BrickRes + P2, local_size_y = BrickRes + P2, local_size_z 
 
 shared float lightSamples[(BrickRes + P2) * (BrickRes + P2) * (BrickRes + P2)];
 
-uniform layout(binding=0, r16f) writeonly image3D lightImage;
+//uniform layout(binding=0, r16f) writeonly image3D lightImage;
+uniform layout(binding=0, rg8) image3D lightImage;
 uniform uint brickUploadOffset;
 
 // p in [-1, 1] range over entire atmosphere octree
@@ -114,5 +115,8 @@ void main()
     }
     
     //light = float(0.0);
-    imageStore(lightImage, ivec3(writeOffs), vec4(light, vec3(0.0)));
+    //imageStore(lightImage, ivec3(writeOffs), vec4(light, vec3(0.0)));
+    
+    float density = imageLoad(lightImage, ivec3(writeOffs)).r;
+    imageStore(lightImage, ivec3(writeOffs), vec4(density, light, 0.0, 0.0));
 }

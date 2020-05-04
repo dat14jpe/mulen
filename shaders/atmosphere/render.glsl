@@ -292,7 +292,17 @@ void main()
                 tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
                 tc = BrickSampleCoordinates(brickOffs, tc);
                 
-                vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+                const bool animBlend = true;//false; // - roughly +100% slowdown in common/heavier cases
+                const float animAlpha = 0.5; // - to do: time-based
+                
+                vec4 voxelData = texture(brickTexture, tc);
+                if (animBlend) voxelData = mix(voxelData, texture(nextBrickTexture, tc), animAlpha);
+                
+                
+                vec3 storedLight = texture(brickLightTexture, tc).rgb;
+                if (animBlend) storedLight = mix(storedLight, texture(nextBrickLightTexture, tc).rgb, animAlpha);
+                storedLight = voxelData.yyy;
+                //storedLight = vec3(1.0);
                 
                 vec3 p = hit + dist * dir;
                 float r = length(p);
@@ -313,7 +323,6 @@ void main()
                 
                 float rayleighDensity = 0.0, mieDensity = 0.0;
                 ComputeBaseDensities(rayleighDensity, mieDensity, r);
-                vec4 voxelData = texture(brickTexture, tc);
                 mieDensity += voxelData.x * mieMul; // - could work now that the data has been simplified
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
