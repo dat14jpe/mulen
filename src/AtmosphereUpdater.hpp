@@ -49,6 +49,25 @@ namespace Mulen {
         Iteration& GetRenderIteration() { return iterations[(updateIteration + 1u) % std::extent<decltype(iterations)>::value]; }
         Iteration& GetUpdateIteration() { return iterations[updateIteration]; }
 
+        struct Stage
+        {
+            enum class Id
+            {
+                Init,
+                Generate,
+                Map,
+                Light,
+                Filter,
+            } id;
+            double cost;
+        };
+        std::vector<Stage> stages;
+        uint64_t updateStage = 0u;
+        double updateFraction = 0.0;
+        uint64_t updateStageIndex0 = 0u, updateStageIndex1 = 0u;
+        unsigned updateStateIndex = 0u;
+
+        /*// - old
         enum class UpdateStage
         {
             UploadAndGenerate,
@@ -56,10 +75,7 @@ namespace Mulen {
             Lighting,
             LightFilter,
             Finished
-        } updateStage = UpdateStage::Finished;
-        double updateFraction = 0.0;
-        uint64_t updateStageIndex0 = 0u, updateStageIndex1 = 0u;
-        unsigned updateStateIndex = 0u;
+        } updateStage = UpdateStage::Finished;*/
 
         Atmosphere& atmosphere;
         bool done = false;
@@ -75,5 +91,6 @@ namespace Mulen {
 
         void InitialSetup();
         void OnFrame(const IterationParameters&, double period);
+        double GetUpdateFraction() const { return updateFraction; }
     };
 }

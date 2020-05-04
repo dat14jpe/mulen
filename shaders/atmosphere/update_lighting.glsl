@@ -8,6 +8,7 @@ layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes
 uniform layout(binding=0, r8) writeonly image3D lightImage;
 uniform uint brickUploadOffset;
 
+
 float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
 {
     // - to do: maybe decrease planet radius by approximately one voxel length, to avoid overshadowing?

@@ -157,10 +157,10 @@ void main()
             vec3 tc = lc * 0.5 + 0.5;
             vec3 ltc = tc;
             tc = BrickSampleCoordinates(brickOffs, tc);
-            vec3 storedLight = vec3(texture(brickLightTexture, tc));
+            vec3 storedLight = vec3(texture(brickTexture, tc).r);
             
-            tc *= vec3(textureSize(brickLightTexture, 0));
-            //storedLight = vec3(texelFetch(brickLightTexture, ivec3(tc), 0));
+            tc *= vec3(textureSize(brickTexture, 0));
+            //storedLight = vec3(texelFetch(brickTexture, ivec3(tc), 0).r);
             //if (false) // grid lines
             {
                 tc = (lc * 0.5 + 0.5) * 7.0;
@@ -295,19 +295,15 @@ void main()
                 const bool animBlend = true;//false; // - roughly +100% slowdown in common/heavier cases
                 const float animAlpha = 0.5; // - to do: time-based
                 
-                vec4 voxelData = texture(brickTexture, tc);
-                if (animBlend) voxelData = mix(voxelData, texture(nextBrickTexture, tc), animAlpha);
+                vec4 voxelData = texture(nextBrickTexture, tc);
+                if (animBlend) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
                 
                 
-                vec3 storedLight = texture(brickLightTexture, tc).rgb;
-                if (animBlend) storedLight = mix(storedLight, texture(nextBrickLightTexture, tc).rgb, animAlpha);
-                storedLight = voxelData.yyy;
-                //storedLight = vec3(1.0);
+                vec3 storedLight = voxelData.yyy;
                 
                 vec3 p = hit + dist * dir;
                 float r = length(p);
                 float mu = dot(p / r, normalize(lightDir.xyz)); // - about 0.3 ms faster *with* the unnecessary lightDir.xyz normalisation. Hmm...
-                storedLight = storedLight.xxx;
                 
                 // (too simple - the phase function needs to be accounted for too, separately for the more indirect lighting)
                 //storedLight = max(vec3(0.2), storedLight); // - experimental: don't make clouds entirely dark

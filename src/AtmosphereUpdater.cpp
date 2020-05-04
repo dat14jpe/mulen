@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <iostream>
 #include "util/Timer.hpp"
+#include <numeric>
 
 namespace Mulen {
 
@@ -174,118 +175,122 @@ namespace Mulen {
         auto& a = atmosphere;
         const auto fps = 60.0; // - to do: measure/adjust
         const auto rate = period / fps;
+        const auto dt = 1.0 / 60.0; // - to do: use actual time (though maybe not *directly*)
 
-        auto setStage = [&](unsigned i)
+        if (stages.empty())
         {
-            updateStage = (UpdateStage)i;
-            updateFraction = 0.0;
-            updateStageIndex0 = updateStageIndex1 = 0u;
-        };
-        if (updateStage == UpdateStage::Finished) // start a new iteration?
-        {
-            std::unique_lock<std::mutex> lk{ mutex };
-            if (nextUpdateReady) // has the worker thread completed its iteration?
-            {
-                nextUpdateReady = false;
-                updateIteration = (updateIteration + 1u) % std::extent<decltype(iterations)>::value;
-                // - actually wrong time (to do: compute correct one-second-into-the-future-from-last-iteration)
-                GetUpdateIteration().params = params;
-                lk.unlock();
-                cv.notify_one();
-            }
-            else
-            {
-                return; // nothing to do (update-wise) until the worker thread is done
-            }
+            // - these are just hardcoded estimates for now, but they should really
+            // be continuously measured and estimated by the program
 
-            setStage(0);
-            updateStateIndex = (updateStateIndex + 1u) % std::extent<decltype(a.gpuStates)>::value;
+            stages.push_back({ Stage::Id::Init,     0.1 });
+            stages.push_back({ Stage::Id::Generate, 20.0 });
+            stages.push_back({ Stage::Id::Map,      1.0 });
+            stages.push_back({ Stage::Id::Light,    60.0 });
+            stages.push_back({ Stage::Id::Filter,   20.0 });
         }
 
-        auto& it = GetRenderIteration();
-        auto& state = a.gpuStates[updateStateIndex];
-        state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
-        state.brickTexture.Bind(0u);
-        state.octreeMap.Bind(2u);
-
-        auto fraction = 0.0;
-        // - to do: tune this (maybe dynamically?)
-        const auto generationFraction = 0.2;
-        const auto lightingFraction = 0.6;
-        const auto filterFraction = 0.2;
-
-        auto computeNum = [&](size_t total, uint64_t done)
+        auto totalStagesTime = 0.0;
+        for (auto& stage : stages) totalStagesTime += stage.cost;
+        auto frameCost = 0.0;
+        const auto maxFrameCost = dt / period;
+        //std::cout << std::endl << "Beginning update loop" << std::endl << std::endl;
+        while (frameCost < maxFrameCost)
         {
-            if (total <= done) return 0u; // all done
-            return glm::min(unsigned(total - done), glm::max(unsigned(1u), unsigned(fraction * total)));
-        };
+            auto& it = GetRenderIteration();
+            auto& state = a.gpuStates[updateStateIndex];
+            state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
+            state.brickTexture.Bind(0u);
+            state.octreeMap.Bind(2u);
 
-        // - to do: make sure to take care of lower-depth nodes first, as children may want to access parent data
-        // - to do: try to automatically adjust relative time use (fractions) via measurements of time taken? Maybe
+            auto& stage = stages[updateStage];
+            const auto relativeStageCost = stage.cost / totalStagesTime;
+            uint64_t totalItems = 0u, numToDo = 0u;
+            const auto maxFraction = (maxFrameCost - frameCost) / relativeStageCost;
+            auto& last = updateStageIndex0;
 
-        switch (updateStage)
-        {
-        case UpdateStage::UploadAndGenerate:
-        {
-            fraction = (1.0 / generationFraction) * rate;
-            const auto numNodes = computeNum(it.nodesToUpload.size(), updateStageIndex0),
-                numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
-
-            if (numNodes)
+            auto computeWorkSize = [&](size_t total)
             {
-                auto& last = updateStageIndex0;
-                a.gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numNodes, it.nodesToUpload.data() + last);
-                UpdateNodes(numNodes);
-                last += numNodes;
-            }
+                /*std::cout << "Starting from " << last << std::endl;
+                std::cout << "relative stage cost: " << stage.cost / totalStagesTime << ", remaining spend: " << maxFrameCost - frameCost << std::endl;
+                std::cout << "Computing work size for a total of " << total << " (maxFraction: " << maxFraction << ")" << std::endl;*/
+                totalItems = total;
+                numToDo = totalItems - last;
+                numToDo = glm::min(numToDo, glm::max((size_t)1u, size_t(glm::ceil(totalItems * maxFraction))));
+            };
 
-            if (numBricks)
+            switch (stage.id)
             {
-                auto& last = updateStageIndex1;
-                a.gpuUploadBricks.Upload(sizeof(UploadBrick) * last, sizeof(UploadBrick) * numBricks, it.bricksToUpload.data() + last);
-                GenerateBricks(state, last, numBricks);
-                last += numBricks;
-            }
-
-            break;
-        }
-
-        case UpdateStage::Map:
-        {
-            fraction = 1.0;
-            UpdateMap(state.octreeMap);
-            break;
-        }
-
-        case UpdateStage::Lighting:
-        {
-            fraction = (1.0 / lightingFraction) * rate;
-            const auto numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
-            if (numBricks)
+            case Stage::Id::Init:
             {
-                auto& last = updateStageIndex1;
-                LightBricks(state, last, numBricks);
-                last += numBricks;
-            }
-            break;
-        }
+                // - to do: update stage costs based on measured GPU times
+                // (possibly, at least. Note that V-synced values aren't fully accurate)
+                // (but they should at least be enough while everything else is also V-synced, no?)
 
-        case UpdateStage::LightFilter:
-        {
-            fraction = (1.0 / filterFraction) * rate;
-            const auto numBricks = computeNum(it.bricksToUpload.size(), updateStageIndex1);
-            if (numBricks)
+                std::unique_lock<std::mutex> lk{ mutex };
+                if (nextUpdateReady) // has the worker thread completed its iteration?
+                {
+                    nextUpdateReady = false;
+                    updateIteration = (updateIteration + 1u) % std::extent<decltype(iterations)>::value;
+                    // - actually wrong time (to do: compute correct one-second-into-the-future-from-last-iteration)
+                    GetUpdateIteration().params = params;
+                    lk.unlock();
+                    cv.notify_one();
+                }
+                else
+                {
+                    return; // nothing to do (update-wise) until the worker thread is done
+                }
+
+                updateStateIndex = (updateStateIndex + 1u) % std::extent<decltype(a.gpuStates)>::value;
+                updateFraction = 0.0;
+                totalItems = numToDo = 1u;
+                break;
+            }
+            case Stage::Id::Generate:
             {
-                auto& last = updateStageIndex1;
-                FilterLighting(state, last, numBricks);
-                last += numBricks;
+                computeWorkSize(it.nodesToUpload.size()); // assuming num bricks = num node groups * NodeArity (which should always be true)
+                if (numToDo)
+                {
+                    a.gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numToDo, it.nodesToUpload.data() + last);
+                    UpdateNodes(numToDo);
+                    const auto bricksOffset = last * NodeArity, numBricks = numToDo * NodeArity;
+                    a.gpuUploadBricks.Upload(sizeof(UploadBrick) * bricksOffset, sizeof(UploadBrick) * numBricks, it.bricksToUpload.data() + bricksOffset);
+                    GenerateBricks(state, bricksOffset, numBricks);
+                }
+                break;
             }
-            break;
-        }
-        }
+            case Stage::Id::Map:
+            {
+                UpdateMap(state.octreeMap);
+                totalItems = numToDo = 1u;
+                break;
+            }
+            case Stage::Id::Light:
+            {
+                computeWorkSize(it.bricksToUpload.size());
+                if (numToDo) LightBricks(state, last, numToDo);
+                break;
+            }
+            case Stage::Id::Filter:
+            {
+                computeWorkSize(it.bricksToUpload.size());
+                if (numToDo) FilterLighting(state, last, numToDo);
+                break;
+            }
+            }
+            if (!numToDo) return; // - feels... hacky. Think about this
+            last += numToDo;
 
-        updateFraction += fraction;
-        if (updateFraction >= 1.0) setStage(unsigned(updateStage) + 1u);
+            // Update stage state.
+            const auto fraction = double(numToDo) / double(totalItems);
+            if (updateStageIndex0 >= totalItems) // are we done with this stage?
+            {
+                updateStage = (updateStage + 1) % stages.size();
+                updateStageIndex0 = updateStageIndex1 = 0;
+            }
+            frameCost += fraction * relativeStageCost;
+        }
+        updateFraction += maxFrameCost; // - to do: think this over
     }
 
     void AtmosphereUpdater::StageNodeGroup(Iteration& it, UploadType type, NodeIndex groupIndex)

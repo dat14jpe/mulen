@@ -13,6 +13,9 @@ shared float lightSamples[(BrickRes + P2) * (BrickRes + P2) * (BrickRes + P2)];
 uniform layout(binding=0, rg8) image3D lightImage;
 uniform uint brickUploadOffset;
 
+uniform layout(binding=1) sampler3D  brickLightTexture;
+
+
 // p in [-1, 1] range over entire atmosphere octree
 float SampleLighting(vec3 p)
 {

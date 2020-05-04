@@ -55,7 +55,8 @@ bool RenderPlanet(vec3 ori, vec3 dir)
             tc = clamp(tc, vec3(0.0), vec3(1.0));
             tc = BrickSampleCoordinates(brickOffs, tc);
             
-            vec3 storedLight = max(vec3(texture(brickLightTexture, tc)), vec3(0.0));
+            // - to do: animation (time-based interpolation)
+            vec3 storedLight = max(vec3(texture(brickTexture, tc).y), vec3(0.0));
             storedLight = storedLight.xxx;
             
             {

@@ -29,7 +29,7 @@ namespace Mulen {
     struct GpuState
     {
         Util::Buffer gpuNodes;
-        Util::Texture brickTexture, brickLightTexture;
+        Util::Texture brickTexture;
         Util::Texture octreeMap;
     };
 

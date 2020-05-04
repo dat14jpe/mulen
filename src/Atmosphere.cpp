@@ -18,7 +18,7 @@ namespace Mulen {
         glm::vec4 betaR;
 
         unsigned rootGroupIndex;
-        float time, animationTime,
+        float time, animationTime, animationAlpha,
             Fcoef_half, stepSize, 
             atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
         float Rt, Rg;
@@ -88,7 +88,6 @@ namespace Mulen {
             auto& state = gpuStates[i];
             state.gpuNodes.Create(sizeof(NodeGroup) * numNodeGroups, 0u);
             setUpBrickTexture(state.brickTexture, BrickFormat, GL_LINEAR);
-            setUpBrickLightTexture(state.brickLightTexture);
             setUpMapTexture(state.octreeMap);
         }
         setUpBrickLightTexture(brickLightTextureTemp);
@@ -180,6 +179,7 @@ namespace Mulen {
         uniforms.prevViewProjMat = prevViewProjMat;
         uniforms.time = static_cast<float>(renderTime);
         uniforms.animationTime = static_cast<float>(time);
+        uniforms.animationAlpha = updater.GetUpdateFraction(); // - to do: more accurate (time-based)
         uniforms.planetLocation = glm::vec4(GetPosition() - camera.GetPosition(), 0.0);
 
         uniforms.rootGroupIndex = rootGroupIndex;
@@ -392,14 +392,12 @@ namespace Mulen {
         auto& nextState = gpuStates[nextStateIndex];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         state.brickTexture.Bind(0u);
-        state.brickLightTexture.Bind(1u);
+        nextState.brickTexture.Bind(1u);
         state.octreeMap.Bind(2u);
         depthTexture.Bind(3u);
         transmittanceTexture.Bind(5u);
         scatterTexture.Bind(6u);
         octreeMap.Bind(7u);
-        nextState.brickTexture.Bind(8u);
-        nextState.brickLightTexture.Bind(9u);
         vao.Bind();
 
         glm::vec3 mapPosition, mapScale;

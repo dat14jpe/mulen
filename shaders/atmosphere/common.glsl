@@ -25,7 +25,7 @@ uniform GlobalUniforms
     vec4 betaR;
     
     uint  rootGroupIndex;
-    float time, animationTime;
+    float time, animationTime, animationAlpha;
     float Fcoef_half;
     float stepSize;
     float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
@@ -48,14 +48,12 @@ const float mieMul = 0.25 * 100.0 * 4.0 * 4.0; // - to do: tune, put elsewhere
 
 
 uniform layout(binding=0) sampler3D  brickTexture;
-uniform layout(binding=1) sampler3D  brickLightTexture;
+uniform layout(binding=1) sampler3D  nextBrickTexture;
 uniform layout(binding=2) usampler3D octreeMapTexture;
 uniform layout(binding=3) sampler2D  depthTexture;
 uniform layout(binding=5) sampler2D  transmittanceTexture;
 uniform layout(binding=6) sampler3D  scatterTexture;
 uniform layout(binding=7) usampler3D frustumOctreeMap;
-uniform layout(binding=8) sampler3D  nextBrickTexture;
-uniform layout(binding=9) sampler3D  nextBrickLightTexture;
 
 uniform vec3 mapPosition, mapScale;
 
