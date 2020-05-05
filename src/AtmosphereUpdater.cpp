@@ -182,11 +182,12 @@ namespace Mulen {
             // - these are just hardcoded estimates for now, but they should really
             // be continuously measured and estimated by the program
 
-            stages.push_back({ Stage::Id::Init,     0.1 });
-            stages.push_back({ Stage::Id::Generate, 20.0 });
-            stages.push_back({ Stage::Id::Map,      1.0 });
-            stages.push_back({ Stage::Id::Light,    60.0 });
-            stages.push_back({ Stage::Id::Filter,   20.0 });
+            stages.push_back({ Stage::Id::Init,         0.1 });
+            stages.push_back({ Stage::Id::Generate,     20.0 });
+            //stages.push_back({ Stage::Id::SplitInit,    10.0 });
+            stages.push_back({ Stage::Id::Map,          1.0 });
+            stages.push_back({ Stage::Id::Light,        300.0 });
+            stages.push_back({ Stage::Id::Filter,       20.0 });
         }
 
         auto totalStagesTime = 0.0;
@@ -257,6 +258,12 @@ namespace Mulen {
                     a.gpuUploadBricks.Upload(sizeof(UploadBrick) * bricksOffset, sizeof(UploadBrick) * numBricks, it.bricksToUpload.data() + bricksOffset);
                     GenerateBricks(state, bricksOffset, numBricks);
                 }
+                break;
+            }
+            case Stage::Id::SplitInit:
+            {
+                totalItems = numToDo = 1u;
+                // - to do
                 break;
             }
             case Stage::Id::Map:
@@ -374,6 +381,7 @@ namespace Mulen {
         auto& a = atmosphere;
         it.nodesToUpload.resize(0u);
         it.bricksToUpload.resize(0u);
+        it.splitGroups.resize(0u);
         it.maxDepth = 0u;
 
         struct PriorityNode
@@ -448,9 +456,10 @@ namespace Mulen {
                     splitPrio.push({ ni, priority });
                     continue;
                 }
-                if (!computePriority(children, depth + 1u, childPos) && !insideNode)
+                if (!computePriority(children, depth + 1u, childPos) && (!insideNode || depth >= MaxDepth))
                 {
                     // No grandchildren, which means this node is eligible for merging.
+                    if (depth >= MaxDepth) priority = 0.0; // ensure too detailed nodes are merged
                     mergePrio.push({ ni, priority });
                 }
             }
@@ -494,6 +503,7 @@ namespace Mulen {
                 }
                 
                 a.octree.Split(toSplit.index);
+                it.splitGroups.push_back(a.octree.GetNode(toSplit.index).children);
             }
         };
         doSplits();

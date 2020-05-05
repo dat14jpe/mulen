@@ -1,25 +1,5 @@
 #version 450
-
-#include "../noise.glsl"
-#include "common.glsl"
-layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
-#include "compute.glsl"
-
-uniform layout(binding=0, rg8) writeonly image3D brickImage;
-uniform uint brickUploadOffset;
-
-float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
-{
-    float a = 1.0;
-    float v = 0.0;
-    for (uint i = 0u; i < octaves; ++i)
-    {
-        v += a * (noise(p) * 2.0 - 1.0);
-        a *= persistence;
-        p *= lacunarity;
-    }
-    return v;
-}
+#include "generation.glsl"
 
 void main()
 {
@@ -43,7 +23,7 @@ void main()
         // - to do: try "normalizing" to nearest spherical shell of radius spacing voxelSize
     }
     
-    float rayleigh = 0.0, mie = 0.0;
+    float mie = 0.0;
     
     // Generate clouds:
     // - to do: allow for simulation/update, and parameters from CPU
@@ -82,8 +62,6 @@ void main()
         shellFactor = dist;
         
         //dist *= 1.0 / 32.0; // - testing: "normal" atmosphere in smaller and lower part of range
-        rayleigh = dist;
-        rayleigh = -h / HR;
         mie = -h / HM; // - too strong now? Check offset/scaling
         //mie = min(0.0, mie); // - testing
         mie = -20; // - testing
@@ -114,7 +92,7 @@ void main()
         //d = 1.0; // - testing
         
         // - testing "movement" over time:
-        np += animDir * 2e-3 * animationTime;
+        np += animDir * 1e-3 * animationTime;
         
         d = (fBm(11u, np * 16.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
         d -= 0.5; // - more broken up and dramatic (in high resolution)
@@ -236,19 +214,9 @@ void main()
         }
     }
     //mie *= 0.5; // - testing. Does seem to produce nicely diffuse clouds, at least in combination with raised Mie light intensity
-    
-    { // zero faces
-        for (uint d = 0u; d < 3u; ++d)
-        {
-            if (abs(p[d]) == 1.0) rayleigh = mie = 0.0;
-        }
-    }
     //mie *= 0.0625; // - testing
     
-    rayleigh = (rayleigh - offsetR) / scaleR;
     mie = (mie - offsetM) / scaleM;
     if (mie > 0.0) mie += abs(rand3D(op)) / 255.0; // - dither test
-    vec2 data = vec2(rayleigh, mie); // - old order
-    data = vec2(mie, rayleigh);
-    imageStore(brickImage, ivec3(voxelOffs), vec4(clamp(data, vec2(0.0), vec2(1.0)), 0, 0));
+    imageStore(brickImage, ivec3(voxelOffs), vec4(clamp(mie, 0.0, 1.0), vec3(0.0)));
 }

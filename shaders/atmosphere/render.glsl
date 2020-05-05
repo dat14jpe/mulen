@@ -292,11 +292,10 @@ void main()
                 tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
                 tc = BrickSampleCoordinates(brickOffs, tc);
                 
-                const bool animBlend = true;//false; // - roughly +100% slowdown in common/heavier cases
-                const float animAlpha = 0.5; // - to do: time-based
-                
                 vec4 voxelData = texture(nextBrickTexture, tc);
-                if (animBlend) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
+                
+                const bool animate = false;//true;//false; // - roughly halves render speed in many common/heavier cases
+                if (animate) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
                 
                 
                 vec3 storedLight = voxelData.yyy;

@@ -386,13 +386,11 @@ namespace Mulen {
 
         fbo.Bind();
         const auto numStates = std::extent<decltype(gpuStates)>::value;
-        const auto prevStateIndex = (u.updateStateIndex + 1u) % numStates;
-        const auto nextStateIndex = (u.updateStateIndex + 2u) % numStates;
-        auto& state = gpuStates[prevStateIndex];
-        auto& nextState = gpuStates[nextStateIndex];
+        auto& prevState = gpuStates[(u.updateStateIndex + 1u) % numStates];
+        auto& state = gpuStates[(u.updateStateIndex + 2u) % numStates];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
-        state.brickTexture.Bind(0u);
-        nextState.brickTexture.Bind(1u);
+        prevState.brickTexture.Bind(0u);
+        state.brickTexture.Bind(1u);
         state.octreeMap.Bind(2u);
         depthTexture.Bind(3u);
         transmittanceTexture.Bind(5u);

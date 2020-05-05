@@ -22,6 +22,7 @@ namespace Mulen {
         {
             std::vector<UploadNodeGroup> nodesToUpload;
             std::vector<UploadBrick> bricksToUpload;
+            std::vector<NodeIndex> splitGroups; // indices of groups resulting from splits in this update
 
             IterationParameters params;
 
@@ -53,11 +54,12 @@ namespace Mulen {
         {
             enum class Id
             {
-                Init,
-                Generate,
-                Map,
-                Light,
-                Filter,
+                Init,       // begin a new generation pass
+                Generate,   // upload node and brick data, generate cloud density values
+                SplitInit,  // initialise previous data for newly split nodes (to avoid animation glitches from brick memory reuse)
+                Map,        // create octree traversal optimisation map
+                Light,      // cast shadow rays to compute lighting
+                Filter,     // filter lighting and combine with brick density values
             } id;
             double cost;
         };
