@@ -1,37 +1,11 @@
 #version 450
 #include "generation.glsl"
 
-void main()
+float ComputeMieDensity(DensityComputationParams params)
 {
-    const uint loadId = GetWorkGroupIndex() + brickUploadOffset;
-    const UploadBrick upload = uploadBricks[loadId];
-    const uvec3 voxelOffs = BrickIndexTo3D(upload.brickIndex) * BrickRes + gl_LocalInvocationID;
-    
-    vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
-    vec3 p = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp) * atmosphereScale;
-    const vec3 op = p;
-    
-    if (false)
-    {
-        // generation jitter vs banding:
-        // (didn't seem to really work well, unfortunately)
-        p += upload.nodeLocation.w / float(BrickRes - 1u) * vec3(rand3D(p.xyz), rand3D(p.zyx), rand3D(p.yxz));
-    }
-    // - debugging generation aliasing:
-    {
-        //if (length(p) < 1.0) p = normalize(p);
-        // - to do: try "normalizing" to nearest spherical shell of radius spacing voxelSize
-    }
-    
+    vec3 p = params.p;
+    float h = params.h;
     float mie = 0.0;
-    
-    // Generate clouds:
-    // - to do: allow for simulation/update, and parameters from CPU
-    
-    const float h = (length(p) - 1.0) * planetRadius;
-    
-    if (h < -2e4) return; // - to do: check this
-    if (h > Rt - Rg + 4e4) return;
     
     const float height = 0.5 * 0.01; // - to do: aim for approximately 0.01 (Earth-like)
     const float shellDist = 1.0 + height - length(p);
@@ -216,7 +190,5 @@ void main()
     //mie *= 0.5; // - testing. Does seem to produce nicely diffuse clouds, at least in combination with raised Mie light intensity
     //mie *= 0.0625; // - testing
     
-    mie = (mie - offsetM) / scaleM;
-    if (mie > 0.0) mie += abs(rand3D(op)) / 255.0; // - dither test
-    imageStore(brickImage, ivec3(voxelOffs), vec4(clamp(mie, 0.0, 1.0), vec3(0.0)));
+    return mie;
 }
