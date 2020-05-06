@@ -62,5 +62,5 @@ void main()
     
     mie = (mie - offsetM) / scaleM;
     if (mie > 0.0) mie += abs(rand3D(p)) / 255.0; // - dither test
-    imageStore(brickImage, ivec3(voxelOffs), vec4(clamp(mie, 0.0, 1.0), vec3(1.0)));
+    imageStore(brickImage, ivec3(voxelOffs), vec4(clamp(mie, 0.0, 1.0), vec3(0.0)));
 }

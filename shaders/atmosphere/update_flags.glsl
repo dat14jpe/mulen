@@ -5,7 +5,7 @@
 layout(local_size_x = 1, local_size_y = 1, local_size_z = BrickRes) in;
 #include "compute.glsl"
 
-uniform layout(binding=0, r8) readonly image3D brickImage;
+uniform layout(binding=0, rg8) readonly image3D brickImage;
 uniform uint brickUploadOffset;
 
 shared vec2 layers[BrickRes]; // min and max density
