@@ -288,15 +288,9 @@ void main()
             //for (int inner = 0; inner < 2; ++inner, ++localStep)
             {
                 vec3 lc = localStart + dist / o.size * dir;
-                vec3 tc = lc * 0.5 + 0.5;
-                tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
-                tc = BrickSampleCoordinates(brickOffs, tc);
                 
-                vec4 voxelData = texture(nextBrickTexture, tc);
                 
-                const bool animate = false;//true;//false; // - roughly halves render speed in many common/heavier cases
-                if (animate) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
-                
+                vec4 voxelData = RetrieveAnimatedVoxelData(brickOffs, lc);
                 
                 vec3 storedLight = voxelData.yyy;
                 

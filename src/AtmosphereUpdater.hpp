@@ -61,9 +61,12 @@ namespace Mulen {
                 Light,      // cast shadow rays to compute lighting
                 Filter,     // filter lighting and combine with brick density values
             } id;
-            double cost;
+            const std::string str;
+            double cost; // time
         };
         std::vector<Stage> stages;
+        double totalStagesTime = 0.0;
+
         uint64_t updateStage = 0u;
         double updateFraction = 0.0;
         uint64_t updateStageIndex0 = 0u, updateStageIndex1 = 0u;

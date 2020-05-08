@@ -122,6 +122,7 @@ void Window::Run(Window::App& app)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         app.OnFrame();
+        app.timer.EndFrame();
 
         // Rendering
         ImGui::Render();

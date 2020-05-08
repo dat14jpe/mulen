@@ -179,7 +179,7 @@ namespace Mulen {
         uniforms.prevViewProjMat = prevViewProjMat;
         uniforms.time = static_cast<float>(renderTime);
         uniforms.animationTime = static_cast<float>(time);
-        uniforms.animationAlpha = updater.GetUpdateFraction(); // - to do: more accurate (time-based)
+        uniforms.animationAlpha = static_cast<float>(updater.GetUpdateFraction());
         uniforms.planetLocation = glm::vec4(GetPosition() - camera.GetPosition(), 0.0);
 
         uniforms.rootGroupIndex = rootGroupIndex;
@@ -226,6 +226,8 @@ namespace Mulen {
 
     void Atmosphere::Update(double dt, const UpdateParams& params, const Camera& camera, const LightSource& light)
     {
+        auto t = timer.Begin("Atmosphere::Update");
+
         renderTime += dt;
         if (params.rotateLight) lightTime += dt;
         if (params.animate) time += dt;
@@ -331,6 +333,7 @@ namespace Mulen {
     void Atmosphere::Render(const glm::ivec2& res, const Camera& camera, const LightSource& light)
     {
         auto& u = updater;
+        auto t = timer.Begin("Atmosphere::Render");
 
         // Resize the render targets if resolution has changed.
         if (depthTexture.GetWidth() != res.x || depthTexture.GetHeight() != res.y)
@@ -459,7 +462,7 @@ namespace Mulen {
             glm::vec3 mapMin, mapMax;
             auto fitAabb = [&]()
             {
-                const auto res = state.octreeMap.GetWidth();
+                const float res = static_cast<float>(state.octreeMap.GetWidth());
                 const float mapSize = 2.0f / static_cast<float>(exp2(exponent));
                 const float texelSize = mapSize / res;
 

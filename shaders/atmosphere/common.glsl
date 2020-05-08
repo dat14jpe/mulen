@@ -111,6 +111,20 @@ vec3 BrickSampleCoordinates(vec3 brick3D, vec3 localCoords)
     return (brick3D + (vec3(0.5) + localCoords * vec3(float(BrickRes - 1u))) / float(BrickRes)) / vec3(bricksRes);
 }
 
+vec4 RetrieveAnimatedVoxelData(vec3 brickOffs, vec3 lc)
+{
+    vec3 tc = lc * 0.5 + 0.5;
+    tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
+    tc = BrickSampleCoordinates(brickOffs, tc);
+                
+    vec4 voxelData = texture(nextBrickTexture, tc);
+                
+    const bool animate = false;//true;//false; // - roughly halves render speed in many common/heavier cases
+    if (animate) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
+    
+    return voxelData;
+}
+
 
 /*uint GetNodeNeighbour(Index node, uint neighbour)
 {

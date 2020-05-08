@@ -46,6 +46,8 @@ namespace Mulen {
 
     void App::OnFrame()
     {
+        auto t = timer.Begin("App");
+
         const auto time = glfwGetTime();
         const auto dt = time - lastTime;//1.0f / ImGui::GetIO().Framerate;
         lastTime = time;
@@ -119,8 +121,34 @@ namespace Mulen {
             }
 
             ImGui::Text("Max depth: %d", atmosphere.GetMaxDepth());
+            ImGui::End();
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            // - to do: put profiler logic somewhere else
+            if (ImGui::Begin("Profiler"))
+            {
+                auto getGpuTime = [&](const std::string& name)
+                {
+                    auto& t = timer.GetTimings(timer.NameToRef(name));
+                    const auto averageWindow = 100ull; // number of samples to average over
+                    return t.gpuTimes.Average(averageWindow);
+                };
+                auto displayGpuTime = [&](const char* nameLiteral)
+                {
+                    const std::string name{ nameLiteral };
+                    ImGui::Text("%s: %.3f ms", nameLiteral, 1e3 * getGpuTime(name));
+                };
+
+                ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+                displayGpuTime("App");
+                displayGpuTime("Atmosphere::Render");
+                displayGpuTime("Atmosphere::Update");
+                // - to do: some sort of special handling for these, no? Possibly
+                displayGpuTime("Update::Generate");
+                displayGpuTime("Update::Map");
+                displayGpuTime("Update::Light");
+                displayGpuTime("Update::Filter");
+            }
             ImGui::End();
         }
 
@@ -241,8 +269,6 @@ namespace Mulen {
         atmosphere.SetDownscaleFactor(downscaleFactor);
         atmosphere.Update(dt, atmUpdateParams, camera, light);
         atmosphere.Render(size, camera, light);
-
-        timer.EndFrame();
     }
 
     void App::OnKey(int key, int scancode, int action, int mods)

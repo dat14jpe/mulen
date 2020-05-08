@@ -51,12 +51,10 @@ bool RenderPlanet(vec3 ori, vec3 dir)
         {
             const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
             vec3 lc = (p - o.center) / o.size;
-            vec3 tc = lc * 0.5 + 0.5;
-            tc = clamp(tc, vec3(0.0), vec3(1.0));
-            tc = BrickSampleCoordinates(brickOffs, tc);
             
             // - to do: animation (time-based interpolation)
-            vec3 storedLight = max(vec3(texture(brickTexture, tc).y), vec3(0.0));
+            vec4 voxelData = RetrieveAnimatedVoxelData(brickOffs, lc);
+            vec3 storedLight = voxelData.yyy;
             storedLight = storedLight.xxx;
             
             {

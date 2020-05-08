@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <imgui/imgui.h>
 #include <string>
+#include "Timer.hpp"
 
 class Window {
     GLFWwindow* window;
@@ -16,6 +17,7 @@ public:
     struct App
     {
         Window& window;
+        Util::Timer timer;
         App(Window& window) : window{ window } {}
 
         virtual void OnFrame() {};

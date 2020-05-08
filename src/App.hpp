@@ -28,8 +28,6 @@ namespace Mulen {
         LightSource light;
         Atmosphere atmosphere;
 
-        Util::Timer timer;
-
         bool fpsMode = false;
         bool collision = true, fly = true;
         Atmosphere::UpdateParams atmUpdateParams;

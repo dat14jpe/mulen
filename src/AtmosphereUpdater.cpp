@@ -173,6 +173,7 @@ namespace Mulen {
     void AtmosphereUpdater::OnFrame(const IterationParameters& params, double period)
     {
         auto& a = atmosphere;
+        auto& timer = a.timer;
         const auto fps = 60.0; // - to do: measure/adjust
         const auto rate = period / fps;
         const auto dt = 1.0 / 60.0; // - to do: use actual time (though maybe not *directly*)
@@ -182,16 +183,16 @@ namespace Mulen {
             // - these are just hardcoded estimates for now, but they should really
             // be continuously measured and estimated by the program
 
-            stages.push_back({ Stage::Id::Init,         0.1 });
-            stages.push_back({ Stage::Id::Generate,     20.0 });
+            stages.push_back({ Stage::Id::Init,         Profiler_UpdateInit, 0.1 });
+            stages.push_back({ Stage::Id::Generate,     Profiler_UpdateGenerate, 40.0 });
             //stages.push_back({ Stage::Id::SplitInit,    10.0 });
-            stages.push_back({ Stage::Id::Map,          1.0 });
-            stages.push_back({ Stage::Id::Light,        300.0 });
-            stages.push_back({ Stage::Id::Filter,       20.0 });
+            stages.push_back({ Stage::Id::Map,          Profiler_UpdateMap, 1.0 });
+            stages.push_back({ Stage::Id::Light,        Profiler_UpdateLight, 200.0 });
+            stages.push_back({ Stage::Id::Filter,       Profiler_UpdateFilter, 15.0 });
+
+            for (auto& stage : stages) totalStagesTime += stage.cost;
         }
 
-        auto totalStagesTime = 0.0;
-        for (auto& stage : stages) totalStagesTime += stage.cost;
         auto frameCost = 0.0;
         const auto maxFrameCost = dt / period;
         //std::cout << std::endl << "Beginning update loop" << std::endl << std::endl;
@@ -209,6 +210,8 @@ namespace Mulen {
             const auto maxFraction = (maxFrameCost - frameCost) / relativeStageCost;
             auto& last = updateStageIndex0;
 
+            Util::Timer::DurationMeta timerMeta;
+            timerMeta.factor = 1.0;
             auto computeWorkSize = [&](size_t total)
             {
                 /*std::cout << "Starting from " << last << std::endl;
@@ -217,15 +220,51 @@ namespace Mulen {
                 totalItems = total;
                 numToDo = totalItems - last;
                 numToDo = glm::min(numToDo, glm::max((size_t)1u, size_t(glm::ceil(totalItems * maxFraction))));
+                timerMeta.factor = double(numToDo) / double(totalItems);
             };
 
             switch (stage.id)
             {
             case Stage::Id::Init:
             {
+                auto t = timer.Begin(stage.str, timerMeta);
+
                 // - to do: update stage costs based on measured GPU times
                 // (possibly, at least. Note that V-synced values aren't fully accurate)
                 // (but they should at least be enough while everything else is also V-synced, no?)
+                bool allStagesProfiled = true;
+                for (auto& stage : stages)
+                {
+                    if (!timer.GetTimings(stage.str).gpuTimes.Size())
+                    {
+                        allStagesProfiled = false;
+                        break;
+                    }
+                }
+                if (allStagesProfiled)
+                {
+                    //std::cout << "Profile data available on init." << std::endl;
+                    totalStagesTime = 0.0;
+
+                    for (auto& stage : stages)
+                    {
+                        const auto window = 50ull; // - to do: adjust
+                        auto& t = timer.GetTimings(stage.str).gpuTimes;
+                        const auto num = glm::min(window, t.Size());
+                        auto sum = 0.0;
+                        for (auto i = 0ll; i < (int64_t)num; ++i)
+                        {
+                            sum += t[-i].duration / t[-i].meta.factor;
+                        }
+                        auto duration = sum / double(num);
+                        duration *= 1e3;
+                        
+                        //std::cout << stage.str << ": " << duration << " (over " << num << ")" << std::endl;
+                        stage.cost = duration;
+                        totalStagesTime += duration;
+                    }
+                }
+
 
                 std::unique_lock<std::mutex> lk{ mutex };
                 if (nextUpdateReady) // has the worker thread completed its iteration?
@@ -252,6 +291,7 @@ namespace Mulen {
                 computeWorkSize(it.nodesToUpload.size()); // assuming num bricks = num node groups * NodeArity (which should always be true)
                 if (numToDo)
                 {
+                    auto t = timer.Begin(stage.str, timerMeta);
                     a.gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numToDo, it.nodesToUpload.data() + last);
                     UpdateNodes(numToDo);
                     const auto bricksOffset = last * NodeArity, numBricks = numToDo * NodeArity;
@@ -268,6 +308,7 @@ namespace Mulen {
             }
             case Stage::Id::Map:
             {
+                auto t = timer.Begin(stage.str, timerMeta);
                 UpdateMap(state.octreeMap);
                 totalItems = numToDo = 1u;
                 break;
@@ -275,13 +316,21 @@ namespace Mulen {
             case Stage::Id::Light:
             {
                 computeWorkSize(it.bricksToUpload.size());
-                if (numToDo) LightBricks(state, last, numToDo);
+                if (numToDo)
+                {
+                    auto t = timer.Begin(stage.str, timerMeta);
+                    LightBricks(state, last, numToDo);
+                }
                 break;
             }
             case Stage::Id::Filter:
             {
                 computeWorkSize(it.bricksToUpload.size());
-                if (numToDo) FilterLighting(state, last, numToDo);
+                if (numToDo)
+                {
+                    auto t = timer.Begin(stage.str, timerMeta);
+                    FilterLighting(state, last, numToDo);
+                }
                 break;
             }
             }

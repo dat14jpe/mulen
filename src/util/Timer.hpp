@@ -3,56 +3,143 @@
 #include <chrono>
 #include <iostream>
 #include "GLObject.hpp"
+#include <stack>
+#include <unordered_map>
+#include <queue>
+#include <glm/glm.hpp>
 
 namespace Util {
     class Timer
     {
-        // - to do: GPU timing as well
+    public:
+        struct DurationMeta
+        {
+            double factor;
+        };
+
+        struct Duration
+        {
+            double duration;
+            size_t frame;
+            DurationMeta meta;
+        };
+
+    private:
+        struct Timings
+        {
+            class DurationVector
+            {
+                std::vector<Duration> durations;
+                size_t nextIndex = 0u;
+
+            public:
+                void Insert(Duration d, size_t maxLength);
+
+                size_t Size() const
+                {
+                    return durations.size();
+                }
+
+                const Duration& operator[](int i)
+                {
+                    return durations[(nextIndex + i + durations.size()) % durations.size()];
+                }
+
+                double Average(size_t window)
+                {
+                    if (!Size()) return 0.0;
+                    const auto num = glm::min(window, Size());
+                    auto sum = 0.0;
+                    for (auto i = 0ll; i < (int64_t)num; ++i)
+                    {
+                        sum += (*this)[-i].duration;
+                    }
+                    auto duration = sum / double(num);
+                    return duration;
+                }
+            } cpuTimes, gpuTimes;
+            
+            // - maybe storing a few sets of query objects here would actually be better
+            // (fully dynamic handling might be overkill - do we ever really need e.g. a latency of more than 4 frames?)
+        };
+        size_t maxTimesStored = 128u; // - arbitrary (to do: make this configurable)
+
+        std::vector<Timings> timings;
+        typedef decltype(timings)::size_type NameRef;
+        std::unordered_map<std::string, NameRef> nameToRef;
+        std::vector<std::string> refToName;
+
+        typedef GLuint GpuQuery;
+        std::stack<GpuQuery> freeGpuQueries;
+        struct PendingGpuQuery
+        {
+            NameRef nameRef;
+            GpuQuery gpuQueries[2];
+            size_t frame;
+            DurationMeta meta;
+        };
+        std::queue<PendingGpuQuery> pendingGpuQueries;
+        // - to do: sync objects with associated numbers of pending queries
+
+        GpuQuery AllocateGpuQuery();
+        void FreeGpuQuery(GpuQuery&);
+
+        size_t frame = 0u;
 
 
     public:
+        class ActiveTiming;
+        void StartTiming(ActiveTiming&);
+        void EndTiming(ActiveTiming&);
+
+        NameRef NameToRef(const std::string& name)
+        {
+            auto it = nameToRef.find(name);
+            if (it != nameToRef.end()) return it->second;
+            const auto ref = timings.size();
+            timings.push_back({});
+            refToName.push_back(name);
+            nameToRef[name] = ref;
+            return ref;
+        }
+        Timings& GetTimings(NameRef ref)
+        {
+            return timings[ref];
+        }
+        Timings& GetTimings(const std::string& name)
+        {
+            return GetTimings(NameToRef(name));
+        }
+
         typedef std::chrono::high_resolution_clock Clock;
 
         class ActiveTiming
         {
             friend class Timer;
             Timer& timer;
-            std::string text;
+            NameRef nameRef;
+            DurationMeta meta;
             Clock::time_point startTime;
             GLuint queries[2];
 
-            ActiveTiming(Timer& timer, const std::string& text)
+            ActiveTiming(Timer& timer, const std::string& name, const DurationMeta& meta)
                 : timer{ timer }
-                , text { text }
-                , startTime{ Clock::now() }
+                , nameRef { timer.NameToRef(name) }
+                , meta{ meta }
             {
-                glCreateQueries(GL_TIMESTAMP, 2, queries);
-                glQueryCounter(queries[0], GL_TIMESTAMP);
+                timer.StartTiming(*this);
             }
 
         public:
             ~ActiveTiming()
             {
-                auto endTime = Clock::now();
-                auto time = endTime - startTime;
-                auto duration = time / std::chrono::milliseconds(1);
-                std::cout << text << " took " << duration << " ms";
-
-                glQueryCounter(queries[1], GL_TIMESTAMP);
-
-                GLuint64 start, end;
-                glGetQueryObjectui64v(queries[0], GL_QUERY_RESULT, &start);
-                glGetQueryObjectui64v(queries[1], GL_QUERY_RESULT, &end);
-                auto gpuDuration = (end - start) * 1e-9;
-                std::cout << " (" << gpuDuration * 1e3 << " ms GPU)\n";
-
-                glDeleteQueries(2, queries);
+                timer.EndTiming(*this);
             }
         };
 
-        ActiveTiming Begin(std::string text)
+        ActiveTiming Begin(const std::string& name, DurationMeta meta = { 1.0 })
         {
-            return { *this, text };
+            return { *this, name, meta };
         }
 
         void EndFrame();
