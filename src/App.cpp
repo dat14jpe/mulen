@@ -46,7 +46,7 @@ namespace Mulen {
 
     void App::OnFrame()
     {
-        auto t = timer.Begin("App");
+        auto t = timer.Begin("App::OnFrame");
 
         const auto time = glfwGetTime();
         const auto dt = time - lastTime;//1.0f / ImGui::GetIO().Framerate;
@@ -128,19 +128,29 @@ namespace Mulen {
             {
                 auto getGpuTime = [&](const std::string& name)
                 {
-                    auto& t = timer.GetTimings(timer.NameToRef(name));
+                    auto& t = timer.GetTimings(timer.NameToRef(name)).gpuTimes;
                     const auto averageWindow = 100ull; // number of samples to average over
-                    return t.gpuTimes.Average(averageWindow);
+                    //return t.Average(averageWindow);
+
+                    const auto window = 100ull; // - to do: adjust
+                    const auto num = glm::min(window, t.Size());
+                    auto sum = 0.0;
+                    for (auto i = 0ll; i < (int64_t)num; ++i)
+                    {
+                        sum += t[-i].duration / t[-i].meta.factor;
+                    }
+                    return sum / double(num);
                 };
                 auto displayGpuTime = [&](const char* nameLiteral)
                 {
                     const std::string name{ nameLiteral };
-                    ImGui::Text("%s: %.3f ms", nameLiteral, 1e3 * getGpuTime(name));
+                    //ImGui::Text("%s: %.3f ms", nameLiteral, 1e3 * getGpuTime(name));
+                    ImGui::Text("%9.3f ms    %s", 1e3 * getGpuTime(name), nameLiteral);
                 };
 
                 ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
-                displayGpuTime("App");
+                displayGpuTime("App::OnFrame");
                 displayGpuTime("Atmosphere::Render");
                 displayGpuTime("Atmosphere::Update");
                 // - to do: some sort of special handling for these, no? Possibly
