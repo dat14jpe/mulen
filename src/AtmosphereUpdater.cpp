@@ -227,11 +227,9 @@ namespace Mulen {
             {
             case Stage::Id::Init:
             {
-                auto t = timer.Begin(stage.str, timerMeta);
+                //auto t = timer.Begin(stage.str, timerMeta);
 
-                // - to do: update stage costs based on measured GPU times
-                // (possibly, at least. Note that V-synced values aren't fully accurate)
-                // (but they should at least be enough while everything else is also V-synced, no?)
+                // Update stage costs based on measured GPU times.
                 bool allStagesProfiled = true;
                 for (auto& stage : stages)
                 {
@@ -265,7 +263,7 @@ namespace Mulen {
                     }
                 }
 
-
+                // Communicate with the update thread.
                 std::unique_lock<std::mutex> lk{ mutex };
                 if (nextUpdateReady) // has the worker thread completed its iteration?
                 {
@@ -516,6 +514,8 @@ namespace Mulen {
         };
         computePriority(a.rootGroupIndex, 0u, {0, 0, 0, 1});
 
+        const auto maxSplits = 5000ull; // - testing (should be tuned, maybe made configurable?)
+        auto numSplits = 0ull, numMerges = 0ull;
         // - to do: compute merge threshold (below which nodes won't be merged unless needed)
         auto mergeThreshold = 1e20; // - arbitrary (but it shouldn't be)
         auto doSplits = [&]()
@@ -546,6 +546,7 @@ namespace Mulen {
                         }
                         if (hasGrandchildren) continue; // this node can no longer be merged (because a child was split)
 
+                        ++numMerges;
                         a.octree.Merge(toMerge.index);
                         break;
                     }
@@ -553,9 +554,12 @@ namespace Mulen {
                 
                 a.octree.Split(toSplit.index);
                 it.splitGroups.push_back(a.octree.GetNode(toSplit.index).children);
+                if (++numSplits >= maxSplits) break;
             }
         };
         doSplits();
+
+        std::cout << "Splits: " << numSplits << ", merges: " << numMerges << std::endl;
         
         while (!mergePrio.empty())
         {
