@@ -51,7 +51,7 @@ void main()
     const float H = length(ori);// - planetLocation.xyz);
     const bool notInShell = 
         H > planetRadius + atmosphereHeight + voxelSize || // outside atmosphere
-        H < planetRadius - voxelSize; // inside planet;
+        H < planetRadius - voxelSize * 2.0; // inside planet (factor 2.0 is needed to avoid edge cases)
     lightSamples[localIndex] = notInShell ? 1.0 : SampleLighting(gp);
     float light = 1.0;
     

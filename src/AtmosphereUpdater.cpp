@@ -27,7 +27,9 @@ namespace Mulen {
         const Object::Position sphereCenter{ 0.0 };
         const auto height = 0.005, radius = 1.0; // - to do: check/correct these values
         const auto atmRadius2 = (radius + height) * (radius + height);
-        const auto innerRadius = radius; // - to do: modify, as "safety" margin
+        const auto innerRadius = radius 
+            - a.GetHeight() * 5e-4 / a.GetPlanetRadius() // - to do: tune this (to always avoid problems near the surface)
+            ;
 
         auto bmin = p - size, bmax = p + size;
         const auto dist2 = glm::distance2(glm::clamp(sphereCenter, bmin, bmax), sphereCenter);
@@ -227,7 +229,7 @@ namespace Mulen {
             {
             case Stage::Id::Init:
             {
-                //auto t = timer.Begin(stage.str, timerMeta);
+                auto t = timer.Begin(stage.str, timerMeta);
 
                 // Update stage costs based on measured GPU times.
                 bool allStagesProfiled = true;
@@ -268,7 +270,7 @@ namespace Mulen {
                 if (nextUpdateReady) // has the worker thread completed its iteration?
                 {
                     nextUpdateReady = false;
-                    updateIteration = (updateIteration + 1u) % std::extent<decltype(iterations)>::value;
+                    updateIteration = (updateIteration + 1ull) % std::extent<decltype(iterations)>::value;
                     // - actually wrong time (to do: compute correct one-second-into-the-future-from-last-iteration)
                     GetUpdateIteration().params = params;
                     lk.unlock();
@@ -279,7 +281,7 @@ namespace Mulen {
                     return; // nothing to do (update-wise) until the worker thread is done
                 }
 
-                updateStateIndex = (updateStateIndex + 1u) % std::extent<decltype(a.gpuStates)>::value;
+                updateStateIndex = (updateStateIndex + 1ull) % std::extent<decltype(a.gpuStates)>::value;
                 updateFraction = 0.0;
                 totalItems = numToDo = 1u;
                 break;
@@ -559,7 +561,7 @@ namespace Mulen {
         };
         doSplits();
 
-        std::cout << "Splits: " << numSplits << ", merges: " << numMerges << std::endl;
+        //std::cout << "Splits: " << numSplits << ", merges: " << numMerges << std::endl;
         
         while (!mergePrio.empty())
         {

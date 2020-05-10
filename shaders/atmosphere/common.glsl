@@ -119,7 +119,8 @@ vec4 RetrieveAnimatedVoxelData(vec3 brickOffs, vec3 lc)
                 
     vec4 voxelData = texture(nextBrickTexture, tc);
                 
-    const bool animate = false;//true;//false; // - roughly halves render speed in many common/heavier cases
+    bool animate = true; // - roughly halves render speed in many common/heavier cases
+    animate = false;
     if (animate) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
     
     return voxelData;
