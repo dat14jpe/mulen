@@ -52,7 +52,7 @@ void main()
     const bool notInShell = 
         H > planetRadius + atmosphereHeight + voxelSize || // outside atmosphere
         H < planetRadius - voxelSize * 2.0; // inside planet (factor 2.0 is needed to avoid edge cases)
-    lightSamples[localIndex] = notInShell ? 1.0 : SampleLighting(gp);
+    lightSamples[localIndex] = notInShell ? 0.0 : SampleLighting(gp);
     float light = 1.0;
     
     // - maybe to do: try to optimise by using explicit knowledge of neighbour samples in the same node/brick
@@ -65,13 +65,16 @@ void main()
         return; // this is a border voxel
     }
     
-    //if (false) // shared memory optimisation
+    light = texelFetch(brickLightTexture, ivec3(writeOffs), 0).x; // - no filtering
+    
+    if (false) // shared memory optimisation
     {
         light = 0.0;
         int res = 3;
-        for (int z = -1; z <= 1; ++z)
-        for (int y = -1; y <= 1; ++y)
-        for (int x = -1; x <= 1; ++x)
+        int e = res / 2;
+        for (int z = -e; z <= e; ++z)
+        for (int y = -e; y <= e; ++y)
+        for (int x = -e; x <= e; ++x)
         {
             // - to do: try different weights? Yes. To do
             float w = 1.0 / float(res * res * res);

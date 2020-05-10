@@ -96,15 +96,11 @@ void main()
         color += max(vec3(0.0), scattering);
         // - to do: add *after* inner too if intersectsInner && intersectsOuter
     }
-    // - to do: use outer atmosphere intersection separately, add precomputed scattering there
     
     if (ai.intersectsInner)
     {
         float tmin = ai.innerMin, tmax = ai.innerMax;
         solidDepth = min(solidDepth, tmax);
-        
-        /*solidDepth = min(solidDepth, 5e4); // - debugging
-        backLight = vec3(0, 1, 0);*/
         
         // - intersecting the inner shell for optimising "inner" views (not that those would normally happen... right?)
         if (false)

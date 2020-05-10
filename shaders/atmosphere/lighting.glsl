@@ -64,7 +64,12 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
             OctreeTraversalData o;
             o.p = (ori + dist * dir) / atmScale;
             OctreeDescendMap(o);
-            if (InvalidIndex == o.ni || old == o.ni) break;
+            /*if (old == o.ni && numBricks < 6u)
+            {
+                opticalDepthM = 1e9;
+                break;
+            }*/
+            if (InvalidIndex == o.ni) break;
             old = o.ni;
             
             if (opticalDepthM > threshold) break; // - testing
@@ -102,8 +107,8 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
             const vec3 brickOffs = vec3(BrickIndexTo3D(o.ni));
             vec3 localStart = (ori - o.center) / o.size;
             
-            //do // do while to not erroneously miss the first voxel if it's on the border
-            while (dist < tmax)
+            do // do while to not erroneously miss the first voxel if it's on the border
+            //while (dist < tmax)
             {
                 vec3 lc = localStart + dist / o.size * dir;
                 vec3 tc = lc * 0.5 + 0.5;
@@ -120,7 +125,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
                 
                 dist += atmStep;
                 ++numSteps;
-            } //while (dist < tmax && numSteps < maxSteps);
+            } while (dist < tmax);// && numSteps < maxSteps);
         }
         
         // - testing performance impact of not sampling any voxel data:
