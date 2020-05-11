@@ -3,6 +3,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include "util/Timer.hpp"
 
 namespace Mulen {
     class Atmosphere;
@@ -16,6 +17,7 @@ namespace Mulen {
             double time;
             Object::Position cameraPosition;
             // - maybe also orientation and field of view, if trying frustum culling
+            Object::Position lightDirection;
             unsigned depthLimit;
         };
         struct Iteration
@@ -41,7 +43,7 @@ namespace Mulen {
         void UpdateMap(Util::Texture&, glm::vec3 pos = glm::vec3(-1.0f), glm::vec3 scale = glm::vec3(2.0f), unsigned depthOffset = 0u);
         void UpdateNodes(uint64_t num);
         void GenerateBricks(GpuState&, uint64_t first, uint64_t num);
-        void LightBricks(GpuState&, uint64_t first, uint64_t num);
+        void LightBricks(GpuState&, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta&);
         void FilterLighting(GpuState&, uint64_t first, uint64_t num);
         void ComputeIteration(Iteration&);
 

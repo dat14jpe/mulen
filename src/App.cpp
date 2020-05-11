@@ -154,9 +154,13 @@ namespace Mulen {
                 displayGpuTime("Atmosphere::Render");
                 displayGpuTime("Atmosphere::Update");
                 // - to do: some sort of special handling for these, no? Possibly
+                ImGui::Spacing();
+                ImGui::Text("Update pass:");
                 displayGpuTime("Update::Generate");
                 displayGpuTime("Update::Map");
-                displayGpuTime("Update::Light");
+                //displayGpuTime("Update::Light");
+                displayGpuTime("Update::LightPerGroup");
+                displayGpuTime("Update::LightPerVoxel");
                 displayGpuTime("Update::Filter");
             }
             ImGui::End();
@@ -270,7 +274,7 @@ namespace Mulen {
                 auto viewMat = camera.GetViewMatrix();
                 auto right = Object::Position{ glm::inverse(viewMat) * glm::dvec4{ 1, 0, 0, 0 } };
                 auto up = glm::normalize(atmosphere.GetPosition() - camera.GetPosition());
-                auto angle = 3.141592653589793 * 0.5 - acos(glm::dot(up, right));
+                auto angle = glm::pi<double>() * 0.5 - acos(glm::dot(up, right));
                 Object::Orientation q = glm::angleAxis(angle, Object::Position{ 0, 0, -1 });
                 if (abs(angle) > 1e-3) camera.ApplyRotation(q);
             }

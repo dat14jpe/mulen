@@ -97,14 +97,17 @@ layout(std430, binding = SSBO_VOXEL_UPLOAD_BRICKS) buffer uploadBricksBuffer
 
 uniform uvec3 uBricksRes;
 uniform vec3 bricksRes;
+uvec3 IndexTo3D(uint index, uvec3 bres)
+{
+    uvec3 p;
+    p.z = index / (bres.x * bres.y);
+    p.y = (index / bres.x) % bres.y;
+    p.x = index % bres.x;
+    return p;
+}
 uvec3 BrickIndexTo3D(uint brickIndex)
 {
-    const uvec3 bres = uBricksRes;
-    uvec3 p;
-    p.z = brickIndex / (bres.x * bres.y);
-    p.y = (brickIndex / bres.x) % bres.y;
-    p.x = brickIndex % bres.x;
-    return p;
+    return IndexTo3D(brickIndex, uBricksRes);
 }
 vec3 BrickSampleCoordinates(vec3 brick3D, vec3 localCoords)
 {

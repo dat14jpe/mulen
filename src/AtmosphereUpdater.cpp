@@ -150,14 +150,56 @@ namespace Mulen {
         }
     }
 
-    void AtmosphereUpdater::LightBricks(GpuState& state, uint64_t first, uint64_t num)
+    void AtmosphereUpdater::LightBricks(GpuState& state, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta& timerMeta)
     {
-        //auto t = timer.Begin("Lighting");
-        glBindImageTexture(0u, atmosphere.brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
-        auto& shader = SetShader(atmosphere.updateLightShader);
-        shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
-        glDispatchCompute((GLuint)num, 1u, 1u);
-        glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        const auto numGroups = num / NodeArity; // - to do: num groups as parameter instead, to disallow incorrect use
+        auto& groupsTex = atmosphere.brickLightPerGroupTexture;
+
+        auto setShader = [&](Util::Shader& shader)
+        {
+            SetShader(shader);
+            shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
+
+            auto ori = Object::Position{ 0, 0, 1 }; // original facing
+            auto axis = glm::cross(ori, lightDir);
+            // - to do: check the rotation computation
+            Object::Orientation q = Object::Orientation(glm::dot(ori, lightDir), axis);
+            q.w += glm::length(q);
+            q = glm::normalize(q);
+
+            // - to do: check all this (might be scaling or translating badly)
+            const auto scaleFactor = sqrt(3.0);
+            Object::Mat4 mat = glm::scale(Object::Mat4{ 1.0 }, Object::Position(scaleFactor));
+            mat = glm::translate(mat, glm::dvec3(0.0, 0.0, sqrt(3.0)));
+            mat = glm::toMat4(q) * mat;
+
+            // Translation is unnecessary for the lookup.
+            Object::Mat4 invMat = glm::scale(Object::Mat4{ 1.0 }, Object::Position(1.0 / scaleFactor))
+                * glm::toMat4(glm::conjugate(q));
+
+            shader.UniformMat4("groupLightMat", mat);
+            shader.UniformMat4("invGroupLightMat", invMat);
+            shader.Uniform3u("uGroupsRes", glm::uvec3(groupsTex.GetWidth(), groupsTex.GetHeight(), groupsTex.GetDepth()) / LightPerGroupRes);
+        };
+
+        // First mini 2D shadow maps per group.
+        {
+            auto t = atmosphere.timer.Begin(Profiler_UpdateLightPerGroup, timerMeta);
+            glBindImageTexture(0u, atmosphere.brickLightPerGroupTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R16);
+            setShader(atmosphere.updateLightPerGroupShader);
+            glDispatchCompute((GLuint)numGroups, 1u, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        }
+
+        // Then per-voxel shadowing, accelerated by the per-group shadow maps.
+        {
+            auto t = atmosphere.timer.Begin(Profiler_UpdateLightPerVoxel, timerMeta);
+            atmosphere.brickLightPerGroupTexture.Bind(3u);
+            glBindImageTexture(0u, atmosphere.brickLightTextureTemp.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
+            setShader(atmosphere.updateLightShader);
+            glDispatchCompute((GLuint)num, 1u, 1u);
+            glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+        }
     }
 
     void AtmosphereUpdater::FilterLighting(GpuState& state, uint64_t first, uint64_t num)
@@ -315,11 +357,11 @@ namespace Mulen {
             }
             case Stage::Id::Light:
             {
-                computeWorkSize(it.bricksToUpload.size());
+                computeWorkSize(it.bricksToUpload.size() / NodeArity);
                 if (numToDo)
                 {
                     auto t = timer.Begin(stage.str, timerMeta);
-                    LightBricks(state, last, numToDo);
+                    LightBricks(state, last * NodeArity, numToDo * NodeArity, params.lightDirection, timerMeta);
                 }
                 break;
             }

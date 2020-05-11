@@ -38,11 +38,15 @@ namespace Mulen {
         BrickFormat = GL_RG8, // - visible banding if only 8 bits per channel. Maybe can be resolved with generation dithering?
         BrickLightFormat = GL_R8;
 
+    static const auto LightPerGroupRes = BrickRes * 2u;
+
     static const std::string
         Profiler_UpdateInit = "Update::Init",
         Profiler_UpdateGenerate = "Update::Generate",
         Profiler_UpdateMap = "Update::Map",
         Profiler_UpdateLight = "Update::Light",
+        Profiler_UpdateLightPerGroup = "Update::LightPerGroup",
+        Profiler_UpdateLightPerVoxel = "Update::LightPerVoxel",
         Profiler_UpdateFilter = "Update::Filter"
         ;
 }

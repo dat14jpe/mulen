@@ -45,7 +45,7 @@ namespace Mulen {
         unsigned downscaleFactor = 1u;
 
         GpuState gpuStates[3];
-        Util::Texture brickLightTextureTemp;
+        Util::Texture brickLightTextureTemp, brickLightPerGroupTexture;
         Util::VertexArray vao;
         Util::Shader backdropShader, renderShader, resolveShader;
         glm::uvec3 texMap;
@@ -56,7 +56,7 @@ namespace Mulen {
         Util::Texture brickUploadTexture;
         size_t maxToUpload; // maximum per frame
         Util::Buffer gpuUploadNodes, gpuUploadBricks;
-        Util::Shader updateShader, updateBricksShader, updateFlagsShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
+        Util::Shader updateShader, updateBricksShader, updateFlagsShader, updateLightPerGroupShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
 
         // Prepass:
         Util::Shader transmittanceShader, inscatterFirstShader;
@@ -64,6 +64,7 @@ namespace Mulen {
         bool hasTransmittance = false; // - to do: per-atmosphere
 
         void SetUniforms(Util::Shader&);
+        Object::Position lightDir;
 
 
         Util::Timer& timer;

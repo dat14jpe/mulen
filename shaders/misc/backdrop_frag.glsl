@@ -1,6 +1,6 @@
 #version 450
 
-#include "common.glsl"
+#include "../atmosphere/common.glsl"
 #include "../noise.glsl"
 
 layout(location = 0) out vec4 outValue;

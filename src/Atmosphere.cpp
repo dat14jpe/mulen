@@ -56,7 +56,12 @@ namespace Mulen {
         texMap.x = width / brickRes;
         texMap.y = glm::min(maxWidth / brickRes, unsigned(numBricks + texMap.x - 1u) / texMap.x);
         texMap.z = (unsigned(numBricks) + texMap.x * texMap.y - 1u) / (texMap.x * texMap.y);
-        texMap.x = texMap.y = texMap.z = static_cast<unsigned>(std::ceil(std::pow(double(numBricks), 1.0 / 3.0)));
+
+        auto computeRoot = [](size_t value, size_t n)
+        {
+            return static_cast<size_t>(std::ceil(std::pow(double(value), 1.0 / double(n))));
+        };
+        texMap.x = texMap.y = texMap.z = computeRoot(numBricks, 3);
         width = texMap.x * brickRes;
         height = texMap.y * brickRes;
         depth = texMap.z * brickRes;
@@ -73,6 +78,13 @@ namespace Mulen {
         auto setUpBrickLightTexture = [&](Util::Texture& tex)
         {
             setUpBrickTexture(tex, BrickLightFormat, GL_LINEAR);
+        };
+        auto setUpBrickLightPerGroupTexture = [&](Util::Texture& tex)
+        {
+            auto res = LightPerGroupRes * computeRoot(numNodeGroups, 2);
+            tex.Create(GL_TEXTURE_2D, 1u, GL_R16, res, res);
+            setTextureFilter(tex, GL_LINEAR);
+            std::cout << "Brick light per group texture size: " << tex.GetWidth() << "*" << tex.GetHeight() << " = " << tex.GetWidth() * tex.GetHeight() << std::endl;
         };
         auto setUpMapTexture = [&](Util::Texture& tex)
         {
@@ -91,6 +103,7 @@ namespace Mulen {
             setUpMapTexture(state.octreeMap);
         }
         setUpBrickLightTexture(brickLightTextureTemp);
+        setUpBrickLightPerGroupTexture(brickLightPerGroupTexture);
 
         transmittanceTexture.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, 256, 64);
         setTextureFilter(transmittanceTexture, GL_LINEAR);
@@ -137,12 +150,13 @@ namespace Mulen {
                 return shader.Create({ "", "", base + ".glsl" });
         };
         if (!loadShader(postShader, "../post", false)) return false;
-        if (!loadShader(backdropShader, "backdrop", false)) return false;
+        if (!loadShader(backdropShader, "../misc/backdrop", false)) return false;
         if (!loadShader(transmittanceShader, "transmittance", true)) return false;
         if (!loadShader(inscatterFirstShader, "inscatter_first", true)) return false;
         if (!loadShader(updateShader, "update_nodes", true)) return false;
         if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
         if (!loadShader(updateFlagsShader, "update_flags", true)) return false;
+        if (!loadShader(updateLightPerGroupShader, "update_light_group", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
         if (!loadShader(lightFilterShader, "filter_lighting", true)) return false;
         if (!loadShader(updateOctreeMapShader, "update_octree_map", true)) return false;
@@ -154,7 +168,7 @@ namespace Mulen {
     void Atmosphere::UpdateUniforms(const Camera& camera, const LightSource& light)
     {
         // - to do: light direction also from LightSource object
-        auto lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
+        lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
         // - light rotation test:
         auto lightSpeed = 1.0 / 1000.0;
         auto lightRot = glm::angleAxis(lightTime * 3.141592653589793 * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
@@ -310,7 +324,7 @@ namespace Mulen {
                 u.UpdateNodes(it.nodesToUpload.size());
                 u.UpdateMap(state.octreeMap);
                 u.GenerateBricks(state, 0u, it.bricksToUpload.size());
-                u.LightBricks(state, 0u, it.bricksToUpload.size());
+                u.LightBricks(state, 0u, it.bricksToUpload.size(), lightDir, Util::Timer::DurationMeta{1.0});
                 u.FilterLighting(state, 0u, it.bricksToUpload.size());
             }
         }
@@ -324,6 +338,7 @@ namespace Mulen {
             AtmosphereUpdater::IterationParameters updaterParams;
             updaterParams.time = time;
             updaterParams.cameraPosition = cameraPos;
+            updaterParams.lightDirection = lightDir;
             updaterParams.depthLimit = params.depthLimit;
 
             updater.OnFrame(updaterParams, period);

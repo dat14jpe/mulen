@@ -65,9 +65,9 @@ void main()
         return; // this is a border voxel
     }
     
-    light = texelFetch(brickLightTexture, ivec3(writeOffs), 0).x; // - no filtering
+    //light = texelFetch(brickLightTexture, ivec3(writeOffs), 0).x; // - no filtering
     
-    if (false) // shared memory optimisation
+    //if (false) // shared memory optimisation
     {
         light = 0.0;
         int res = 3;

@@ -3,6 +3,22 @@
 // Lighting utilities inclusion file.
 //
 
+#include "../noise.glsl"
+#include "common.glsl"
+
+const bool usePerGroupLighting = true;//false;
+
+
+const uint GroupRes = BrickRes*2u;
+uniform uvec3 uGroupsRes;
+
+uvec3 GroupIndexTo3D(uint groupIndex)
+{
+    //return IndexTo3D(groupIndex, uGroupsRes);
+    return uvec3(groupIndex % uGroupsRes.x, groupIndex / uGroupsRes.x, 0u);
+}
+
+uniform mat4 groupLightMat, invGroupLightMat;
 
 
 float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
@@ -23,13 +39,11 @@ float PlanetShadow(vec3 ori, vec3 dir, vec3 planetCenter, float voxelSize)
     return s;
 }
 
-float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, const float stepFactor, const uint maxDepth)
+float TraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFactor, const uint maxDepth, const float inMaxDist)
 {
     const float atmScale = atmosphereRadius;
-    
     float opticalDepthM = 0.0;
     float prevDensityM = 0.0; // - maybe to do: get these from start values
-
     //ori += offsetOrigin(p, dir, voxelSize); // - trying this *after* the planet shadowing. But it's not helping.
     
     const float thresholdFraction = 1e-2; // - might need tuning
@@ -40,18 +54,10 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
     if (IntersectSphere(ori, dir, vec3(0.0), R, tmin, tmax)) // atmosphere intersection
     {
         const uint maxSteps = 512u; // - arbitrary, for testing
-        float maxDist = tmax;
-        
-        /*if (IntersectSphere(ori, dir, vec3(0.0), planetRadius - voxelSize, tmin, tmax))
-        {
-            maxDist = min(maxDist, tmin);
-        }*/
+        float maxDist = min(tmax, inMaxDist);
         
         uint numBricks = 0u, numSteps = 0u;
         
-        vec3 p = (ori + dist * dir) / atmScale;
-        o.p = p;
-        OctreeDescendMap(o);
         
         uint old = InvalidIndex;
         uint it = 0u;
@@ -64,7 +70,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
             OctreeTraversalData o;
             o.p = (ori + dist * dir) / atmScale;
             OctreeDescendMap(o);
-            /*if (old == o.ni && numBricks < 6u)
+            /*if (old == o.ni && numBricks < 6u) // - this happens fairly often (with low numbers of bricks, that is). Why?
             {
                 opticalDepthM = 1e9;
                 break;
@@ -135,10 +141,15 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, OctreeTraversalData o, 
         //return numBricks > 63u ? 0.0 : 1.0;
     }
     
-    //if (opticalDepthM > threshold) opticalDepthM = 1e9; // - trying to avoid sampling pattern from early exit. Maybe too harsh way
-    if (opticalDepthM > threshold) return 0.0; // - trying to avoid sampling pattern from early exit. Maybe too harsh way
+    if (opticalDepthM > threshold) return 0.0; // - trying to avoid sampling pattern from early exit
     float opticalDepth = opticalDepthM * betaMEx;
     return exp(-opticalDepth);
+}
+
+// Infinite max distance variant.
+float TraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFactor, const uint maxDepth)
+{
+    return TraceTransmittance(ori, dir, dist, stepFactor, maxDepth, 1e30);
 }
 
 vec3 perpendicular(vec3 v)
