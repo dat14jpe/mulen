@@ -121,6 +121,7 @@ namespace Mulen {
             }
 
             ImGui::Text("Max depth: %d", atmosphere.GetMaxDepth());
+            ImGui::Text("Smallest voxel size: %.0f m", atmosphere.ComputeVoxelSizeAtDepth(atmosphere.GetMaxDepth()));
             ImGui::End();
 
             // - to do: put profiler logic somewhere else

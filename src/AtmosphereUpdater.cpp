@@ -160,14 +160,13 @@ namespace Mulen {
             SetShader(shader);
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
 
+            // Scale to cover the node group, translate outside it, and rotate to face the light.
             auto ori = Object::Position{ 0, 0, 1 }; // original facing
             auto axis = glm::cross(ori, lightDir);
-            // - to do: check the rotation computation
             Object::Orientation q = Object::Orientation(glm::dot(ori, lightDir), axis);
             q.w += glm::length(q);
             q = glm::normalize(q);
 
-            // - to do: check all this (might be scaling or translating badly)
             const auto scaleFactor = sqrt(3.0);
             Object::Mat4 mat = glm::scale(Object::Mat4{ 1.0 }, Object::Position(scaleFactor));
             mat = glm::translate(mat, glm::dvec3(0.0, 0.0, sqrt(3.0)));

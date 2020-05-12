@@ -22,8 +22,17 @@ void main()
     const vec3 dir = lightDir.xyz;
     
     vec3 groupPos = vec3(gl_LocalInvocationID) / float(GroupRes - 1u) * 2 - 1;
-    //groupPos.z = 1.0; // - seemingly (visually) "fixes" the problem. So the offset might be wrong?
     groupPos = vec3(groupLightMat * vec4(groupPos, 1.0));
+    
+    {
+        // Early exit if this texel won't be sampled (or interpolated with)
+        // (is this working? To do: investigate)
+        float tmin, tmax;
+        const float margin = 2.0 / float(GroupRes - 1u);
+        AabbIntersection(tmin, tmax, vec3(-1.0 - margin), vec3(1.0 + margin), groupPos, -dir);
+        if (!IsIntersection(tmin, tmax)) return; // this texel won't be used, so save the work
+    }
+    
     vec3 gp = upload.nodeLocation.xyz + upload.nodeLocation.w * (groupPos * 2.0 + 1.0);
     vec3 p = gp * atmosphereScale;
     

@@ -102,6 +102,11 @@ namespace Mulen {
         {
             return updater.GetRenderIteration().maxDepth;
         }
+        double ComputeVoxelSizeAtDepth(unsigned depth) const
+        {
+            const auto res = (2u << depth) * (BrickRes - 1u);
+            return 2.0 * GetPlanetRadius() * scale / res;
+        }
 
         double GetAnimationTime() const { return time; }
         double GetLightTime() const { return lightTime; }

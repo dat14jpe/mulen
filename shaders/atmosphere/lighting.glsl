@@ -6,7 +6,6 @@
 #include "../noise.glsl"
 #include "common.glsl"
 
-const bool usePerGroupLighting = true;//false;
 
 
 const uint GroupRes = BrickRes*2u;
