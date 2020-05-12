@@ -44,7 +44,7 @@ namespace Mulen {
         };
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u); // - to do: just multiply by 3, or even 1 (though that last 1 is quite optimistic...)
+        const size_t numNodeGroups = 16384u * (moreMemory ? 4u * 3u : 1u); // - to do: just multiply by 3, or even 1 (though that last 1 is quite optimistic...)
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
 

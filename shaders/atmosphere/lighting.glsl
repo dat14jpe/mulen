@@ -80,7 +80,7 @@ float TraceTransmittance(vec3 ori, vec3 dir, float dist, const float stepFactor,
             if (opticalDepthM > threshold) break; // - testing
             if (dist > maxDist) break;
             // - (more than 64 are "needed", though... even 8 give "local" cloud shadows)
-            if (numBricks >= 128u) break; // - testing
+            if (numBricks >= 256u) break; // - testing
             
             o.center *= atmScale;
             o.size *= atmScale;

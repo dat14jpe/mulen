@@ -140,7 +140,7 @@ float ComputeMieDensity(DensityComputationParams params)
         //mie += 2.0 * cloud * shellFactor * mask; // - is this (just adding) really better? Hmm.
     }
     { // simple attempt at higher (smoother) cloud layer
-        float mask = fBm(2u, p * 128.0, 0.5, 2.0); // simplistic
+        float mask = fBm(8u, p * 256.0, 0.5, 2.0); // simplistic
         mask = mask * 0.5 + 0.5;
         const float maskBase = mask;
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
@@ -151,7 +151,7 @@ float ComputeMieDensity(DensityComputationParams params)
         const float h = 1.0 - shellDist / height;
         const float 
             base = 0.5,//0.025,//0.25, 
-            thickness = 0.05;
+            thickness = 0.1;
         //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
         mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
         mask *= smoothstep(base - thickness, base, h); // - bottom
@@ -165,7 +165,7 @@ float ComputeMieDensity(DensityComputationParams params)
             //d = 1.0;
             //d *= 0.5; // - worked well for fog
             //d *= 0.0625; // stratus or cirrus
-            d *= 0.125;
+            //d *= 0.125; // - pretty fun to comment this out and see the dramatic lighting (and lack thereof)
             
             mie = max(mie, d * mask);
         }

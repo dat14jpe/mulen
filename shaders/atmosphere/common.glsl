@@ -1,11 +1,6 @@
 
+#include "flags.glsl"
 #include "../geometry.glsl"
-
-
-// Flags which should really be uniforms (... or rather macros, to help the driver optimise):
-const bool usePerGroupLighting = true;
-const bool doAnimate = false; // - roughly halves render speed in many common/heavier cases
-
 
 
 const float PI = 3.14159265358979323846;
