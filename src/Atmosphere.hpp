@@ -56,7 +56,7 @@ namespace Mulen {
         Util::Texture brickUploadTexture;
         size_t maxToUpload; // maximum per frame
         Util::Buffer gpuUploadNodes, gpuUploadBricks, gpuGenData;
-        Util::Shader updateShader, updateFlagsShader, updateLightPerGroupShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
+        Util::Shader initSplitsShader, updateShader, updateFlagsShader, updateLightPerGroupShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
 
         // Prepass:
         Util::Shader transmittanceShader, inscatterFirstShader;

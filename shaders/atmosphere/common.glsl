@@ -103,6 +103,11 @@ layout(std430, binding = SSBO_VOXEL_GEN_DATA) buffer genDataBuffer
     uint genData[];
 };
 
+layout(std430, binding = SSBO_VOXEL_GEN_DATA) buffer splitNodesBuffer
+{
+    uint splitNodes[];
+};
+
 uniform uvec3 uBricksRes;
 uniform vec3 bricksRes;
 uvec3 IndexTo3D(uint index, uvec3 bres)
@@ -122,6 +127,15 @@ vec3 BrickSampleCoordinates(vec3 brick3D, vec3 localCoords)
     return (brick3D + (vec3(0.5) + localCoords * vec3(float(BrickRes - 1u))) / float(BrickRes)) / vec3(bricksRes);
 }
 
+vec4 RetrieveVoxelData(vec3 brickOffs, vec3 lc, sampler3D brickTexture)
+{
+    vec3 tc = lc * 0.5 + 0.5;
+    tc = clamp(tc, vec3(0.0), vec3(1.0)); // - should this really be needed? Currently there can be artefacts without this
+    tc = BrickSampleCoordinates(brickOffs, tc);
+    vec4 voxelData = texture(brickTexture, tc);
+    return voxelData;
+}
+
 vec4 RetrieveAnimatedVoxelData(vec3 brickOffs, vec3 lc)
 {
     vec3 tc = lc * 0.5 + 0.5;
@@ -130,7 +144,7 @@ vec4 RetrieveAnimatedVoxelData(vec3 brickOffs, vec3 lc)
                 
     vec4 voxelData = texture(nextBrickTexture, tc);
                 
-    if (doAnimate) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
+    if (interpolateAnimation) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
     
     return voxelData;
 }

@@ -326,6 +326,28 @@ namespace Mulen {
                 updateStateIndex = (updateStateIndex + 1ull) % std::extent<decltype(a.gpuStates)>::value;
                 updateFraction = 0.0;
                 totalItems = numToDo = 1u;
+
+                // Interpolate old state for split nodes using their current parents.
+                // (to avoid temporal seams in animation interpolation)
+                {
+                    auto t = timer.Begin(Profiler_UpdateInitSplits);
+
+                    auto& prevState = atmosphere.gpuStates[(updateStateIndex + 1u) % std::extent<decltype(atmosphere.gpuStates)>::value];
+                    auto& state = atmosphere.gpuStates[(updateStateIndex + 2u) % std::extent<decltype(atmosphere.gpuStates)>::value];
+
+                    state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
+                    prevState.brickTexture.Bind(0u);
+                    glBindImageTexture(0u, prevState.brickTexture.GetId(), 0, GL_TRUE, 0, GL_READ_WRITE, BrickFormat);
+
+                    atmosphere.gpuGenData.Upload(0, sizeof(NodeIndex) * priorSplitGroups.size(), priorSplitGroups.data());
+                    atmosphere.gpuGenData.BindBase(GL_SHADER_STORAGE_BUFFER, 3u);
+                    auto& shader = SetShader(atmosphere.initSplitsShader);
+                    glDispatchCompute((GLuint)(priorSplitGroups.size() * NodeArity), 1u, 1u);
+                    glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+
+                    priorSplitGroups.swap(GetRenderIteration().splitGroups);
+                }
+
                 break;
             }
             case Stage::Id::Generate:
@@ -608,7 +630,7 @@ namespace Mulen {
         };
         doSplits();
 
-        //std::cout << "Splits: " << numSplits << ", merges: " << numMerges << std::endl;
+        std::cout << "Splits: " << numSplits << ", merges: " << numMerges << std::endl;
         
         while (!mergePrio.empty())
         {

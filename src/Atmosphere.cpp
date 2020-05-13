@@ -167,6 +167,7 @@ namespace Mulen {
         if (!loadGenerator(updater.generator)) return false;
         if (!loadGenerator(updater.featureGenerator)) return false;
 
+        if (!loadShader(initSplitsShader, "init_splits", true)) return false;
         if (!loadShader(updateFlagsShader, "update_flags", true)) return false;
         if (!loadShader(updateLightPerGroupShader, "update_light_group", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;

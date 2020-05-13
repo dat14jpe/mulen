@@ -19,6 +19,7 @@ namespace Mulen {
 
         friend class Atmosphere; // - this should probably be made unnecessary
 
+        std::vector<NodeIndex> priorSplitGroups;
         UpdateIteration iterations[2];
         unsigned updateIteration = 0u; // - to do: better name (this is specifically the threaded CPU index)
         bool nextUpdateReady = true;

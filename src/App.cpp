@@ -158,6 +158,7 @@ namespace Mulen {
                 // - to do: some sort of special handling for these, no? Possibly
                 ImGui::Spacing();
                 ImGui::Text("Update pass:");
+                displayGpuTime("Update::InitSplits");
                 displayGpuTime("Update::Generate");
                 displayGpuTime("Update::Map");
                 //displayGpuTime("Update::Light");

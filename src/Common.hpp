@@ -43,6 +43,7 @@ namespace Mulen {
 
     static const std::string
         Profiler_UpdateInit = "Update::Init",
+        Profiler_UpdateInitSplits = "Update::InitSplits",
         Profiler_UpdateGenerate = "Update::Generate",
         Profiler_UpdateMap = "Update::Map",
         Profiler_UpdateLight = "Update::Light",
