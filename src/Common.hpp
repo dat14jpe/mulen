@@ -7,6 +7,8 @@
 #include "Object.hpp"
 
 namespace Mulen {
+    class Generator;
+
     enum class UploadType
     {
         Split, Merge, Update
@@ -21,8 +23,7 @@ namespace Mulen {
     struct UploadBrick
     {
         NodeIndex nodeIndex, brickIndex;
-        uint32_t genData;
-        uint32_t padding0;
+        uint32_t genDataOffset, genDataSize;
         glm::vec4 nodeLocation;
     };
 
@@ -49,4 +50,27 @@ namespace Mulen {
         Profiler_UpdateLightPerVoxel = "Update::LightPerVoxel",
         Profiler_UpdateFilter = "Update::Filter"
         ;
+
+    struct UpdateIteration
+    {
+        struct Parameters
+        {
+            double time;
+            Object::Position cameraPosition;
+            // - maybe also orientation and field of view, if trying frustum culling
+            Object::Position lightDirection;
+            unsigned depthLimit;
+
+            Generator* generator; // - to do: don't use a raw pointer
+        } params;
+
+        std::vector<UploadNodeGroup> nodesToUpload;
+        std::vector<UploadBrick> bricksToUpload;
+        std::vector<NodeIndex> splitGroups; // indices of groups resulting from splits in this update
+        std::vector<uint32_t> genData;
+
+        unsigned maxDepth;
+        // - to do: full depth distribution? Assuming 32 as max depth should be plenty
+        // - to do: more stats
+    };
 }

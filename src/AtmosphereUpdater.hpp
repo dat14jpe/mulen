@@ -4,53 +4,41 @@
 #include <mutex>
 #include <condition_variable>
 #include "util/Timer.hpp"
+#include "Generator.hpp"
+#include "FeatureGenerator.hpp"
 
 namespace Mulen {
     class Atmosphere;
 
     class AtmosphereUpdater
     {
+        // - to do: keep these elsewhere (so the updater isn't hardcoded to use just one or a few)
+        Generator generator;
+        FeatureGenerator featureGenerator;
+        // - to do: current generator selection
+
         friend class Atmosphere; // - this should probably be made unnecessary
 
-        struct IterationParameters
-        {
-            double time;
-            Object::Position cameraPosition;
-            // - maybe also orientation and field of view, if trying frustum culling
-            Object::Position lightDirection;
-            unsigned depthLimit;
-        };
-        struct Iteration
-        {
-            std::vector<UploadNodeGroup> nodesToUpload;
-            std::vector<UploadBrick> bricksToUpload;
-            std::vector<NodeIndex> splitGroups; // indices of groups resulting from splits in this update
-
-            IterationParameters params;
-
-            unsigned maxDepth;
-            // - to do: full depth distribution? Assuming 32 as max depth should be plenty
-            // - to do: more stats
-        } iterations[2];
+        UpdateIteration iterations[2];
         unsigned updateIteration = 0u; // - to do: better name (this is specifically the threaded CPU index)
         bool nextUpdateReady = true;
 
-        void StageNodeGroup(Iteration&, UploadType, NodeIndex);
-        void StageBrick(Iteration&, UploadType, NodeIndex, const glm::vec4& nodePos);
-        void StageSplit(Iteration&, NodeIndex gi, const glm::vec4& groupPos);
+        void StageNodeGroup(UpdateIteration&, UploadType, NodeIndex);
+        void StageBrick(UpdateIteration&, UploadType, NodeIndex, const glm::vec4& nodePos, uint32_t genDataOffset, uint32_t genDataSize);
+        void StageSplit(UpdateIteration&, NodeIndex gi, const glm::vec4& groupPos);
 
         Util::Shader& SetShader(Util::Shader&);
         void UpdateMap(Util::Texture&, glm::vec3 pos = glm::vec3(-1.0f), glm::vec3 scale = glm::vec3(2.0f), unsigned depthOffset = 0u);
         void UpdateNodes(uint64_t num);
-        void GenerateBricks(GpuState&, uint64_t first, uint64_t num);
+        void GenerateBricks(GpuState&, Generator&, uint64_t first, uint64_t num);
         void LightBricks(GpuState&, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta&);
         void FilterLighting(GpuState&, uint64_t first, uint64_t num);
-        void ComputeIteration(Iteration&);
+        void ComputeIteration(UpdateIteration&);
 
-        bool NodeInAtmosphere(const Iteration&, const glm::dvec4& nodePosAndScale);
+        bool NodeInAtmosphere(const UpdateIteration&, const glm::dvec4& nodePosAndScale);
 
-        Iteration& GetRenderIteration() { return iterations[(updateIteration + 1u) % std::extent<decltype(iterations)>::value]; }
-        Iteration& GetUpdateIteration() { return iterations[updateIteration]; }
+        UpdateIteration& GetRenderIteration() { return iterations[(updateIteration + 1u) % std::extent<decltype(iterations)>::value]; }
+        UpdateIteration& GetUpdateIteration() { return iterations[updateIteration]; }
 
         struct Stage
         {
@@ -97,7 +85,7 @@ namespace Mulen {
         void UpdateLoop();
 
         void InitialSetup();
-        void OnFrame(const IterationParameters&, double period);
+        void OnFrame(const UpdateIteration::Parameters&, double period);
         double GetUpdateFraction() const { return updateFraction; }
     };
 }

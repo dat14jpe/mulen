@@ -55,8 +55,8 @@ namespace Mulen {
         // Update:
         Util::Texture brickUploadTexture;
         size_t maxToUpload; // maximum per frame
-        Util::Buffer gpuUploadNodes, gpuUploadBricks;
-        Util::Shader updateShader, updateBricksShader, updateFlagsShader, updateLightPerGroupShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
+        Util::Buffer gpuUploadNodes, gpuUploadBricks, gpuGenData;
+        Util::Shader updateShader, updateFlagsShader, updateLightPerGroupShader, updateLightShader, updateOctreeMapShader, lightFilterShader;
 
         // Prepass:
         Util::Shader transmittanceShader, inscatterFirstShader;
@@ -77,7 +77,7 @@ namespace Mulen {
         void UpdateUniforms(const Camera&, const LightSource&);
 
     public:
-        Atmosphere(Util::Timer& timer) : timer{ timer }, updater{ *this } {}
+        Atmosphere(Util::Timer&);
 
         struct Params
         {
@@ -91,6 +91,7 @@ namespace Mulen {
         {
             bool update, animate, rotateLight;
             int depthLimit;
+            bool useFeatureGenerator = false;
         };
         void Update(double dt, const UpdateParams&, const Camera&, const LightSource&);
         void Render(const glm::ivec2& res, const Camera&, const LightSource&);

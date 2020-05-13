@@ -71,6 +71,7 @@ namespace Mulen {
             ImGui::Checkbox("Upright", &camera.upright);
             ImGui::Checkbox("Collision", &collision);
             ImGui::Checkbox("Fly", &fly);
+            ImGui::Checkbox("Use feature generator", &atmUpdateParams.useFeatureGenerator);
             ImGui::SliderInt("Depth", &atmUpdateParams.depthLimit, 1u, maxDepthLimit);
             ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
             if (ImGui::Button("Re-init"))
@@ -134,9 +135,9 @@ namespace Mulen {
                     //return t.Average(averageWindow);
 
                     const auto window = 100ull; // - to do: adjust
-                    const auto num = glm::min(window, t.Size());
+                    const auto num = static_cast<int>(glm::min(window, t.Size()));
                     auto sum = 0.0;
-                    for (auto i = 0ll; i < (int64_t)num; ++i)
+                    for (auto i = 0; i < num; ++i)
                     {
                         sum += t[-i].duration / t[-i].meta.factor;
                     }
@@ -314,6 +315,9 @@ namespace Mulen {
             break;
         case GLFW_KEY_U:
             atmUpdateParams.update = !atmUpdateParams.update;
+            break;
+        case GLFW_KEY_G:
+            atmUpdateParams.useFeatureGenerator = !atmUpdateParams.useFeatureGenerator;
             break;
         case GLFW_KEY_PRINT_SCREEN:
         case GLFW_KEY_F3:

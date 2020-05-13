@@ -29,6 +29,10 @@ namespace Mulen {
         float offsetR, scaleR, offsetM, scaleM;
     };
 
+    Atmosphere::Atmosphere(Util::Timer& timer) 
+        : timer{ timer }
+        , updater{ *this }
+    {}
 
     bool Atmosphere::Init(const Atmosphere::Params& p)
     {
@@ -44,7 +48,7 @@ namespace Mulen {
         };
 
         // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * (moreMemory ? 4u * 3u : 1u); // - to do: just multiply by 3, or even 1 (though that last 1 is quite optimistic...)
+        const size_t numNodeGroups = 16384u * (moreMemory ? 3u : 1u); // - to do: just multiply by 3, or even 1 (though that last 1 is quite optimistic...)
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
 
@@ -61,7 +65,7 @@ namespace Mulen {
         {
             return static_cast<size_t>(std::ceil(std::pow(double(value), 1.0 / double(n))));
         };
-        texMap.x = texMap.y = texMap.z = computeRoot(numBricks, 3);
+        texMap.x = texMap.y = texMap.z = static_cast<decltype(texMap.x)>(computeRoot(numBricks, 3));
         width = texMap.x * brickRes;
         height = texMap.y * brickRes;
         depth = texMap.z * brickRes;
@@ -81,7 +85,7 @@ namespace Mulen {
         };
         auto setUpBrickLightPerGroupTexture = [&](Util::Texture& tex)
         {
-            auto res = LightPerGroupRes * computeRoot(numNodeGroups, 2);
+            auto res = static_cast<unsigned>(LightPerGroupRes * computeRoot(numNodeGroups, 2));
             tex.Create(GL_TEXTURE_2D, 1u, GL_R16, res, res);
             setTextureFilter(tex, GL_LINEAR);
             std::cout << "Brick light per group texture size: " << tex.GetWidth() << "*" << tex.GetHeight() << " = " << tex.GetWidth() * tex.GetHeight() << std::endl;
@@ -120,7 +124,7 @@ namespace Mulen {
         maxToUpload = numNodeGroups;// / 8; // - arbitrary (to do: take care to make it high enough for timely updates)
         gpuUploadNodes.Create(sizeof(UploadNodeGroup) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
         gpuUploadBricks.Create(sizeof(UploadBrick) * maxToUpload * NodeArity, GL_DYNAMIC_STORAGE_BIT);
-        // - to do: also create brick upload buffer/texture
+        gpuGenData.Create(sizeof(uint32_t) * maxToUpload * NodeArity * 16u, GL_DYNAMIC_STORAGE_BIT); // - fairly arbitrary. Maybe look into trying to determine a good size?
 
         auto t = timer.Begin("Initial atmosphere splits");
 
@@ -149,12 +153,20 @@ namespace Mulen {
             else
                 return shader.Create({ "", "", base + ".glsl" });
         };
+        auto loadGenerator = [&](Generator& gen)
+        {
+            return loadShader(gen.GetShader(), "generation/" + gen.GetShaderName(), true);
+        };
+
         if (!loadShader(postShader, "../post", false)) return false;
         if (!loadShader(backdropShader, "../misc/backdrop", false)) return false;
         if (!loadShader(transmittanceShader, "transmittance", true)) return false;
         if (!loadShader(inscatterFirstShader, "inscatter_first", true)) return false;
         if (!loadShader(updateShader, "update_nodes", true)) return false;
-        if (!loadShader(updateBricksShader, "update_bricks", true)) return false;
+
+        if (!loadGenerator(updater.generator)) return false;
+        if (!loadGenerator(updater.featureGenerator)) return false;
+
         if (!loadShader(updateFlagsShader, "update_flags", true)) return false;
         if (!loadShader(updateLightPerGroupShader, "update_light_group", true)) return false;
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
@@ -294,6 +306,7 @@ namespace Mulen {
             }
         }
 
+        auto& defaultGenerator = updater.generator;
 
         // - to do: probably remove this, eventually, in favour of always loading continuously
         // Update GPU data:
@@ -323,7 +336,7 @@ namespace Mulen {
 
                 u.UpdateNodes(it.nodesToUpload.size());
                 u.UpdateMap(state.octreeMap);
-                u.GenerateBricks(state, 0u, it.bricksToUpload.size());
+                u.GenerateBricks(state, defaultGenerator, 0u, it.bricksToUpload.size());
                 u.LightBricks(state, 0u, it.bricksToUpload.size(), lightDir, Util::Timer::DurationMeta{1.0});
                 u.FilterLighting(state, 0u, it.bricksToUpload.size());
             }
@@ -335,11 +348,12 @@ namespace Mulen {
             auto cameraPos = camera.GetPosition() - GetPosition();
             cameraPos /= planetRadius * scale;
 
-            AtmosphereUpdater::IterationParameters updaterParams;
+            UpdateIteration::Parameters updaterParams;
             updaterParams.time = time;
             updaterParams.cameraPosition = cameraPos;
             updaterParams.lightDirection = lightDir;
             updaterParams.depthLimit = params.depthLimit;
+            updaterParams.generator = params.useFeatureGenerator ? &updater.featureGenerator : &updater.generator;
 
             updater.OnFrame(updaterParams, period);
         }

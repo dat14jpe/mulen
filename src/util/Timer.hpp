@@ -48,9 +48,9 @@ namespace Util {
                 double Average(size_t window)
                 {
                     if (!Size()) return 0.0;
-                    const auto num = glm::min(window, Size());
+                    const auto num = static_cast<int>(glm::min(window, Size()));
                     auto sum = 0.0;
-                    for (auto i = 0ll; i < (int64_t)num; ++i)
+                    for (auto i = 0; i < num; ++i)
                     {
                         sum += (*this)[-i].duration;
                     }

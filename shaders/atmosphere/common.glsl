@@ -10,6 +10,7 @@ const float PI = 3.14159265358979323846;
 #define SSBO_VOXEL_NODES         0
 #define SSBO_VOXEL_UPLOAD        1
 #define SSBO_VOXEL_UPLOAD_BRICKS 2
+#define SSBO_VOXEL_GEN_DATA      3
 #define NodeArity 8
 #define BrickRes 8
 const uint IndexMask     = 0x00ffffffu;
@@ -80,7 +81,7 @@ struct UploadNodeGroup
 struct UploadBrick
 {
     uint nodeIndex, brickIndex;
-    uint genData;
+    uint genDataOffset, genDataSize;
     vec4 nodeLocation; // size in w
 };
 
@@ -95,6 +96,11 @@ layout(std430, binding = SSBO_VOXEL_UPLOAD) buffer uploadBuffer
 layout(std430, binding = SSBO_VOXEL_UPLOAD_BRICKS) buffer uploadBricksBuffer
 {
     UploadBrick uploadBricks[];
+};
+// - or maybe let each generator shader define this in their custom formats (could be more convenient)
+layout(std430, binding = SSBO_VOXEL_GEN_DATA) buffer genDataBuffer
+{
+    uint genData[];
 };
 
 uniform uvec3 uBricksRes;

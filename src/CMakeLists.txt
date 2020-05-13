@@ -7,6 +7,10 @@ add_executable(${CMAKE_PROJECT_NAME}
     Atmosphere.cpp
     AtmosphereUpdater.hpp
     AtmosphereUpdater.cpp
+    Generator.hpp
+    Generator.cpp
+    FeatureGenerator.hpp
+    FeatureGenerator.cpp
     Octree.hpp
     Octree.cpp
     Camera.hpp

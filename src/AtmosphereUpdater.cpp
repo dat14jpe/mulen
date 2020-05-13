@@ -10,14 +10,15 @@
 namespace Mulen {
 
     AtmosphereUpdater::AtmosphereUpdater(Atmosphere& atmosphere)
-        : atmosphere{ atmosphere }
+        : generator{ "generator" }
+        , featureGenerator{ "feature_generator" }
+        , atmosphere { atmosphere }
         , thread(&AtmosphereUpdater::UpdateLoop, this)
     {
 
     }
 
-
-    bool AtmosphereUpdater::NodeInAtmosphere(const Iteration& it, const glm::dvec4& childPos)
+    bool AtmosphereUpdater::NodeInAtmosphere(const UpdateIteration& it, const glm::dvec4& childPos)
     {
         auto& a = atmosphere;
 
@@ -132,12 +133,12 @@ namespace Mulen {
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     }
 
-    void AtmosphereUpdater::GenerateBricks(GpuState& state, uint64_t first, uint64_t num)
+    void AtmosphereUpdater::GenerateBricks(GpuState& state, Generator& gen, uint64_t first, uint64_t num)
     {
         glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_READ_WRITE, BrickFormat);
         {
             //auto t = timer.Begin("Generation");
-            auto& shader = SetShader(atmosphere.updateBricksShader);
+            auto& shader = SetShader(gen.GetShader());
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
             glDispatchCompute((GLuint)num, 1u, 1u);
             glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -213,7 +214,7 @@ namespace Mulen {
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
 
-    void AtmosphereUpdater::OnFrame(const IterationParameters& params, double period)
+    void AtmosphereUpdater::OnFrame(const UpdateIteration::Parameters& params, double period)
     {
         auto& a = atmosphere;
         auto& timer = a.timer;
@@ -291,9 +292,9 @@ namespace Mulen {
                     {
                         const auto window = 50ull; // - to do: adjust
                         auto& t = timer.GetTimings(stage.str).gpuTimes;
-                        const auto num = glm::min(window, t.Size());
+                        const auto num = static_cast<int>(glm::min(window, t.Size()));
                         auto sum = 0.0;
-                        for (auto i = 0ll; i < (int64_t)num; ++i)
+                        for (auto i = 0; i < num; ++i)
                         {
                             sum += t[-i].duration / t[-i].meta.factor;
                         }
@@ -333,11 +334,28 @@ namespace Mulen {
                 if (numToDo)
                 {
                     auto t = timer.Begin(stage.str, timerMeta);
+                    const auto bricksOffset = last * NodeArity, numBricks = numToDo * NodeArity;
+
+                    // Convert generation data offsets and sizes.
+                    const auto startingOffset = it.bricksToUpload[bricksOffset].genDataOffset;
+                    uint32_t genDataSize = 0u;
+                    for (auto i = last; i < last + numBricks; ++i)
+                    {
+                        auto& b = it.bricksToUpload[i];
+                        b.genDataOffset -= startingOffset;
+                        genDataSize += b.genDataSize;
+                    }
+                    if (genDataSize) // upload generator-specific data, if it exists
+                    {
+                        a.gpuGenData.Upload(0, genDataSize * sizeof(decltype(it.genData)::value_type), it.genData.data() + startingOffset);
+                        // - maybe to do: automatically resize GPU buffer if needed? At least check for overflow and log the error
+                    }
+                    // - to do: use generator-specific shader for brick generation
+
                     a.gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numToDo, it.nodesToUpload.data() + last);
                     UpdateNodes(numToDo);
-                    const auto bricksOffset = last * NodeArity, numBricks = numToDo * NodeArity;
                     a.gpuUploadBricks.Upload(sizeof(UploadBrick) * bricksOffset, sizeof(UploadBrick) * numBricks, it.bricksToUpload.data() + bricksOffset);
-                    GenerateBricks(state, bricksOffset, numBricks);
+                    GenerateBricks(state, *params.generator, bricksOffset, numBricks);
                 }
                 break;
             }
@@ -390,7 +408,7 @@ namespace Mulen {
         updateFraction += maxFrameCost; // - to do: think this over
     }
 
-    void AtmosphereUpdater::StageNodeGroup(Iteration& it, UploadType type, NodeIndex groupIndex)
+    void AtmosphereUpdater::StageNodeGroup(UpdateIteration& it, UploadType type, NodeIndex groupIndex)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         uint32_t genData = 0u;
@@ -402,38 +420,22 @@ namespace Mulen {
         it.nodesToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageBrick(Iteration& it, UploadType type, NodeIndex nodeIndex, const glm::vec4& nodePos)
+    void AtmosphereUpdater::StageBrick(UpdateIteration& it, UploadType type, NodeIndex nodeIndex, const glm::vec4& nodePos, uint32_t genDataOffset, uint32_t genDataSize)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         const auto brickIndex = nodeIndex;
-        uint32_t genData = 0u; // - to do: also add upload brick data index, when applicable
-        genData |= uint32_t(type) << 24u;
-
-        glm::vec3 nodeCenter{ 0.0, 0.0, 0.0 };
-        float nodeSize = 1.0;
-        /*for (auto ni = nodeIndex; ni != InvalidIndex; ni = atmosphere.octree.GetGroup(Octree::NodeToGroup(ni)).parent)
-        {
-            glm::ivec3 ioffs = glm::ivec3(ni & 1u, (ni >> 1u) & 1u, (ni >> 2u) & 1u) * 2 - 1;
-            nodeCenter += glm::vec3(ioffs) * nodeSize;
-            nodeSize *= 2.0;
-        }
-        nodeCenter /= nodeSize;
-        nodeSize = 1.0f / nodeSize;*/
-
-        nodeCenter = glm::vec3(nodePos);
-        nodeSize = nodePos.w;
 
         UploadBrick upload{};
         upload.nodeIndex = nodeIndex;
         upload.brickIndex = brickIndex;
-        upload.genData = genData;
-        upload.nodeLocation = glm::vec4(glm::vec3(nodeCenter), (float)nodeSize);
+        upload.genDataOffset = genDataOffset;
+        upload.genDataSize = genDataSize;
+        upload.nodeLocation = nodePos;
 
-        // - to do: add various generation parameters (e.g. wind vector/temperature/humidity)
         it.bricksToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageSplit(Iteration& it, NodeIndex gi, const glm::vec4& nodePos)
+    void AtmosphereUpdater::StageSplit(UpdateIteration& it, NodeIndex gi, const glm::vec4& nodePos)
     {
         StageNodeGroup(it, UploadType::Split, gi);
         for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
@@ -442,7 +444,7 @@ namespace Mulen {
             childPos.w *= 0.5;
             childPos += glm::vec4(glm::vec3(glm::ivec3(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u) * 2 - 1) * childPos.w, 0.0);
             const auto ni = Octree::GroupAndChildToNode(gi, ci);
-            StageBrick(it, UploadType::Split, ni, childPos);
+            StageBrick(it, UploadType::Split, ni, childPos, 0u, 0u); // - to do: actual generation data values
         }
     }
 
@@ -464,7 +466,7 @@ namespace Mulen {
         }
     }
 
-    void AtmosphereUpdater::ComputeIteration(Iteration& it)
+    void AtmosphereUpdater::ComputeIteration(UpdateIteration& it)
     {
         const auto startTime = Util::Timer::Clock::now();
 
@@ -472,7 +474,11 @@ namespace Mulen {
         it.nodesToUpload.resize(0u);
         it.bricksToUpload.resize(0u);
         it.splitGroups.resize(0u);
+        it.genData.resize(0u);
         it.maxDepth = 0u;
+
+        // - to do: reset generator-specific data? Or it can do that itself
+        generator.Generate(it);
 
         struct PriorityNode
         {

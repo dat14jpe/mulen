@@ -207,7 +207,11 @@ void main()
         // - to do: find a way to not make clouds too dark/noisy without extreme numbers of steps
         // (maybe try to adaptively decrease step size at cloud boundaries?)
         
-        const float stepFactor = 0.2;//0.1; // - arbitrary factor (to-be-tuned)
+        const float stepFactor = 
+            //0.4 // - maybe can work? Or might cause problems. Let's see.
+            0.2 // - used for a long time
+            //0.1 // - arbitrary factor (to-be-tuned)
+            ;
             stepSize;
         
         const vec3 globalStart = hit;
@@ -295,7 +299,7 @@ void main()
                 float mu = dot(p / r, normalize(lightDir.xyz)); // - about 0.3 ms faster *with* the unnecessary lightDir.xyz normalisation. Hmm...
                 
                 // (too simple - the phase function needs to be accounted for too, separately for the more indirect lighting)
-                //storedLight = max(vec3(0.2), storedLight); // - experimental: don't make clouds entirely dark
+                //storedLight = max(vec3(0.1), storedLight); // - experimental: don't make clouds entirely dark
                 
                 //storedLight *= GetTransmittanceToSun(r, mu); // - heavy: 1/4 in some scenes
                 //storedLight *= mix(Tmin, Tmax, (dist - tmin) / (tmax - tmin)); // - experimental
@@ -315,7 +319,10 @@ void main()
                 color += (phaseR * betaR.xyz * rayleighDensity + 
                     //6 * // - testing (this brightens the clouds to great improvement. Must be tuned, somehow)
                     phaseM * betaMSca * mieDensity) 
-                    * T * storedLight * atmStep;
+                    * storedLight * T * atmStep;
+                    
+                // - A *very* crude "approximation" of indirect light:
+                //color += T * atmStep * (1e-8 + 1e-8 * vec3(mieDensity)); // - testing
                     
                 // - experiment: Mie added to optical depth *after*, to not occlude itself
                 // (should also be the case for Rayleigh, maybe?)
