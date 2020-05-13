@@ -630,7 +630,7 @@ namespace Mulen {
         };
         doSplits();
 
-        std::cout << "Splits: " << numSplits << ", merges: " << numMerges << std::endl;
+        //std::cout << "Splits: " << numSplits << ", merges: " << numMerges << std::endl;
         
         while (!mergePrio.empty())
         {
