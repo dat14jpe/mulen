@@ -147,7 +147,11 @@ float ComputeMieDensity(DensityComputationParams params)
         }
     }
     { // simple attempt at higher (smoother) cloud layer
-        float mask = fBm(8u, p * 256.0, 0.5, 2.0); // simplistic
+        
+        vec3 p2 = p - animDir * 5e-5 * animationTime;
+        vec3 p3 = p + animDir * 5e-5 * animationTime;
+        
+        float mask = fBm(8u, p2 * 256.0, 0.5, 2.0); // simplistic
         //float mask = fBm(8u, p * 1024.0, 0.5, 2.0); // simplistic (dramatic)
         mask = mask * 0.5 + 0.5;
         mask = max(0.0, mask - 0.5);
@@ -166,8 +170,6 @@ float ComputeMieDensity(DensityComputationParams params)
         mask *= smoothstep(base - thickness, base, h); // - bottom
         mask = max(0.0, mask - 0.25);
         
-        vec3 p2 = p - animDir * 5e-5 * animationTime;
-        vec3 p3 = p + animDir * 5e-5 * animationTime;
         
         if (!optimiseGeneration || mask > 0.0)
         if (enableCirrus)
