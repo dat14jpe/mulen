@@ -11,7 +11,7 @@ const bool usePerGroupLighting = true;
 
 // Interpolate between two voxel states when animating.
 // - Big performance impact: roughly halves render speed in many common/heavier cases.
-const bool interpolateAnimation = true;//false;
+const bool interpolateAnimation = false;
 
 // Double the step size in bricks flagged as empty.
 // Causes banding, unfortunately (but only/mostly in space views? Maybe it could be applied selectively).
