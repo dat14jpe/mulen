@@ -171,11 +171,11 @@ float ComputeMieDensity(DensityComputationParams params)
         const float h = 1.0 - shellDist / height;
         const float 
             base = 0.5,//0.025,//0.25, 
-            thickness = 0.05;
+            thickness = 0.025;
         //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
         mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
         mask *= smoothstep(base - thickness, base, h); // - bottom
-        mask = max(0.0, mask - 0.25);
+        mask = max(0.0, mask - 0.125);
         
         
         if (!optimiseGeneration || mask > 0.0)
