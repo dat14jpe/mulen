@@ -194,11 +194,13 @@ float ComputeMieDensity(DensityComputationParams params)
                 }
                 d = v;
             }
+            d += fBm(6u, (vec3(0.65) + p2) * 512.0, 0.5, 2.0);
             //d = 1.0;
             //d *= 0.5; // - worked well for fog
             //d *= 0.0625; // stratus or cirrus
             //d *= 0.125; // - not doing this makes for dramatic shadows
             
+            d *= pow(2.0, -1.5);
             mie = max(mie, d * mask);
         }
         if (enableStratus)
