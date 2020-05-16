@@ -161,7 +161,7 @@ float ComputeMieDensity(DensityComputationParams params)
         //float mask = fBm(8u, p * 1024.0, 0.5, 2.0); // simplistic (dramatic)
         mask = mask * 0.5 + 0.5;
         mask = max(0.0, mask - 0.5);
-        mask = 1.0;
+        //mask = 1.0;
         const float maskBase = mask;
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         
@@ -182,7 +182,7 @@ float ComputeMieDensity(DensityComputationParams params)
         if (enableCirrus)
         { // cirrus
             float d = fBm(4u, (vec3(0.65) + p2) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
-            {
+            /*{
                 vec3 p = (vec3(0.65) + p2) * 64.0;
                 float a = 1.0;
                 float v = 0.0;
@@ -194,7 +194,7 @@ float ComputeMieDensity(DensityComputationParams params)
                 }
                 d = v;
             }
-            d += fBm(6u, (vec3(0.65) + p2) * 512.0, 0.5, 2.0);
+            d += fBm(6u, (vec3(0.65) + p2) * 512.0, 0.5, 2.0);*/
             //d = 1.0;
             //d *= 0.5; // - worked well for fog
             //d *= 0.0625; // stratus or cirrus

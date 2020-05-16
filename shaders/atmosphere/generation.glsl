@@ -1,5 +1,6 @@
 
 #include "../noise.glsl"
+#include "../3d-cnoise.frag"
 #include "common.glsl"
 layout(local_size_x = BrickRes, local_size_y = BrickRes, local_size_z = BrickRes) in;
 #include "compute.glsl"
@@ -14,6 +15,18 @@ float fBm(uint octaves, vec3 p, float persistence, float lacunarity)
     for (uint i = 0u; i < octaves; ++i)
     {
         v += a * (noise(p) * 2.0 - 1.0);
+        a *= persistence;
+        p *= lacunarity;
+    }
+    return v;
+}
+float fBmCellular(uint octaves, vec3 p, float persistence, float lacunarity)
+{
+    float a = 1.0;
+    float v = 0.0;
+    for (uint i = 0u; i < octaves; ++i)
+    {
+        v += a * (cellular(p).y * 2.0 - 1.0);
         a *= persistence;
         p *= lacunarity;
     }

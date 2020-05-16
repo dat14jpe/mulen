@@ -122,6 +122,7 @@ void main()
     
     //light = float(0.0);
     //imageStore(lightImage, ivec3(writeOffs), vec4(light, vec3(0.0)));
+    //light = max(0.025, light); // - just a test (a not so good way of getting "indirect" lighting)
     
     float density = imageLoad(lightImage, ivec3(writeOffs)).r;
     imageStore(lightImage, ivec3(writeOffs), vec4(density, light, 0.0, 0.0));

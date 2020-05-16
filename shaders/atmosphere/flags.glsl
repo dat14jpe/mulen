@@ -17,3 +17,8 @@ const bool interpolateAnimation = false;
 // Causes banding, unfortunately (but only/mostly in space views? Maybe it could be applied selectively).
 // Moderate performance win. Roughly 1/6 of render time, depending on the view.
 const bool doubleStepsInEmptyBricks = false;//true;
+
+
+// "Powder" effect as described in Nubis presentations.
+// - to do: expand
+const bool approximateHigherOrderLighting = true;

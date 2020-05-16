@@ -304,7 +304,9 @@ void main()
                 //storedLight *= GetTransmittanceToSun(r, mu); // - heavy: 1/4 in some scenes
                 //storedLight *= mix(Tmin, Tmax, (dist - tmin) / (tmax - tmin)); // - experimental
                 // - faster without sun occlusion computation: (but artefacts, somewhere, maybe?)
-                storedLight *= GetTransmittanceToAtmosphereTop(r, mu); // - still quite expensive
+                vec3 transm = GetTransmittanceToAtmosphereTop(r, mu); // - still quite expensive
+                storedLight *= transm;
+                
                 
                 // - computing base Rayleigh and Mie densities does take some time (maybe 1/6 to 1/4)
                 // Maybe see if using a (very low-resolution) lookup texture helps?
@@ -315,11 +317,29 @@ void main()
                 mieDensity += voxelData.x * mieMul; // - could work now that the data has been simplified
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
+                // - experimental, based on Horizon Zero Dawn presentation
+                float cloudFactor = (1.0 - exp(-2e-4 * mieDensity));
+                //storedLight = vec3(cloudFactor); // - testing
+                vec3 higherOrderLighting = vec3(1.0) * cloudFactor;
+                //color += higherOrderLighting;
+                higherOrderLighting = vec3(0.0);
+                //cloudFactor = 1.0;
+                
                 T = transmittance * exp(-(opticalDepthR * betaR.xyz + opticalDepthM * betaMEx));
-                color += (phaseR * betaR.xyz * rayleighDensity + 
+                vec3 newLight = vec3(0.0);
+                
+                // Direct lighting:
+                newLight +=
+                    (phaseR * betaR.xyz * rayleighDensity + 
                     //6 * // - testing (this brightens the clouds to great improvement. Must be tuned, somehow)
-                    phaseM * betaMSca * mieDensity) 
-                    * storedLight * T * atmStep;
+                    phaseM * betaMSca * mieDensity)
+                    * storedLight;
+                
+                // Indirect lighting: (very crudely approximated)
+                if (approximateHigherOrderLighting)
+                    newLight += cloudFactor * phaseM * betaMSca * mieDensity * transm;
+                
+                color += newLight * T * atmStep;
                     
                 // - A *very* crude "approximation" of indirect light:
                 //color += T * atmStep * (1e-8 + 1e-8 * vec3(mieDensity)); // - testing
