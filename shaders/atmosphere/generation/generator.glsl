@@ -108,6 +108,10 @@ float ComputeMieDensity(DensityComputationParams params)
         enableStratus = true,
         enableCumulus = true,
         enableCirrus = true;
+        
+    const float animationT = animationTime * 3.0
+        //* 16.0 // - really fast (experimented with while taking pictures 1594-1595)
+        ;
     
     if (enableCumulus)
     { // new noisy clouds attempt
@@ -133,10 +137,12 @@ float ComputeMieDensity(DensityComputationParams params)
         if (mask > 0.0)
         {
             // - testing "movement" over time:
-            np += animDir * 1e-3 * animationTime;
+            np += animDir * 1e-3 * animationT;
             
-            d = (fBm(11u, np * 4.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
+            d = (fBm(11u, np * 8.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
             d -= 0.5; // - more broken up and dramatic (in high resolution)
+            /*d = (fBmCellular(6u, np * 4.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
+            d -= 0.85; // - more broken up and dramatic (in high resolution)*/
             
             const float cloudDensity = 10.0; // - to do: tune this (probably needs to be higher, no? Maybe 10? Try to find a physical derivation)
             float cloud = cloudDensity * max(0.0, d);
@@ -148,13 +154,14 @@ float ComputeMieDensity(DensityComputationParams params)
     }
     { // simple attempt at higher (smoother) cloud layer
         
-        vec3 p2 = p - animDir * 5e-5 * animationTime;
-        vec3 p3 = p + animDir * 5e-5 * animationTime;
+        vec3 p2 = p - animDir * 5e-5 * animationT;
+        vec3 p3 = p + animDir * 5e-5 * animationT;
         
         float mask = fBm(8u, p2 * 256.0, 0.5, 2.0); // simplistic
         //float mask = fBm(8u, p * 1024.0, 0.5, 2.0); // simplistic (dramatic)
         mask = mask * 0.5 + 0.5;
         mask = max(0.0, mask - 0.5);
+        mask = 1.0;
         const float maskBase = mask;
         const float cloudsTop = 0.5; // 0.25 can be good for seeing the 3D-ness of the clouds (though they go too high)
         
@@ -175,6 +182,18 @@ float ComputeMieDensity(DensityComputationParams params)
         if (enableCirrus)
         { // cirrus
             float d = fBm(4u, (vec3(0.65) + p2) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
+            {
+                vec3 p = (vec3(0.65) + p2) * 64.0;
+                float a = 1.0;
+                float v = 0.0;
+                for (uint i = 0u; i < 8u; ++i)
+                {
+                    v += a * (noise(p) * 2.0 - 1.0);
+                    a *= 0.5;
+                    p *= 2.0 * animDir;
+                }
+                d = v;
+            }
             //d = 1.0;
             //d *= 0.5; // - worked well for fog
             //d *= 0.0625; // stratus or cirrus
