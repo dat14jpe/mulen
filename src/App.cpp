@@ -323,39 +323,40 @@ namespace Mulen {
                 }
             }
             lastCursorPos = cursorPos;
-            camera.SetInertial(inertial);
-            camera.SetKeepLevel(keepLevel);
-            camera.Update(dt);
-            if (camera.needsUpdate || camera.GetVelocity() != Object::Position{ 0.0 })
-            {
-                auto cp = camera.GetPosition(), ap = atmosphere.GetPosition();
-                auto R = atmosphere.GetPlanetRadius();
-                if (!camera.IsKeepingLevel())
-                {
-                    camera.radius = glm::distance(cp, ap);
-                }
-                
-                const auto minR = 1.79; // seems like a decent test height
-                if (collision && camera.radius < minR + R)
-                {
-                    camera.radius = minR + R;
-                }
-                // - should this be conditional, perhaps?
-                camera.SetPosition(ap + glm::normalize(cp - ap) * camera.radius);
+        }
 
-                camera.needsUpdate = false;
+        camera.SetInertial(inertial);
+        camera.SetKeepLevel(keepLevel);
+        camera.Update(dt);
+        if (camera.needsUpdate || camera.GetVelocity() != Object::Position{ 0.0 })
+        {
+            auto cp = camera.GetPosition(), ap = atmosphere.GetPosition();
+            auto R = atmosphere.GetPlanetRadius();
+            if (!camera.IsKeepingLevel())
+            {
+                camera.radius = glm::distance(cp, ap);
             }
 
-            if (camera.upright)
+            const auto minR = 1.79; // seems like a decent test height
+            if (collision && camera.radius < minR + R)
             {
-                // Idea: rotate so that view right vector is perpendicular to planet normal at current location.
-                auto viewMat = camera.GetViewMatrix();
-                auto right = Object::Position{ glm::inverse(viewMat) * glm::dvec4{ 1, 0, 0, 0 } };
-                auto up = glm::normalize(atmosphere.GetPosition() - camera.GetPosition());
-                auto angle = glm::pi<double>() * 0.5 - acos(glm::dot(up, right));
-                Object::Orientation q = glm::angleAxis(angle, Object::Position{ 0, 0, -1 });
-                if (abs(angle) > 1e-3) camera.ApplyRotation(q);
+                camera.radius = minR + R;
             }
+            // - should this be conditional, perhaps?
+            camera.SetPosition(ap + glm::normalize(cp - ap) * camera.radius);
+
+            camera.needsUpdate = false;
+        }
+
+        if (camera.upright)
+        {
+            // Idea: rotate so that view right vector is perpendicular to planet normal at current location.
+            auto viewMat = camera.GetViewMatrix();
+            auto right = Object::Position{ glm::inverse(viewMat) * glm::dvec4{ 1, 0, 0, 0 } };
+            auto up = glm::normalize(atmosphere.GetPosition() - camera.GetPosition());
+            auto angle = glm::pi<double>() * 0.5 - acos(glm::dot(up, right));
+            Object::Orientation q = glm::angleAxis(angle, Object::Position{ 0, 0, -1 });
+            if (abs(angle) > 1e-3) camera.ApplyRotation(q);
         }
 
         atmosphere.SetDownscaleFactor(downscaleFactor);
