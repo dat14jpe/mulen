@@ -21,7 +21,7 @@ namespace Mulen {
         float time, animationTime, animationAlpha,
             Fcoef_half, stepSize, 
             atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
-        float Rt, Rg;
+        float Rt, Rg, cloudRadius;
 
         float HR, HM;
         float betaMEx, betaMSca, mieG;
@@ -36,6 +36,9 @@ namespace Mulen {
 
     bool Atmosphere::Init(const Atmosphere::Params& p)
     {
+        // - to do: make sure to discard old/ongoing computations from the other thread
+
+        initUpdate = true;
         vao.Create();
 
         hasTransmittance = false;
@@ -46,8 +49,20 @@ namespace Mulen {
             glTextureParameteri(tex.GetId(), GL_TEXTURE_MAG_FILTER, filter);
         };
 
-        // - to do: calculate actual number of nodes and bricks allowed/preferred from params
-        const size_t numNodeGroups = 16384u * 3u; // - to do: make this controllable
+        // - to do: maybe consider CPU budget too, or just remove it altogether since this is now mostly GPU-bound
+        const size_t numStates = 3u;
+        const size_t voxelSize = 2u; // - to do: depend on format, if format becomes configurable (which it ought to)
+        const size_t lightVoxelSize = 4u; // temporary lighting texture // - to do: also make this format-aware
+
+        const size_t voxelsPerGroup = BrickRes3 * NodeArity;
+        size_t gpuMemPerGroup = 0u; 
+        gpuMemPerGroup += voxelSize* numStates* voxelsPerGroup; // render voxel stores
+        gpuMemPerGroup += voxelsPerGroup * lightVoxelSize;      // temporary lighting
+        gpuMemPerGroup += LightPerGroupRes * LightPerGroupRes * lightVoxelSize; // per-group shadow maps
+        gpuMemPerGroup += sizeof(NodeGroup);                    // node store
+        // - to do: add more terms
+
+        const size_t numNodeGroups = p.gpuMemBudget / gpuMemPerGroup;//16384u * 3u; // - to do: make this controllable
         const size_t numBricks = numNodeGroups * NodeArity;
         octree.Init(numNodeGroups, numBricks);
 
@@ -225,6 +240,7 @@ namespace Mulen {
         uniforms.mieG = (float)mieG;
         uniforms.Rg = (float)planetRadius;
         uniforms.Rt = (float)(planetRadius + height * 2.0);
+        uniforms.cloudRadius = (float)(planetRadius + cloudMaxHeight);
 
         // - tuning these is important to avoid visual banding/clamping
         uniforms.offsetR = 2.0f;
@@ -310,11 +326,10 @@ namespace Mulen {
 
         // - to do: probably remove this, eventually, in favour of always loading continuously
         // Update GPU data:
-        static bool firstUpdate = true; // - temporary ugliness, before this is replaced by continuous updates
-        if (firstUpdate && u.GetUpdateIteration().nodesToUpload.size() && firstUpdate)
+        if (initUpdate && u.GetUpdateIteration().nodesToUpload.size())
         {
             auto& it = u.GetUpdateIteration();
-            firstUpdate = false;
+            initUpdate = false;
             std::cout << "Uploading " << it.nodesToUpload.size() << " node groups\n";
             std::cout << "Generating " << it.bricksToUpload.size() << " bricks\n";
 

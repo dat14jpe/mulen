@@ -6,6 +6,7 @@ namespace Mulen {
     {
         Mat4 projectionMatrix;
         Position acceleration{ 0.0 }, velocity{ 0.0 };
+        double maxSpeed = std::numeric_limits<double>::max(); // infinity means "distance-based" (but maybe it should be made explicit)
 
     public:
         // - to do: move all update and radius computation logic fully into this class
@@ -33,5 +34,8 @@ namespace Mulen {
         Mat4 GetProjectionMatrix() const { return projectionMatrix; }
 
         const Position& GetVelocity() const { return velocity;  }
+
+        void SetMaxSpeed(double maxSpeed) { this->maxSpeed = maxSpeed; }
+        double GetMaxSpeed() const { return maxSpeed; }
     };
 }

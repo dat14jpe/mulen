@@ -35,6 +35,8 @@ namespace Mulen {
         const int maxDepthLimit = 16u;
         double lastTime;
 
+        int gpuMemBudgetMiB = 2048; // - kind of arbitrary, but we've got to start with something
+        Atmosphere::Params atmInitParams;
         bool InitializeAtmosphere();
         bool Reload();
         void OnFrame() override;

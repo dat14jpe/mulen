@@ -1,4 +1,5 @@
 #include "Camera.hpp"
+#include <iostream>
 
 namespace Mulen {
     void Camera::Update(double dt)
@@ -10,6 +11,14 @@ namespace Mulen {
         velocity *= exp(-dampening * 20.0 * dt);
         velocity += acceleration * dt;
         acceleration = Position{ 0.0 };
+
+        // Start of speed limiting.
+        // - to do: also change dampening to be reasonable for the desired speed
+        auto speed = glm::length(velocity);
+        if (speed > maxSpeed)
+        {
+            velocity *= maxSpeed / speed;
+        }
     }
 
     void Camera::Accelerate(const Position& a)

@@ -14,6 +14,8 @@ namespace Mulen {
         , atmosphere{ timer }
         , lastTime{ glfwGetTime() }
     {
+        atmInitParams = {};
+
         atmUpdateParams.depthLimit = 12u;
         atmUpdateParams.animate = false;
         atmUpdateParams.rotateLight = false;
@@ -33,9 +35,9 @@ namespace Mulen {
 
     bool App::InitializeAtmosphere()
     {
-        // - to do: configurable values, not hardcoded
-        const size_t budget = 256u * (1u << 20u);
-        atmosphere.Init({ budget, budget });
+        atmInitParams.memBudget = atmInitParams.gpuMemBudget = static_cast<size_t>(gpuMemBudgetMiB) * (1u << 20u);
+        std::cout << "Initializing atmosphere with memory budget " << (double)atmInitParams.gpuMemBudget / (1u << 30u) << " GiB" << std::endl;
+        atmosphere.Init(atmInitParams);
         return true;
     }
 
@@ -62,23 +64,72 @@ namespace Mulen {
 
         if (showGui)
         {
+            ImGui::Begin("Camera");
+            ImGui::Text("Resolution: %d*%d", size.x, size.y);
+            ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
+            ImGui::Text("Speed: %.0f km/h", glm::length(camera.GetVelocity()) * 3.6);
+            {
+                struct SpeedLimit
+                {
+                    const char* name;
+                    double maxSpeed;
+                };
+                static std::vector<SpeedLimit> items;
+                if (items.empty())
+                {
+                    items.push_back({ "(distance-based)", std::numeric_limits<double>::max() });
+                    items.push_back({ "    47  m/h (garden snail)", 0.047 / 3.6 });
+                    items.push_back({ "   140 km/h (goose)", 140.0 / 3.6 });
+                    items.push_back({ "   328 km/h (fastest golf ball)", 328.0 / 3.6 });
+                    items.push_back({ "   900 km/h (jet airliner)", 900.0 / 3.6 });
+                    items.push_back({ " 1,225 km/h (speed of sound)", 340.3 });
+                    items.push_back({ " 1,670 km/h (Earth rotation at equator)", 1670.0 / 3.6 });
+                    items.push_back({ " 2,171 km/h (Concorde)", 2170.8 / 3.6 });
+                    items.push_back({ "12,144 km/h (X-43 rocket/scramjet)", 12144.0 / 3.6 });
+                    items.push_back({ "40,320 km/h (escape velocity)", 40320.0 / 3.6 });
+                    items.push_back({ "1,079,252,848 km/h (speed of light)", 299792458.0 });
+                }
+                static size_t selectedIndex = 0;
+
+                if (ImGui::BeginCombo("Speed limit", items[selectedIndex].name))
+                {
+                    for (size_t i = 0; i < items.size(); ++i)
+                    {
+                        auto& item = items[i];
+                        bool selected = i == selectedIndex;
+                        if (ImGui::Selectable(item.name, selected))
+                        {
+                            selectedIndex = i;
+                            if (selected) ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                camera.SetMaxSpeed(items[selectedIndex].maxSpeed);
+            }
+            ImGui::Checkbox("Upright", &camera.upright);
+            ImGui::Checkbox("Collision", &collision);
+            ImGui::End();
+
             ImGui::Begin("Atmosphere");
 
-            ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
+            ImGui::PushItemWidth(120.0);
             ImGui::Checkbox("Update", &atmUpdateParams.update);
             ImGui::Checkbox("Rotate light", &atmUpdateParams.rotateLight);
             ImGui::Checkbox("Animate", &atmUpdateParams.animate);
-            ImGui::Checkbox("Upright", &camera.upright);
-            ImGui::Checkbox("Collision", &collision);
-            ImGui::Checkbox("Fly", &fly);
+            //ImGui::Checkbox("Fly", &fly);
             ImGui::Checkbox("Use feature generator", &atmUpdateParams.useFeatureGenerator);
             ImGui::SliderInt("Depth", &atmUpdateParams.depthLimit, 1u, maxDepthLimit);
             ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
+            ImGui::Spacing();
+            ImGui::InputInt("GPU memory budget (MiB)", &gpuMemBudgetMiB, 256, 1024);
+            gpuMemBudgetMiB = glm::max(512, gpuMemBudgetMiB);
             if (ImGui::Button("Re-init"))
             {
                 atmosphere.ReloadShaders(shaderPath);
                 InitializeAtmosphere();
             }
+            ImGui::PopItemWidth();
 
             { // distance to planet or atmosphere cloud shell
                 auto cursorPos = glm::dvec2(window.GetCursorPosition());
@@ -186,7 +237,19 @@ namespace Mulen {
                 force *= r;
                 const auto dist = glm::distance(atmosphere.GetPosition(), camera.GetPosition());
                 //force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 16.0)); // - to do: find nicer speed profile
-                force *= log(dist / r);
+
+                const auto maxSpeed = camera.GetMaxSpeed();
+                const auto isSpeedLimited = maxSpeed != std::numeric_limits<double>::max();
+                if (isSpeedLimited)
+                {
+                    // - to do
+                }
+                else // distance-based speed 
+                {
+                    force *= log(dist / r);
+                }
+                
+
                 //force *= glm::clamp(pow((dist - r) / r, 1.5), 1e-2, 1.0);
                 accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
                 // - to do: only perpendicular to planet normal, if not flying

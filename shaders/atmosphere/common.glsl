@@ -33,6 +33,7 @@ uniform GlobalUniforms
     float stepSize;
     float atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
     float Rt, Rg; // atmosphere top and bottom (ground) radii
+    float cloudRadius; // radius of top allowed cloud height
     
     // Physical values:
     float HR, HM;
@@ -318,7 +319,7 @@ AtmosphereIntersection IntersectAtmosphere(vec3 ori, vec3 dir)
 {
     AtmosphereIntersection ai;
     ai.outerR = Rt; // upper atmosphere radius (not *cloud* level, but far above it)
-    ai.innerR = planetRadius + atmosphereHeight * 0.5; // - to do: make uniform
+    ai.innerR = cloudRadius;
     ai.intersectsOuter = IntersectSphere(ori, dir, planetLocation.xyz, ai.outerR, ai.outerMin, ai.outerMax);
     ai.intersectsInner = IntersectSphere(ori, dir, planetLocation.xyz, ai.innerR, ai.innerMin, ai.innerMax);
     return ai;

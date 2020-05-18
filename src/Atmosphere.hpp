@@ -18,7 +18,7 @@ namespace Mulen {
         friend class AtmosphereUpdater;
 
         double planetRadius = 6371e3, height = 50e3, cloudMaxHeight = 25e3;
-        double scale = 1.1;
+        double scale = 1.1; // - should this also be configurable? Perhaps
 
         double HR = 8.0e3; // Rayleigh scale height
         glm::dvec3 betaR = { 5.8e-6, 1.35e-5, 3.31e-5 };
@@ -73,15 +73,21 @@ namespace Mulen {
         double time = 0.0, lightTime = 0.0; // *animation* time and *light* time
 
         AtmosphereUpdater updater;
+        bool initUpdate = true;
 
         void UpdateUniforms(const Camera&, const LightSource&);
 
     public:
         Atmosphere(Util::Timer&);
 
+        // - maybe to do: separate this into technical and physical parameters?
         struct Params
         {
+            // Technical:
             size_t memBudget, gpuMemBudget;
+
+            // Physical:
+
         };
         bool Init(const Params&);
         bool ReloadShaders(const std::string& shaderPath);
