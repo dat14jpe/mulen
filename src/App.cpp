@@ -66,6 +66,10 @@ namespace Mulen {
         {
             ImGui::Begin("Camera");
             ImGui::Text("Resolution: %d*%d", size.x, size.y);
+            auto fullscreen = window.IsFullscreen();
+            ImGui::Checkbox("Fullscreen", &fullscreen);
+            if (fullscreen != window.IsFullscreen()) window.SetFullscreen(fullscreen);
+
             ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
             ImGui::Text("Speed: %.0f km/h", glm::length(camera.GetVelocity()) * 3.6);
             {
@@ -87,6 +91,7 @@ namespace Mulen {
                     items.push_back({ " 2,171 km/h (Concorde)", 2170.8 / 3.6 });
                     items.push_back({ "12,144 km/h (X-43 rocket/scramjet)", 12144.0 / 3.6 });
                     items.push_back({ "40,320 km/h (escape velocity)", 40320.0 / 3.6 });
+                    items.push_back({ "72,000 km/h (Chicxulub impactor)", 72000.0 / 3.6 });
                     items.push_back({ "1,079,252,848 km/h (speed of light)", 299792458.0 });
                 }
                 static size_t selectedIndex = 0;
@@ -109,6 +114,8 @@ namespace Mulen {
             }
             ImGui::Checkbox("Upright", &camera.upright);
             ImGui::Checkbox("Collision", &collision);
+            ImGui::Checkbox("Keep level", &keepLevel);
+            ImGui::Checkbox("Inertial", &inertial);
             ImGui::End();
 
             ImGui::Begin("Atmosphere");
@@ -117,7 +124,6 @@ namespace Mulen {
             ImGui::Checkbox("Update", &atmUpdateParams.update);
             ImGui::Checkbox("Rotate light", &atmUpdateParams.rotateLight);
             ImGui::Checkbox("Animate", &atmUpdateParams.animate);
-            //ImGui::Checkbox("Fly", &fly);
             ImGui::Checkbox("Use feature generator", &atmUpdateParams.useFeatureGenerator);
             ImGui::SliderInt("Depth", &atmUpdateParams.depthLimit, 1u, maxDepthLimit);
             ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
@@ -317,24 +323,30 @@ namespace Mulen {
                 }
             }
             lastCursorPos = cursorPos;
+            camera.SetInertial(inertial);
+            camera.SetKeepLevel(keepLevel);
             camera.Update(dt);
             if (camera.needsUpdate || camera.GetVelocity() != Object::Position{ 0.0 })
             {
                 auto cp = camera.GetPosition(), ap = atmosphere.GetPosition();
                 auto R = atmosphere.GetPlanetRadius();
-                camera.radius = glm::distance(cp, ap);
+                if (!camera.IsKeepingLevel())
+                {
+                    camera.radius = glm::distance(cp, ap);
+                }
                 
                 const auto minR = 1.79; // seems like a decent test height
                 if (collision && camera.radius < minR + R)
                 {
                     camera.radius = minR + R;
-                    camera.SetPosition(ap + glm::normalize(cp - ap) * camera.radius);
                 }
+                // - should this be conditional, perhaps?
+                camera.SetPosition(ap + glm::normalize(cp - ap) * camera.radius);
 
                 camera.needsUpdate = false;
             }
 
-            if (window.IsKeyPressed(GLFW_KEY_U) || camera.upright)
+            if (camera.upright)
             {
                 // Idea: rotate so that view right vector is perpendicular to planet normal at current location.
                 auto viewMat = camera.GetViewMatrix();
@@ -379,6 +391,12 @@ namespace Mulen {
             break;
         case GLFW_KEY_U:
             atmUpdateParams.update = !atmUpdateParams.update;
+            break;
+        case GLFW_KEY_I:
+            inertial = !inertial;
+            break;
+        case GLFW_KEY_K:
+            keepLevel = !keepLevel;
             break;
         case GLFW_KEY_G:
             atmUpdateParams.useFeatureGenerator = !atmUpdateParams.useFeatureGenerator;

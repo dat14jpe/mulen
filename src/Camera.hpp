@@ -8,6 +8,8 @@ namespace Mulen {
         Position acceleration{ 0.0 }, velocity{ 0.0 };
         double maxSpeed = std::numeric_limits<double>::max(); // infinity means "distance-based" (but maybe it should be made explicit)
 
+        bool inertial = false, keepLevel = false;
+
     public:
         // - to do: move all update and radius computation logic fully into this class
         bool needsUpdate = false;
@@ -37,5 +39,10 @@ namespace Mulen {
 
         void SetMaxSpeed(double maxSpeed) { this->maxSpeed = maxSpeed; }
         double GetMaxSpeed() const { return maxSpeed; }
+
+        void SetInertial(bool b) { inertial = b; }
+        bool IsInertail() const { return inertial; }
+        void SetKeepLevel(bool b) { keepLevel = b; }
+        bool IsKeepingLevel() const { return keepLevel; }
     };
 }

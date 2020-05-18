@@ -29,7 +29,7 @@ namespace Mulen {
         Atmosphere atmosphere;
 
         bool fpsMode = false;
-        bool collision = true, fly = true;
+        bool collision = true, keepLevel = false, inertial = false;
         Atmosphere::UpdateParams atmUpdateParams;
         int downscaleFactor = 4u;
         const int maxDepthLimit = 16u;
