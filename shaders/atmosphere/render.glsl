@@ -302,10 +302,11 @@ void main()
                 // (too simple - the phase function needs to be accounted for too, separately for the more indirect lighting)
                 //storedLight = max(vec3(0.1), storedLight); // - experimental: don't make clouds entirely dark
                 
-                //storedLight *= GetTransmittanceToSun(r, mu); // - heavy: 1/4 in some scenes
-                //storedLight *= mix(Tmin, Tmax, (dist - tmin) / (tmax - tmin)); // - experimental
+                vec3 transm = vec3(1.0);
+                transm *= GetTransmittanceToSun(r, mu); // - heavy: 1/4 in some scenes
+                //transm *= mix(Tmin, Tmax, (dist - tmin) / (tmax - tmin)); // - experimental
                 // - faster without sun occlusion computation: (but artefacts, somewhere, maybe?)
-                vec3 transm = GetTransmittanceToAtmosphereTop(r, mu); // - still quite expensive
+                //transm = GetTransmittanceToAtmosphereTop(r, mu); // - still quite expensive
                 storedLight *= transm;
                 
                 
