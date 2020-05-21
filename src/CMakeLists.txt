@@ -2,17 +2,19 @@ add_executable(${CMAKE_PROJECT_NAME}
 	main.cpp
     App.hpp
     App.cpp
-    Common.hpp
-    Atmosphere.hpp
-    Atmosphere.cpp
-    AtmosphereUpdater.hpp
-    AtmosphereUpdater.cpp
-    Generator.hpp
-    Generator.cpp
-    FeatureGenerator.hpp
-    FeatureGenerator.cpp
-    Octree.hpp
-    Octree.cpp
+    atmosphere/Common.hpp
+    atmosphere/Atmosphere.hpp
+    atmosphere/Atmosphere.cpp
+    atmosphere/Model.hpp
+    atmosphere/Model.cpp
+    atmosphere/Updater.hpp
+    atmosphere/Updater.cpp
+    atmosphere/Generator.hpp
+    atmosphere/Generator.cpp
+    atmosphere/FeatureGenerator.hpp
+    atmosphere/FeatureGenerator.cpp
+    atmosphere/Octree.hpp
+    atmosphere/Octree.cpp
     Camera.hpp
     Camera.cpp
     Object.hpp
@@ -23,6 +25,7 @@ add_executable(${CMAKE_PROJECT_NAME}
 )
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ".")
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${LIB_DIR}")
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${GLAD_DIR}/include")
 target_link_libraries(${CMAKE_PROJECT_NAME} glfw)

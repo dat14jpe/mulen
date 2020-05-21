@@ -2,7 +2,7 @@
 #include "Common.hpp"
 #include "util/Shader.hpp"
 
-namespace Mulen {
+namespace Mulen::Atmosphere {
     // Atmosphere generator.
     class Generator
     {

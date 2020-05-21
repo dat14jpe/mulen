@@ -1,4 +1,4 @@
-#include "AtmosphereUpdater.hpp"
+#include "Updater.hpp"
 #include "Atmosphere.hpp"
 #include <functional>
 #include <queue>
@@ -7,18 +7,18 @@
 #include "util/Timer.hpp"
 #include <numeric>
 
-namespace Mulen {
+namespace Mulen::Atmosphere {
 
-    AtmosphereUpdater::AtmosphereUpdater(Atmosphere& atmosphere)
+    Updater::Updater(Atmosphere& atmosphere)
         : generator{ "generator" }
         , featureGenerator{ "feature_generator" }
         , atmosphere { atmosphere }
-        , thread(&AtmosphereUpdater::UpdateLoop, this)
+        , thread(&Updater::UpdateLoop, this)
     {
 
     }
 
-    bool AtmosphereUpdater::NodeInAtmosphere(const UpdateIteration& it, const glm::dvec4& childPos)
+    bool Updater::NodeInAtmosphere(const UpdateIteration& it, const glm::dvec4& childPos)
     {
         auto& a = atmosphere;
 
@@ -49,7 +49,7 @@ namespace Mulen {
         return false; // wholly inside planet
     }
 
-    void AtmosphereUpdater::InitialSetup()
+    void Updater::InitialSetup()
     {
         auto& a = atmosphere;
         auto& it = GetUpdateIteration();
@@ -93,7 +93,7 @@ namespace Mulen {
         std::cout << "Voxel resolution: " << res << " (" << 2e-3 * a.planetRadius * a.scale / res << " km/voxel)\n";
     }
 
-    AtmosphereUpdater::~AtmosphereUpdater()
+    Updater::~Updater()
     {
         std::unique_lock<std::mutex> lk{ mutex };
         done = true;
@@ -102,7 +102,7 @@ namespace Mulen {
         thread.join();
     }
 
-    Util::Shader& AtmosphereUpdater::SetShader(Util::Shader& shader)
+    Util::Shader& Updater::SetShader(Util::Shader& shader)
     {
         shader.Bind();
         atmosphere.SetUniforms(shader);
@@ -110,7 +110,7 @@ namespace Mulen {
         return shader;
     }
 
-    void AtmosphereUpdater::UpdateMap(Util::Texture& octreeMap, glm::vec3 pos, glm::vec3 scale, unsigned depthOffset)
+    void Updater::UpdateMap(Util::Texture& octreeMap, glm::vec3 pos, glm::vec3 scale, unsigned depthOffset)
     {
         //auto t = timer.Begin("Map");
         auto& shader = SetShader(atmosphere.updateOctreeMapShader);
@@ -125,7 +125,7 @@ namespace Mulen {
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
 
-    void AtmosphereUpdater::UpdateNodes(uint64_t num)
+    void Updater::UpdateNodes(uint64_t num)
     {
         //auto t = timer.Begin("Nodes");
         SetShader(atmosphere.updateShader);
@@ -133,7 +133,7 @@ namespace Mulen {
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     }
 
-    void AtmosphereUpdater::GenerateBricks(GpuState& state, Generator& gen, uint64_t first, uint64_t num)
+    void Updater::GenerateBricks(GpuState& state, Generator& gen, uint64_t first, uint64_t num)
     {
         glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_READ_WRITE, BrickFormat);
         {
@@ -151,7 +151,7 @@ namespace Mulen {
         }
     }
 
-    void AtmosphereUpdater::LightBricks(GpuState& state, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta& timerMeta)
+    void Updater::LightBricks(GpuState& state, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta& timerMeta)
     {
         const auto numGroups = num / NodeArity; // - to do: num groups as parameter instead, to disallow incorrect use
         auto& groupsTex = atmosphere.brickLightPerGroupTexture;
@@ -202,7 +202,7 @@ namespace Mulen {
         }
     }
 
-    void AtmosphereUpdater::FilterLighting(GpuState& state, uint64_t first, uint64_t num)
+    void Updater::FilterLighting(GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Light filter");
         //glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
@@ -214,7 +214,7 @@ namespace Mulen {
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
 
-    void AtmosphereUpdater::OnFrame(const UpdateIteration::Parameters& params, double period)
+    void Updater::OnFrame(const UpdateIteration::Parameters& params, double period)
     {
         auto& a = atmosphere;
         auto& timer = a.timer;
@@ -430,7 +430,7 @@ namespace Mulen {
         updateFraction += maxFrameCost; // - to do: think this over
     }
 
-    void AtmosphereUpdater::StageNodeGroup(UpdateIteration& it, UploadType type, NodeIndex groupIndex)
+    void Updater::StageNodeGroup(UpdateIteration& it, UploadType type, NodeIndex groupIndex)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         uint32_t genData = 0u;
@@ -442,7 +442,7 @@ namespace Mulen {
         it.nodesToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageBrick(UpdateIteration& it, UploadType type, NodeIndex nodeIndex, const glm::vec4& nodePos, uint32_t genDataOffset, uint32_t genDataSize)
+    void Updater::StageBrick(UpdateIteration& it, UploadType type, NodeIndex nodeIndex, const glm::vec4& nodePos, uint32_t genDataOffset, uint32_t genDataSize)
     {
         // - to do: check that we don't exceed maxNumUpload here, or leave that to the caller?
         const auto brickIndex = nodeIndex;
@@ -457,7 +457,7 @@ namespace Mulen {
         it.bricksToUpload.push_back(upload);
     }
 
-    void AtmosphereUpdater::StageSplit(UpdateIteration& it, NodeIndex gi, const glm::vec4& nodePos)
+    void Updater::StageSplit(UpdateIteration& it, NodeIndex gi, const glm::vec4& nodePos)
     {
         StageNodeGroup(it, UploadType::Split, gi);
         for (NodeIndex ci = 0u; ci < NodeArity; ++ci)
@@ -470,7 +470,7 @@ namespace Mulen {
         }
     }
 
-    void AtmosphereUpdater::UpdateLoop()
+    void Updater::UpdateLoop()
     {
         while (true)
         {
@@ -488,7 +488,7 @@ namespace Mulen {
         }
     }
 
-    void AtmosphereUpdater::ComputeIteration(UpdateIteration& it)
+    void Updater::ComputeIteration(UpdateIteration& it)
     {
         const auto startTime = Util::Timer::Clock::now();
 

@@ -1,7 +1,7 @@
 #pragma once
 #include "Generator.hpp"
 
-namespace Mulen {
+namespace Mulen::Atmosphere {
     class FeatureGenerator : public Generator
     {
         struct Feature

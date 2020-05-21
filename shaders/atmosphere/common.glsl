@@ -26,6 +26,7 @@ uniform GlobalUniforms
     vec4  lightDir;
     vec4  sun; // distance, radius, intensity (already attenuated)
     vec4 betaR;
+    vec4 absorptionExtinction;
     
     uint  rootGroupIndex;
     float time, animationTime, animationAlpha;
@@ -36,7 +37,7 @@ uniform GlobalUniforms
     float cloudRadius; // radius of top allowed cloud height
     
     // Physical values:
-    float HR, HM;
+    float HR, HM, absorptionMiddle, absorptionExtent;
     float betaMEx, betaMSca, mieG;
 
     // Sample scaling:
@@ -48,7 +49,7 @@ const int TransmittanceWidth = 256, TransmittanceHeight = 64;
 const float ScatterRSize = 32, ScatterMuSize = 128, ScatterMuSSize = 32, ScatterNuSize = 8;
 const float MuSMin = -0.2; // cos(102 degrees), which was chosen for Earth in particular
 
-const float mieMul = 0.25 * 100.0 * 4.0 * 4.0; // - to do: tune, put elsewhere
+const float mieMul = 100.0 * 4.0 * 4.0; // - to do: tune, put elsewhere
 
 
 uniform layout(binding=0) sampler3D  brickTexture;
@@ -292,6 +293,10 @@ float MieDensityFromH(float H)
 {
     return exp(-H / HM);
 }
+float AbsorptionDensityFromH(float H)
+{
+    return max(1.0 - abs(H - absorptionMiddle) / absorptionExtent, 0.0);
+}
 
 float PhaseRayleigh(float v)
 {
@@ -358,9 +363,6 @@ float TextureCoordToUnitCoord(float x, float texSize)
 
 vec2 RMuToTransmittanceUv(float r, float mu)
 {
-    /*const float Rt = 6426000.0;
-    const float Rg = 6371000.0;*/
-    
     float H = sqrt(Rt*Rt - Rg*Rg); // distance to atmosphere top for ground level horizontal ray
     float rho = sqrt(max(0.0, r*r - Rg*Rg)); // distance to horizon
     float d = DistanceToAtmosphereTop(r, mu);
@@ -388,6 +390,8 @@ vec3 GetTransmittanceToAtmosphereTop(float r, float mu)
 }
 float GetSunOcclusion(float r, float mu_s)
 {
+    const float deg = PI / 180.0;
+    //const float sunAngularRadius = 0.2678 * deg;
     const float sunAngularRadius = 0.00935 / 2.0;
     float sin_theta_h = Rg / r;
     float cos_theta_h = -sqrt(max(1.0 - sin_theta_h * sin_theta_h, 0.0));
@@ -401,7 +405,7 @@ vec3 GetTransmittanceToSun(float r, float mu_s)
 }
 vec3 GetTransmittance(float r, float mu, float d, bool intersectsGround)
 {
-    float r_d = clamp(sqrt(d*d + r*r* + 2.0 * r * mu * d), Rg, Rt);
+    float r_d = clamp(sqrt(d*d + 2.0 * r * mu * d + r*r), Rg, Rt);
     float mu_d = clamp((r * mu + d) / r_d, -1.0, 1.0);
     
     if (intersectsGround)
@@ -432,6 +436,7 @@ void ComputeSingleScatteringIntegrand
     vec3 T = 
         GetTransmittance(r, mu, d, intersectsGround) *
         GetTransmittanceToSun(r_d, mu_s_d);
+    //T = vec3(1.0); // - debugging
     float H = r_d - Rg;
     rayleigh = T * RayleighDensityFromH(H);
     mie = T * MieDensityFromH(H);
@@ -443,7 +448,7 @@ void ComputeSingleScattering
     out vec3 rayleigh, out vec3 mie
 )
 {
-    const uint NumSteps = 512u;
+    const uint NumSteps = 128u;
     float dx = DistanceToNearestAtmosphereBoundary(r, mu, intersectsGround) / float(NumSteps);
     rayleigh = mie = vec3(0.0);
     for (uint step = 0u; step < NumSteps; ++step)
@@ -469,7 +474,7 @@ vec4 ScatteringUvwzFromRMuMuSNu
     float u_r = UnitCoordToTextureCoord(rho / H, ScatterRSize);
     
     float r_mu = r * mu;
-    float discriminant = r*mu*r_mu - r*r + Rg*Rg; // of intersection between ray (r, mu) and the ground
+    float discriminant = r_mu*r_mu - r*r + Rg*Rg; // of intersection between ray (r, mu) and the ground
     float u_mu;
     if (intersectsGround)
     {

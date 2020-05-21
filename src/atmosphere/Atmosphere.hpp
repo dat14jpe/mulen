@@ -3,7 +3,7 @@
 #include <vector>
 #include "util/VertexArray.hpp"
 #include "util/Framebuffer.hpp"
-#include "AtmosphereUpdater.hpp"
+#include "Updater.hpp"
 
 namespace Util {
     class Timer;
@@ -12,20 +12,26 @@ namespace Util {
 namespace Mulen {
     class Camera;
     class LightSource;
+}
+
+namespace Mulen::Atmosphere {
 
     class Atmosphere : public Object
     {
-        friend class AtmosphereUpdater;
+        friend class Updater;
 
         double planetRadius = 6371e3, height = 50e3, cloudMaxHeight = 25e3;
         double scale = 1.1; // - should this also be configurable? Perhaps
 
+        // - to do: all of these managed by model instead (and maybe the dimensions above as well)
         double HR = 8.0e3; // Rayleigh scale height
         glm::dvec3 betaR = { 5.8e-6, 1.35e-5, 3.31e-5 };
         double HM = 1.2e3; // Mie scale height
         double mieG = 0.8;
-        double betaMSca = 2e-5; // Mie scattering
+        double betaMSca = 2e-5 / 5.0; // Mie scattering
         double betaMEx = betaMSca / 0.9; // Mie extinction
+        glm::dvec3 absorptionExtinction = { 6.497e-7, 1.881e-6, 8.502e-8 };
+        double absorptionMiddle = 25.0e3, absorptionExtent = 15.0e3;
 
 
         Octree octree; // - to do: multiple octrees (2 or 3?) for multithreaded updates
@@ -72,7 +78,7 @@ namespace Mulen {
         double renderTime = 0.0;
         double time = 0.0, lightTime = 0.0; // *animation* time and *light* time
 
-        AtmosphereUpdater updater;
+        Updater updater;
         bool initUpdate = true;
 
         void UpdateUniforms(const Camera&, const LightSource&);

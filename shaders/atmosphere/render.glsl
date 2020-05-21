@@ -27,11 +27,12 @@ vec3 ViewspaceFromDepth(vec4 clipCoords, float depth)
     return vs.xyz;
 }
 
-void ComputeBaseDensities(out float rayleighDensity, out float mieDensity, float r)
+void ComputeBaseDensities(out float rayleighDensity, out float mieDensity, out float absorptionDensity, float r)
 {
     float H = r - Rg;
     rayleighDensity = RayleighDensityFromH(H);
     mieDensity = MieDensityFromH(H);
+    absorptionDensity = AbsorptionDensityFromH(H);
 }
 
 vec3 TransmittanceFromPoint(vec3 p)
@@ -62,7 +63,7 @@ void main()
     float solidDepth = length(ViewspaceFromDepth(clipCoords, GetDepth(clipCoords)));
     const float actualSolidDepth = solidDepth;
     
-    float opticalDepthR = 0.0, opticalDepthM = 0.0;
+    float opticalDepthR = 0.0, opticalDepthM = 0.0, opticalDepthA = 0.0;
     vec3 transmittance = vec3(1.0);
     vec3 color = vec3(0.0);
     
@@ -78,10 +79,10 @@ void main()
         vec3 p = ori + dir * ai.outerMin - planetLocation.xyz;
         float r = length(p);
         float mu = dot(dir, p) / r;
-        float mu_s = dot(lightDir.xyz, p) / r;
+        float mu_s = dot(p, lightDir.xyz) / r;
         float nu = dot(dir, lightDir.xyz);
-        bool intersectsGround = false; // - to do
-        //intersectsGround = solidDepth < outerMax;
+        bool intersectsGround = false;
+        intersectsGround = solidDepth < ai.outerMax;
         vec3 scattering = GetScattering(r, mu, mu_s, nu, intersectsGround);
         transmittance *= GetTransmittance(r, mu, outerLength, true);
         
@@ -240,7 +241,7 @@ void main()
         const float mu = dot(lightDir.xyz, dir);
         const float phaseR = PhaseRayleigh(mu);
         const float phaseM = PhaseMie(mu);
-        float lastRayleighDensity = 0.0, lastMieDensity = 0.0; // - or should these be the logarithms? Investigate
+        float lastRayleighDensity = 0.0, lastMieDensity = 0.0, lastAbsorptionDensity = 0.0;
         
         // Trace through bricks:
         uint numBricks = 0u, numSteps = 0u;
@@ -312,8 +313,8 @@ void main()
                 // Maybe see if using a (very low-resolution) lookup texture helps?
                 // (less time in heavy scenes, it seems)
                 
-                float rayleighDensity = 0.0, mieDensity = 0.0;
-                ComputeBaseDensities(rayleighDensity, mieDensity, r);
+                float rayleighDensity = 0.0, mieDensity = 0.0, absorptionDensity;
+                ComputeBaseDensities(rayleighDensity, mieDensity, absorptionDensity, r);
                 mieDensity += voxelData.x * mieMul; // - could work now that the data has been simplified
                 max(0.0, (voxelData.x * scaleM + offsetM) * mieMul); // - testing (this non-exponential (linear) interpolation preserves interesting shapes much better. Hmm.)
                 
@@ -325,7 +326,7 @@ void main()
                 higherOrderLighting = vec3(0.0);
                 //cloudFactor = 1.0;
                 
-                T = transmittance * exp(-(opticalDepthR * betaR.xyz + opticalDepthM * betaMEx));
+                T = transmittance * exp(-(opticalDepthR * betaR.xyz + opticalDepthM * betaMEx + opticalDepthA * absorptionExtinction.rgb));
                 vec3 newLight = vec3(0.0);
                 
                 // Direct lighting:
@@ -354,15 +355,18 @@ void main()
                 {
                     opticalDepthR += rayleighDensity * atmStep;
                     opticalDepthM += mieDensity * atmStep;
+                    opticalDepthA += absorptionDensity * atmStep;
                 }
                 else // trapezoidal
                 {
                     opticalDepthR += (lastRayleighDensity + rayleighDensity) * 0.5 * atmStep;
                     opticalDepthM += (lastMieDensity + mieDensity) * 0.5 * atmStep;
+                    opticalDepthA += (lastAbsorptionDensity + absorptionDensity) * 0.5 * atmStep;
                 }
                 
                 lastRayleighDensity = rayleighDensity;
                 lastMieDensity = lastMieDensity;
+                lastAbsorptionDensity = lastAbsorptionDensity;
                 
                 dist += atmStep; // - for while loops
                 //dist = startDist + atmStep * float(localStep); // - for for loops
@@ -436,7 +440,7 @@ void main()
         {
             ic.x = ic.x % size.x;
             ic.y = ic.y % size.y;
-            color = vec3(texelFetch(scatterTexture, ivec3(ic, z), 0));
+            color = vec3(texelFetch(scatterTexture, ivec3(ic, z), 0)) / sun.z;
         }
         //color = vec3(texelFetch(transmittanceTexture, ivec2(fragCoords), 0));
     }

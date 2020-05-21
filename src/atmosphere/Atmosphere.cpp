@@ -4,9 +4,10 @@
 #include <functional>
 #include "util/Timer.hpp"
 #include "LightSource.hpp"
+#include "Model.hpp"
 
 
-namespace Mulen {
+namespace Mulen::Atmosphere {
 
     struct Uniforms
     {
@@ -15,7 +16,7 @@ namespace Mulen {
         glm::mat4 viewProjMat, invViewMat, invProjMat, invViewProjMat, worldMat, prevViewProjMat;
 
         glm::vec4 planetLocation, lightDir, sun;
-        glm::vec4 betaR;
+        glm::vec4 betaR, absorptionExtinction;
 
         unsigned rootGroupIndex;
         float time, animationTime, animationAlpha,
@@ -23,7 +24,7 @@ namespace Mulen {
             atmosphereRadius, planetRadius, atmosphereScale, atmosphereHeight;
         float Rt, Rg, cloudRadius;
 
-        float HR, HM;
+        float HR, HM, absorptionMiddle, absorptionExtent;
         float betaMEx, betaMSca, mieG;
 
         float offsetR, scaleR, offsetM, scaleM;
@@ -32,7 +33,10 @@ namespace Mulen {
     Atmosphere::Atmosphere(Util::Timer& timer) 
         : timer{ timer }
         , updater{ *this }
-    {}
+    {
+        // - to do: make use of model
+        Model model{};
+    }
 
     bool Atmosphere::Init(const Atmosphere::Params& p)
     {
@@ -238,6 +242,9 @@ namespace Mulen {
         uniforms.betaMEx = (float)betaMEx;
         uniforms.betaMSca = (float)betaMSca;
         uniforms.mieG = (float)mieG;
+        uniforms.absorptionExtinction = glm::vec4(absorptionExtinction, 0.0);
+        uniforms.absorptionMiddle = absorptionMiddle;
+        uniforms.absorptionExtent = absorptionExtent;
         uniforms.Rg = (float)planetRadius;
         uniforms.Rt = (float)(planetRadius + height * 2.0);
         uniforms.cloudRadius = (float)(planetRadius + cloudMaxHeight);

@@ -1,6 +1,6 @@
 #include "FeatureGenerator.hpp"
 
-namespace Mulen {
+namespace Mulen::Atmosphere {
     
     void FeatureGenerator::Generate(UpdateIteration& it)
     {

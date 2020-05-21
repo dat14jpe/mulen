@@ -6,7 +6,7 @@
 #include "util/Texture.hpp"
 #include "util/VertexArray.hpp"
 #include <vector>
-#include "Atmosphere.hpp"
+#include "atmosphere/Atmosphere.hpp"
 #include "Camera.hpp"
 #include "util/Timer.hpp"
 #include "Screenshotter.hpp"
@@ -26,17 +26,17 @@ namespace Mulen {
         glm::dvec2 lastCursorPos;
         Camera camera;
         LightSource light;
-        Atmosphere atmosphere;
+        Atmosphere::Atmosphere atmosphere;
 
         bool fpsMode = false;
         bool collision = true, keepLevel = false, inertial = false;
-        Atmosphere::UpdateParams atmUpdateParams;
+        Atmosphere::Atmosphere::UpdateParams atmUpdateParams;
         int downscaleFactor = 4u;
         const int maxDepthLimit = 16u;
         double lastTime;
 
         int gpuMemBudgetMiB = 2048; // - kind of arbitrary, but we've got to start with something
-        Atmosphere::Params atmInitParams;
+        Atmosphere::Atmosphere::Params atmInitParams;
         bool InitializeAtmosphere();
         bool Reload();
         void OnFrame() override;

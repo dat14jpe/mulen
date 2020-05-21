@@ -7,10 +7,10 @@
 #include "Generator.hpp"
 #include "FeatureGenerator.hpp"
 
-namespace Mulen {
+namespace Mulen::Atmosphere {
     class Atmosphere;
 
-    class AtmosphereUpdater
+    class Updater
     {
         // - to do: keep these elsewhere (so the updater isn't hardcoded to use just one or a few)
         Generator generator;
@@ -81,8 +81,8 @@ namespace Mulen {
 
 
     public:
-        AtmosphereUpdater(Atmosphere&);
-        ~AtmosphereUpdater();
+        Updater(Atmosphere&);
+        ~Updater();
         void UpdateLoop();
 
         void InitialSetup();

@@ -7,7 +7,9 @@
 #include "Object.hpp"
 
 namespace Mulen {
-    class Generator;
+    namespace Atmosphere {
+        class Generator;
+    }
 
     enum class UploadType
     {
@@ -62,7 +64,7 @@ namespace Mulen {
             Object::Position lightDirection;
             unsigned depthLimit;
 
-            Generator* generator; // - to do: don't use a raw pointer
+            Atmosphere::Generator* generator; // - to do: don't use a raw pointer
         } params;
 
         std::vector<UploadNodeGroup> nodesToUpload;

@@ -2,7 +2,7 @@
 #include "util/Window.hpp"
 #include "util/lodepng.h"
 #include "Camera.hpp"
-#include "Atmosphere.hpp"
+#include "atmosphere/Atmosphere.hpp"
 #include <iostream>
 #include <iomanip>
 #include <ctime>
@@ -39,7 +39,7 @@ namespace Mulen {
         return std::string(dir) + '/' + dateStr + id + std::to_string(newIndex) + extension;
     }
 
-    void Screenshotter::TakeScreenshot(Window& window, const Camera& camera, const Atmosphere& atmosphere)
+    void Screenshotter::TakeScreenshot(Window& window, const Camera& camera, const Atmosphere::Atmosphere& atmosphere)
     {
         const auto filename = DetermineFileName(); // (maybe do this in the other thread instead?)
 
@@ -59,7 +59,7 @@ namespace Mulen {
         screenshotter.TakeScreenshot(filename, window.GetSize(), std::move(keyValuePairs));
     }
 
-    void Screenshotter::ReceiveScreenshot(std::string filename, Camera& camera, Atmosphere& atmosphere)
+    void Screenshotter::ReceiveScreenshot(std::string filename, Camera& camera, Atmosphere::Atmosphere& atmosphere)
     {
         // Try to decode as PNG (maybe in another thread, eventually?) and retrieve Mulen-specific data if there:
         std::vector<unsigned char> png;

@@ -34,5 +34,14 @@ void main()
     vec3 coords = vec3(gl_GlobalInvocationID.xyz) + vec3(0.5);
     vec3 rayleigh, mie;
     ComputeSingleScatteringTexture(coords, rayleigh, mie);
+    
+    // - debugging
+    uvec3 p = gl_GlobalInvocationID;
+    //if (p.x < 32.0 && p.y < 32.0) rayleigh = vec3(1.0);
+    /*if (p.y > 120)
+    if (length(rayleigh) < 0.1) rayleigh = vec3(1.0);*/
+    //mie = vec3(0.0);
+    
+    
     imageStore(scatterImage, ivec3(gl_GlobalInvocationID), vec4(rayleigh, mie.r));
 }
