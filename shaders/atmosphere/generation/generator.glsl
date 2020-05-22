@@ -62,6 +62,17 @@ float ComputeCumulusMask(vec3 p)
 }
 
 
+float SmoothstepAntiderivative(float t)
+{
+    return t*t*t - t*t*t*t/2.0;
+}
+// integrate smoothstep with edges on [0, 1]
+float IntegrateSmoothstep(float a, float b)
+{
+    return SmoothstepAntiderivative(b) - SmoothstepAntiderivative(a);
+}
+
+
 float ComputeMieDensity(DensityComputationParams params)
 {
     vec3 p = params.p;
@@ -173,9 +184,39 @@ float ComputeMieDensity(DensityComputationParams params)
             base = 0.5,//0.025,//0.25, 
             thickness = 0.025;
         //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
-        mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
-        mask *= smoothstep(base - thickness, base, h); // - bottom
-        mask = max(0.0, mask - 0.125);
+        if (false) 
+        {
+            // This is a noticeably aliasing mask. But using the less aliasing one gives shadow artefacts now.
+            mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
+            mask *= smoothstep(base - thickness, base, h); // - bottom
+            //mask = max(0.0, mask - 0.125);
+        }
+        else   
+        {
+            // Attempt at less aliasing mask:
+            const float voxelSize = params.voxelSize / height;
+            float d = abs(h - base) / max(voxelSize * 2.0, thickness); // local distance to layer centre, in layer half extent
+            d = abs(h - base) / thickness;
+            mask *= 1.0 - smoothstep(0.0, 1.0, d);
+            float v = voxelSize / thickness;
+            mask = d < 1.0 + v * 0.5 ? 1.0 : 0.0; // - testing
+            // - to do: try to make less opaque when on the border of the mask in lower resolution voxels
+            
+            { // - attempting integration over threshold function (double-sided smoothstep):
+                mask = 0.0;
+                vec2 f;
+                d = (h - base) / thickness;
+                vec2 dd = vec2(d) + v*0.5*vec2(-1.0, 1.0);
+                
+                f = vec2(1.0) + clamp(dd, vec2(-1.0), vec2(0.0)); // negative
+                mask += IntegrateSmoothstep(f.x, f.y);
+                
+                f = vec2(1.0) - clamp(dd, vec2( 0.0), vec2(1.0)); // positive
+                mask += IntegrateSmoothstep(f.y, f.x);
+                
+                mask /= v*1.0;
+            }
+        }
         
         
         if (!optimiseGeneration || mask > 0.0)
@@ -183,7 +224,7 @@ float ComputeMieDensity(DensityComputationParams params)
         { // cirrus
             float d = fBm(4u, (vec3(0.65) + p2) * 1024.0, 0.5, 2.0) * 0.5 + 0.5;
             {
-                vec3 p = (vec3(0.65) + p2) * 64.0;
+                vec3 p = (vec3(0.65) + p2) * 32.0;
                 float a = 1.0;
                 float v = 0.0;
                 for (uint i = 0u; i < 8u; ++i)
@@ -194,7 +235,7 @@ float ComputeMieDensity(DensityComputationParams params)
                 }
                 d = v;
             }
-            d += fBm(6u, (vec3(0.65) + p2) * 512.0, 0.5, 2.0);
+            d += fBm(6u, (vec3(0.65) + p2) * 256.0, 0.5, 2.0);
             //d = 1.0;
             //d *= 0.5; // - worked well for fog
             //d *= 0.0625; // stratus or cirrus

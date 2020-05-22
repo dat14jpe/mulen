@@ -46,7 +46,7 @@ uniform GlobalUniforms
 
 const int TransmittanceWidth = 256, TransmittanceHeight = 64;
 
-const float ScatterRSize = 32, ScatterMuSize = 128, ScatterMuSSize = 32, ScatterNuSize = 8;
+const float ScatterRSize = 32, ScatterMuSize = 128, ScatterMuSSize = 32, ScatterNuSize = 16;
 const float MuSMin = -0.2; // cos(102 degrees), which was chosen for Earth in particular
 
 const float mieMul = 100.0 * 4.0 * 4.0; // - to do: tune, put elsewhere

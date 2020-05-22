@@ -35,6 +35,7 @@ float fBmCellular(uint octaves, vec3 p, float persistence, float lacunarity)
 
 struct DensityComputationParams
 {
+    float voxelSize;
     vec3 p;
     float h;
 };
@@ -48,6 +49,7 @@ void main()
     
     vec3 lp = vec3(gl_LocalInvocationID) / float(BrickRes - 1u) * 2 - 1;
     vec3 p = (upload.nodeLocation.xyz + upload.nodeLocation.w * lp) * atmosphereScale;
+    const float voxelSize = /*planetRadius **/ atmosphereScale * upload.nodeLocation.w / float(BrickRes - 1u) * 2.0;
     
     if (false)
     {
@@ -69,6 +71,7 @@ void main()
     // - to do: some more computation (altitude, et cetera) before passing on the computation
     
     DensityComputationParams params;
+    params.voxelSize = voxelSize;
     params.p = p;
     params.h = h;
     float mie = ComputeMieDensity(params);
