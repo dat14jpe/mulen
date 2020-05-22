@@ -257,8 +257,8 @@ float ComputeMieDensity(DensityComputationParams params)
                 thickness = 0.05;
             //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
             mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
-            mask *= smoothstep(base - thickness, base, h); // - bottom
-            mask = max(0.0, mask - 0.25);
+            //mask *= smoothstep(base - thickness, base, h); // - bottom
+            mask = max(0.0, mask);// - 0.25);
          
             if (!optimiseGeneration || mask > 0.0)
             {
