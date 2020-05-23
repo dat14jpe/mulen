@@ -80,6 +80,7 @@ namespace Mulen {
                         {"2560x1440", {2560, 1440}},
                         {"3840x2160", {3840, 2160}},
                         {"7680x4320", {7680, 4320}},
+                        {"15360x8640", {15360, 8640}},
                     };
                     static size_t selectedIndex = 0;
                     if (ImGui::BeginCombo("Render resolution", resChoices[selectedIndex].name))
