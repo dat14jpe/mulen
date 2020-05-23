@@ -106,7 +106,7 @@ namespace Mulen::Atmosphere {
             bool useFeatureGenerator = false;
         };
         void Update(double dt, const UpdateParams&, const Camera&, const LightSource&);
-        void Render(const glm::ivec2& res, const Camera&, const LightSource&);
+        void Render(const glm::ivec2& windowRes, const glm::ivec2& res, const Camera&, const LightSource&);
 
         double GetPlanetRadius() const { return planetRadius; }
         double GetHeight() const { return height; }

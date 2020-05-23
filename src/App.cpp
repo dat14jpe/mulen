@@ -54,7 +54,7 @@ namespace Mulen {
         const auto dt = time - lastTime;//1.0f / ImGui::GetIO().Framerate;
         lastTime = time;
         const auto size = glm::max(glm::ivec2(1), window.GetSize());
-        const float aspect = float(size.x) / float(size.y);
+        const float aspect = float(size.x) / float(size.y); // - to do: depend on render resolution instead
         const float fovy = 45.0f;
         const float near = 1.0f, far = 1e8f;
         camera.SetPerspectiveProjection(fovy, aspect, near, far);
@@ -64,122 +64,156 @@ namespace Mulen {
 
         if (showGui)
         {
-            ImGui::Begin("Camera");
-            ImGui::Text("Resolution: %d*%d", size.x, size.y);
-            auto fullscreen = window.IsFullscreen();
-            ImGui::Checkbox("Fullscreen", &fullscreen);
-            if (fullscreen != window.IsFullscreen()) window.SetFullscreen(fullscreen);
-
-            ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
-            ImGui::Text("Speed: %.0f km/h", glm::length(camera.GetVelocity()) * 3.6);
+            if (ImGui::Begin("Camera"))
             {
-                struct SpeedLimit
+                ImGui::Text("Window resolution: %d*%d", size.x, size.y);
                 {
-                    const char* name;
-                    double maxSpeed;
-                };
-                static std::vector<SpeedLimit> items;
-                if (items.empty())
-                {
-                    items.push_back({ "(distance-based)", std::numeric_limits<double>::max() });
-                    items.push_back({ "    47  m/h (garden snail)", 0.047 / 3.6 });
-                    items.push_back({ "   140 km/h (goose)", 140.0 / 3.6 });
-                    items.push_back({ "   328 km/h (fastest golf ball)", 328.0 / 3.6 });
-                    items.push_back({ "   900 km/h (jet airliner)", 900.0 / 3.6 });
-                    items.push_back({ " 1,225 km/h (speed of sound)", 340.3 });
-                    items.push_back({ " 1,670 km/h (Earth rotation at equator)", 1670.0 / 3.6 });
-                    items.push_back({ " 2,171 km/h (Concorde)", 2170.8 / 3.6 });
-                    items.push_back({ "12,144 km/h (X-43 rocket/scramjet)", 12144.0 / 3.6 });
-                    items.push_back({ "40,320 km/h (escape velocity)", 40320.0 / 3.6 });
-                    items.push_back({ "72,000 km/h (Chicxulub impactor)", 72000.0 / 3.6 });
-                    items.push_back({ "1,079,252,848 km/h (speed of light)", 299792458.0 });
-                }
-                static size_t selectedIndex = 0;
-
-                if (ImGui::BeginCombo("Speed limit", items[selectedIndex].name))
-                {
-                    for (size_t i = 0; i < items.size(); ++i)
+                    struct
                     {
-                        auto& item = items[i];
-                        bool selected = i == selectedIndex;
-                        if (ImGui::Selectable(item.name, selected))
+                        const char* name;
+                        glm::ivec2 resolution;
+                    } static resChoices[] = 
+                    {
+                        {"(window)", {0, 0}},
+                        {"1280x720", {1280, 720}},
+                        {"1920x1080", {1920, 1080}},
+                        {"2560x1440", {2560, 1440}},
+                        {"3840x2160", {3840, 2160}},
+                        {"7680x4320", {7680, 4320}},
+                    };
+                    static size_t selectedIndex = 0;
+                    if (ImGui::BeginCombo("Render resolution", resChoices[selectedIndex].name))
+                    {
+                        for (size_t i = 0; i < std::extent<decltype(resChoices)>::value; ++i)
                         {
-                            selectedIndex = i;
-                            if (selected) ImGui::SetItemDefaultFocus();
+                            auto& item = resChoices[i];
+                            bool selected = i == selectedIndex;
+                            if (ImGui::Selectable(item.name, selected))
+                            {
+                                selectedIndex = i;
+                                selectedResolution = item.resolution;
+                                if (selected) ImGui::SetItemDefaultFocus();
+                            }
                         }
+                        ImGui::EndCombo();
                     }
-                    ImGui::EndCombo();
                 }
-                camera.SetMaxSpeed(items[selectedIndex].maxSpeed);
+                auto fullscreen = window.IsFullscreen();
+                ImGui::Checkbox("Fullscreen", &fullscreen);
+                if (fullscreen != window.IsFullscreen()) window.SetFullscreen(fullscreen);
+
+                ImGui::Text("Altitude: %.3f km", 1e-3 * (glm::distance(atmosphere.GetPosition(), camera.GetPosition()) - atmosphere.GetPlanetRadius()));
+                ImGui::Text("Speed: %.0f km/h", glm::length(camera.GetVelocity()) * 3.6);
+                {
+                    struct SpeedLimit
+                    {
+                        const char* name;
+                        double maxSpeed;
+                    };
+                    static std::vector<SpeedLimit> items;
+                    if (items.empty())
+                    {
+                        items.push_back({ "(distance-based)", std::numeric_limits<double>::max() });
+                        items.push_back({ "    47  m/h (garden snail)", 0.047 / 3.6 });
+                        items.push_back({ "   140 km/h (goose)", 140.0 / 3.6 });
+                        items.push_back({ "   328 km/h (fastest golf ball)", 328.0 / 3.6 });
+                        items.push_back({ "   900 km/h (jet airliner)", 900.0 / 3.6 });
+                        items.push_back({ " 1,225 km/h (speed of sound)", 340.3 });
+                        items.push_back({ " 1,670 km/h (Earth rotation at equator)", 1670.0 / 3.6 });
+                        items.push_back({ " 2,171 km/h (Concorde)", 2170.8 / 3.6 });
+                        items.push_back({ "12,144 km/h (X-43 rocket/scramjet)", 12144.0 / 3.6 });
+                        items.push_back({ "40,320 km/h (escape velocity)", 40320.0 / 3.6 });
+                        items.push_back({ "72,000 km/h (Chicxulub impactor)", 72000.0 / 3.6 });
+                        items.push_back({ "1,079,252,848 km/h (speed of light)", 299792458.0 });
+                    }
+                    static size_t selectedIndex = 0;
+
+                    if (ImGui::BeginCombo("Speed limit", items[selectedIndex].name))
+                    {
+                        for (size_t i = 0; i < items.size(); ++i)
+                        {
+                            auto& item = items[i];
+                            bool selected = i == selectedIndex;
+                            if (ImGui::Selectable(item.name, selected))
+                            {
+                                selectedIndex = i;
+                                if (selected) ImGui::SetItemDefaultFocus();
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                    camera.SetMaxSpeed(items[selectedIndex].maxSpeed);
+                }
+                ImGui::Checkbox("Upright", &camera.upright);
+                ImGui::Checkbox("Collision", &collision);
+                ImGui::Checkbox("Keep level", &keepLevel);
+                ImGui::Checkbox("Inertial", &inertial);
             }
-            ImGui::Checkbox("Upright", &camera.upright);
-            ImGui::Checkbox("Collision", &collision);
-            ImGui::Checkbox("Keep level", &keepLevel);
-            ImGui::Checkbox("Inertial", &inertial);
             ImGui::End();
 
-            ImGui::Begin("Atmosphere");
-
-            ImGui::PushItemWidth(120.0);
-            ImGui::Checkbox("Update", &atmUpdateParams.update);
-            ImGui::Checkbox("Rotate light", &atmUpdateParams.rotateLight);
-            ImGui::Checkbox("Animate", &atmUpdateParams.animate);
-            ImGui::Checkbox("Use feature generator", &atmUpdateParams.useFeatureGenerator);
-            ImGui::SliderInt("Depth", &atmUpdateParams.depthLimit, 1u, maxDepthLimit);
-            ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
-            ImGui::Spacing();
-            ImGui::InputInt("GPU memory budget (MiB)", &gpuMemBudgetMiB, 256, 1024);
-            gpuMemBudgetMiB = glm::max(512, gpuMemBudgetMiB);
-            if (ImGui::Button("Re-init"))
+            if (ImGui::Begin("Atmosphere"))
             {
-                atmosphere.ReloadShaders(shaderPath);
-                InitializeAtmosphere();
-            }
-            ImGui::PopItemWidth();
-
-            { // distance to planet or atmosphere cloud shell
-                auto cursorPos = glm::dvec2(window.GetCursorPosition());
-                cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
-                cursorPos.y = -cursorPos.y;
-                auto viewMat = camera.GetOrientationMatrix();
-                auto projMat = camera.GetProjectionMatrix();
-                auto ori = glm::dvec3(glm::inverse(viewMat) * glm::dvec4(0, 0, 0, 1));
-                auto dir = glm::normalize(glm::dvec3(glm::inverse(projMat * viewMat) * glm::dvec4(cursorPos, 1, 1)));
-                auto planetLocation = atmosphere.GetPosition() - camera.GetPosition();
-                auto R = atmosphere.GetPlanetRadius();
-
-                auto IntersectSphere = [](glm::dvec3 ori, glm::dvec3 dir, glm::dvec3 center, double radius, double& t0, double& t1)
+                ImGui::PushItemWidth(120.0);
+                ImGui::Checkbox("Update", &atmUpdateParams.update);
+                ImGui::Checkbox("Rotate light", &atmUpdateParams.rotateLight);
+                ImGui::Checkbox("Animate", &atmUpdateParams.animate);
+                ImGui::Checkbox("Use feature generator", &atmUpdateParams.useFeatureGenerator);
+                ImGui::SliderInt("Depth", &atmUpdateParams.depthLimit, 1u, maxDepthLimit);
+                ImGui::SliderInt("Downscale", &downscaleFactor, 1u, 4u);
+                ImGui::Spacing();
+                ImGui::InputInt("GPU memory budget (MiB)", &gpuMemBudgetMiB, 256, 1024);
+                gpuMemBudgetMiB = glm::max(512, gpuMemBudgetMiB);
+                if (ImGui::Button("Re-init"))
                 {
-                    const auto radius2 = radius * radius;
+                    atmosphere.ReloadShaders(shaderPath);
+                    InitializeAtmosphere();
+                }
+                ImGui::PopItemWidth();
 
-                    auto L = center - ori;
-                    auto tca = glm::dot(L, dir);
-                    auto d2 = glm::dot(L, L) - tca * tca;
-                    if (d2 > radius2) return false;
-                    auto thc = sqrt(radius2 - d2);
-                    t0 = tca - thc;
-                    t1 = tca + thc;
-                    t0 = glm::max(0.0, t0);
-                    if (t1 < t0) return false;
+                { // distance to planet or atmosphere cloud shell
+                    auto cursorPos = glm::dvec2(window.GetCursorPosition());
+                    cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
+                    cursorPos.y = -cursorPos.y;
+                    auto viewMat = camera.GetOrientationMatrix();
+                    auto projMat = camera.GetProjectionMatrix();
+                    auto ori = glm::dvec3(glm::inverse(viewMat) * glm::dvec4(0, 0, 0, 1));
+                    auto dir = glm::normalize(glm::dvec3(glm::inverse(projMat * viewMat) * glm::dvec4(cursorPos, 1, 1)));
+                    auto planetLocation = atmosphere.GetPosition() - camera.GetPosition();
+                    auto R = atmosphere.GetPlanetRadius();
 
-                    return true;
-                };
-                double t0, t1;
-                if (!IntersectSphere(ori, dir, planetLocation, R, t0, t1)) t0 = -1e3;
-                auto planetT = t0;
-                //ImGui::Text("Planet distance: %.3f km", 1e-3 * t0);
-                const auto cloudHeight = atmosphere.GetCloudMaxHeight();
-                if (!IntersectSphere(ori, dir, planetLocation, R + cloudHeight, t0, t1)) t1 = -1e3;
-                else if (planetT > 0.0 && t1 > planetT) t1 = planetT;
-                ImGui::Text("Farthest cloud layer distance: %.3f km", 1e-3 * t1);
-                const auto h = glm::max(0.0, glm::length(planetLocation) - R);
-                const auto planetHorizon = std::sqrt(h * (h + 2 * R));
-                ImGui::Text("Horizon distance: %.3f km", 1e-3 * planetHorizon);
-                ImGui::Text("Cloud layer horizon distance: %.3f km", 1e-3 * (planetHorizon + std::sqrt(cloudHeight * (cloudHeight + 2 * R))));
+                    auto IntersectSphere = [](glm::dvec3 ori, glm::dvec3 dir, glm::dvec3 center, double radius, double& t0, double& t1)
+                    {
+                        const auto radius2 = radius * radius;
+
+                        auto L = center - ori;
+                        auto tca = glm::dot(L, dir);
+                        auto d2 = glm::dot(L, L) - tca * tca;
+                        if (d2 > radius2) return false;
+                        auto thc = sqrt(radius2 - d2);
+                        t0 = tca - thc;
+                        t1 = tca + thc;
+                        t0 = glm::max(0.0, t0);
+                        if (t1 < t0) return false;
+
+                        return true;
+                    };
+                    double t0, t1;
+                    if (!IntersectSphere(ori, dir, planetLocation, R, t0, t1)) t0 = -1e3;
+                    auto planetT = t0;
+                    //ImGui::Text("Planet distance: %.3f km", 1e-3 * t0);
+                    const auto cloudHeight = atmosphere.GetCloudMaxHeight();
+                    if (!IntersectSphere(ori, dir, planetLocation, R + cloudHeight, t0, t1)) t1 = -1e3;
+                    else if (planetT > 0.0 && t1 > planetT) t1 = planetT;
+                    ImGui::Text("Farthest cloud layer distance: %.3f km", 1e-3 * t1);
+                    const auto h = glm::max(0.0, glm::length(planetLocation) - R);
+                    const auto planetHorizon = std::sqrt(h * (h + 2 * R));
+                    ImGui::Text("Horizon distance: %.3f km", 1e-3 * planetHorizon);
+                    ImGui::Text("Cloud layer horizon distance: %.3f km", 1e-3 * (planetHorizon + std::sqrt(cloudHeight * (cloudHeight + 2 * R))));
+                }
+
+                ImGui::Text("Max depth: %d", atmosphere.GetMaxDepth());
+                ImGui::Text("Smallest voxel size: %.0f m", atmosphere.ComputeVoxelSizeAtDepth(atmosphere.GetMaxDepth()));
             }
-
-            ImGui::Text("Max depth: %d", atmosphere.GetMaxDepth());
-            ImGui::Text("Smallest voxel size: %.0f m", atmosphere.ComputeVoxelSizeAtDepth(atmosphere.GetMaxDepth()));
             ImGui::End();
 
             // - to do: put profiler logic somewhere else
@@ -361,7 +395,9 @@ namespace Mulen {
 
         atmosphere.SetDownscaleFactor(downscaleFactor);
         atmosphere.Update(dt, atmUpdateParams, camera, light);
-        atmosphere.Render(size, camera, light);
+        auto renderResolution = selectedResolution;
+        if (renderResolution == glm::ivec2(0, 0)) renderResolution = size;
+        atmosphere.Render(size, renderResolution, camera, light);
     }
 
     void App::OnKey(int key, int scancode, int action, int mods)

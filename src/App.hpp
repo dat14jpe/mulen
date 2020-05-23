@@ -34,6 +34,7 @@ namespace Mulen {
         int downscaleFactor = 4u;
         const int maxDepthLimit = 16u;
         double lastTime;
+        glm::ivec2 selectedResolution{ 0, 0 };
 
         int gpuMemBudgetMiB = 2048; // - kind of arbitrary, but we've got to start with something
         Atmosphere::Atmosphere::Params atmInitParams;

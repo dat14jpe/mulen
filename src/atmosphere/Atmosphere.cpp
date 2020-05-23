@@ -381,7 +381,7 @@ namespace Mulen::Atmosphere {
         }
     }
 
-    void Atmosphere::Render(const glm::ivec2& res, const Camera& camera, const LightSource& light)
+    void Atmosphere::Render(const glm::ivec2& windowRes, const glm::ivec2& res, const Camera& camera, const LightSource& light)
     {
         auto& u = updater;
         auto t = timer.Begin("Atmosphere::Render");
@@ -562,6 +562,7 @@ namespace Mulen::Atmosphere {
         }
 
         { // "planet" background (to do: spruce this up, maybe move elsewhere)
+            glViewport(0, 0, res.x, res.y);
             glEnable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
             glDepthMask(GL_TRUE);
@@ -605,6 +606,7 @@ namespace Mulen::Atmosphere {
         }
 
         { // postprocessing
+            glViewport(0, 0, windowRes.x, windowRes.y);
             glDisable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
             Util::Framebuffer::BindBackbuffer();
