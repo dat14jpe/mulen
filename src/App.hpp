@@ -28,6 +28,7 @@ namespace Mulen {
         LightSource light;
         Atmosphere::Atmosphere atmosphere;
 
+        bool takeScreenshot = false;
         bool fpsMode = false;
         bool collision = true, keepLevel = false, inertial = false;
         Atmosphere::Atmosphere::UpdateParams atmUpdateParams;

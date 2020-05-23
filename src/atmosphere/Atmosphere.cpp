@@ -177,6 +177,7 @@ namespace Mulen::Atmosphere {
         };
 
         if (!loadShader(postShader, "../post", false)) return false;
+        if (!loadShader(finalShader, "../final", false)) return false;
         if (!loadShader(backdropShader, "../misc/backdrop", false)) return false;
         if (!loadShader(transmittanceShader, "transmittance", true)) return false;
         if (!loadShader(inscatterFirstShader, "inscatter_first", true)) return false;
@@ -410,6 +411,10 @@ namespace Mulen::Atmosphere {
                 t.transmittance.Create(GL_TEXTURE_2D, 1u, GL_RGBA16F, res.x, res.y);
                 setTextureClamp(t.transmittance, GL_CLAMP_TO_EDGE);
             }
+
+            postTexture.Create(GL_TEXTURE_2D, 1u, GL_RGB8, res.x, res.y);
+            postFbo.Create();
+            postFbo.SetColorBuffer(0u, postTexture, 0u);
         }
 
 
@@ -606,13 +611,25 @@ namespace Mulen::Atmosphere {
         }
 
         { // postprocessing
+            glViewport(0, 0, res.x, res.y);
+            glDisable(GL_DEPTH_TEST);
+            glDisable(GL_BLEND);
+            postFbo.Bind();
+            postShader.Bind();
+            lightTexture.Bind(0u);
+            glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
+        }
+    }
+
+    void Atmosphere::Finalise(const glm::ivec2& windowRes, const glm::ivec2& res)
+    {
+        { // back-buffer blend
             glViewport(0, 0, windowRes.x, windowRes.y);
             glDisable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
             Util::Framebuffer::BindBackbuffer();
-            auto& shader = postShader;
-            shader.Bind();
-            lightTexture.Bind(0u);
+            finalShader.Bind();
+            postTexture.Bind(0u);
             glDrawArrays(GL_TRIANGLES, 0, 2u * 3u);
         }
     }

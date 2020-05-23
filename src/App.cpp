@@ -393,11 +393,18 @@ namespace Mulen {
             if (abs(angle) > 1e-3) camera.ApplyRotation(q);
         }
 
+
         atmosphere.SetDownscaleFactor(downscaleFactor);
         atmosphere.Update(dt, atmUpdateParams, camera, light);
         auto renderResolution = selectedResolution;
         if (renderResolution == glm::ivec2(0, 0)) renderResolution = size;
         atmosphere.Render(size, renderResolution, camera, light);
+        if (takeScreenshot) // - maybe to do: enable including profiling data
+        {
+            screenshotter.TakeScreenshot(window, renderResolution, camera, atmosphere);
+            takeScreenshot = false;
+        }
+        atmosphere.Finalise(size, renderResolution);
     }
 
     void App::OnKey(int key, int scancode, int action, int mods)
@@ -440,7 +447,7 @@ namespace Mulen {
             break;
         case GLFW_KEY_PRINT_SCREEN:
         case GLFW_KEY_F3:
-            screenshotter.TakeScreenshot(window, camera, atmosphere);
+            takeScreenshot = true;
             break;
         case GLFW_KEY_ENTER:
             window.DisableCursor(fpsMode = !fpsMode);

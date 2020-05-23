@@ -39,9 +39,9 @@ namespace Mulen::Atmosphere {
 
         // Render:
         Util::Buffer uniformBuffer;
-        Util::Shader postShader;
-        Util::Framebuffer fbo;
-        Util::Texture depthTexture, lightTexture;
+        Util::Shader postShader, finalShader;
+        Util::Framebuffer fbo, postFbo;
+        Util::Texture depthTexture, lightTexture, postTexture;
         struct FrameTextures
         {
             // - to do: probably also depth texture (to find the closest old pixel where needed)
@@ -107,6 +107,7 @@ namespace Mulen::Atmosphere {
         };
         void Update(double dt, const UpdateParams&, const Camera&, const LightSource&);
         void Render(const glm::ivec2& windowRes, const glm::ivec2& res, const Camera&, const LightSource&);
+        void Finalise(const glm::ivec2& windowRes, const glm::ivec2& res);
 
         double GetPlanetRadius() const { return planetRadius; }
         double GetHeight() const { return height; }

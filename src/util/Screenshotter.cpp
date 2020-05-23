@@ -48,7 +48,7 @@ namespace Util {
         image.resize(size.x * size.y * channels);
 
         // Retrieve from OpenGL buffer.
-        glBindFramebuffer(GL_FRAMEBUFFER, 0u);
+        //glBindFramebuffer(GL_FRAMEBUFFER, 0u);
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glReadPixels(0, 0, size.x, size.y, channels == 4u ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, image.data());
 

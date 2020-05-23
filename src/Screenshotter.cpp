@@ -39,7 +39,7 @@ namespace Mulen {
         return std::string(dir) + '/' + dateStr + id + std::to_string(newIndex) + extension;
     }
 
-    void Screenshotter::TakeScreenshot(Window& window, const Camera& camera, const Atmosphere::Atmosphere& atmosphere)
+    void Screenshotter::TakeScreenshot(Window& window, const glm::ivec2& resolution, const Camera& camera, const Atmosphere::Atmosphere& atmosphere)
     {
         const auto filename = DetermineFileName(); // (maybe do this in the other thread instead?)
 
@@ -56,7 +56,7 @@ namespace Mulen {
         keyValuePairs[keyPrefix + "camera_upright"] = std::to_string(camera.upright);
         keyValuePairs[keyPrefix + "atmosphere_animation_time"] = std::to_string(atmosphere.GetAnimationTime());
         keyValuePairs[keyPrefix + "atmosphere_light_time"] = std::to_string(atmosphere.GetLightTime());
-        screenshotter.TakeScreenshot(filename, window.GetSize(), std::move(keyValuePairs));
+        screenshotter.TakeScreenshot(filename, resolution, std::move(keyValuePairs));
     }
 
     void Screenshotter::ReceiveScreenshot(std::string filename, Camera& camera, Atmosphere::Atmosphere& atmosphere)
