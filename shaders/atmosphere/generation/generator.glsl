@@ -148,7 +148,7 @@ float ComputeMieDensity(DensityComputationParams params)
         if (mask > 0.0)
         {
             // - testing "movement" over time:
-            np += animDir * 1e-3 * animationT;
+            np += animDir * 5e-3 * animationT;
             
             d = (fBm(11u, np * 8.0, 0.5, 2.0) * 0.5 + 0.5); // - used to be 7 octaves (before getting used to higher detail)
             d -= 0.5; // - more broken up and dramatic (in high resolution)
@@ -165,8 +165,8 @@ float ComputeMieDensity(DensityComputationParams params)
     }
     { // simple attempt at higher (smoother) cloud layer
         
-        vec3 p2 = p - animDir * 5e-5 * animationT;
-        vec3 p3 = p + animDir * 5e-5 * animationT;
+        vec3 p2 = p - animDir * 10e-5 * animationT;
+        vec3 p3 = p + animDir * 10e-5 * animationT;
         
         float mask = fBm(8u, p2 * 256.0, 0.5, 2.0); // simplistic
         //float mask = fBm(8u, p * 1024.0, 0.5, 2.0); // simplistic (dramatic)
@@ -247,14 +247,14 @@ float ComputeMieDensity(DensityComputationParams params)
         if (enableStratus)
         { // stratus (low, i.e. fog or mist)
             //float mask = maskBase;
-            float mask = fBm(4u, (p + vec3(0.6)) * 512.0, 0.5, 2.0); // simplistic
+            float mask = fBm(4u, (p3 + vec3(0.6)) * 512.0, 0.5, 2.0); // simplistic
             //float mask = fBm(8u, p * 1024.0, 0.5, 2.0); // simplistic (dramatic)
             mask = mask * 0.5 + 0.5;
             mask = max(0.0, mask - 0.25);
             
             const float 
                 base = 0.0,//0.025,//0.25, 
-                thickness = 0.15;
+                thickness = 0.05;//0.15;
             //mask *= 1.0 - smoothstep(base, base + thickness * 3, h); // - top
             mask *= 1.0 - clamp((h - base) / (thickness * 2.0), 0.0, 1.0);
             //mask *= smoothstep(base - thickness, base, h); // - bottom

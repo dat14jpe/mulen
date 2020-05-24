@@ -114,6 +114,11 @@ namespace Mulen {
             return nodes[i / NodeArity].nodes[i % NodeArity];
         }
 
+        size_t GetNodeGroupCapacity() const 
+        {
+            return nodes.GetSize(); 
+        }
+
         static NodeIndex NodeToGroup(NodeIndex ni) { return ni / NodeArity; }
         static NodeIndex GroupAndChildToNode(NodeIndex gi, NodeIndex ci) { return gi * NodeArity + ci; }
 

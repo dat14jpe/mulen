@@ -54,11 +54,11 @@ namespace Mulen::Atmosphere {
         cv.wait(lk, [&] { return nextUpdateReady; });
         lk.unlock();
 
-        std::cout << "Hello?\n";
-
         // Then split to a predefined depth.
         // - to do: enable splitting to a determined depth and location, especially for use in benchmarking)
         auto& it = GetUpdateIteration();
+        it.params.scale = atmosphere.scale;
+        it.params.planetRadius = atmosphere.planetRadius;
 
         // - test: "manual" splits, indiscriminately to a chosen level
         std::function<void(NodeIndex, unsigned, glm::dvec4)> testSplit = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
@@ -624,7 +624,7 @@ namespace Mulen::Atmosphere {
         };
         computePriority(octree.rootGroupIndex, 0u, {0, 0, 0, 1});
 
-        const auto maxSplits = 5000ull; // - testing (should be tuned, maybe made configurable?)
+        const auto maxSplits = octree.GetNodeGroupCapacity() / 10u; // - this is fairly arbitrary. Maybe make it configurable?
         auto numSplits = 0ull, numMerges = 0ull;
         // - to do: compute merge threshold (below which nodes won't be merged unless needed)
         auto mergeThreshold = 1e20; // - arbitrary (but it shouldn't be)

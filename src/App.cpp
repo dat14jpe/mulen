@@ -58,7 +58,7 @@ namespace Mulen {
         const auto dt = time - lastTime;//1.0f / ImGui::GetIO().Framerate;
         lastTime = time;
         const auto size = glm::max(glm::ivec2(1), window.GetSize());
-        const float aspect = float(size.x) / float(size.y); // - to do: depend on render resolution instead
+        const float aspect = float(renderResolution.x) / float(renderResolution.y); // - to do: depend on render resolution instead
         const float near = 1.0f, far = 1e8f;
         camera.SetPerspectiveProjection(camera.GetFovy(), aspect, near, far);
         glViewport(0, 0, size.x, size.y);
@@ -154,7 +154,7 @@ namespace Mulen {
                 ImGui::Checkbox("Inertial", &inertial);
 
                 auto fovy = static_cast<float>(camera.GetFovy()) * 180.0f / glm::pi<float>();
-                ImGui::SliderFloat("Field of view", &fovy, 1.0, 179.0);
+                ImGui::SliderFloat("Field of view", &fovy, 0.1, 179.0);
                 camera.SetFovy(fovy / 180.0 * glm::pi<float>());
                 auto lightTime = atmosphere.GetLightTime();
                 auto animationTime = atmosphere.GetAnimationTime();
@@ -296,11 +296,37 @@ namespace Mulen {
                 const auto r = atmosphere.GetPlanetRadius();
                 auto force = 10.0; // - to do: make configurable?
                 force *= r;
+                const auto relPlanet = camera.GetPosition() - atmosphere.GetPosition();
                 const auto dist = glm::distance(atmosphere.GetPosition(), camera.GetPosition());
                 //force *= glm::min(1.0, glm::pow(dist / (r * 1.3), 16.0)); // - to do: find nicer speed profile
 
                 const auto maxSpeed = camera.GetMaxSpeed();
                 const auto isSpeedLimited = maxSpeed != std::numeric_limits<double>::max();
+
+                const auto invCamMat = glm::inverse(camera.GetViewMatrix());
+                auto invTrans = [&](const Object::Position& p)
+                {
+                    return Object::Position(invCamMat * glm::dvec4(p, 0.0));
+                };
+
+                if (camera.IsKeepingLevel())
+                {
+                    // Make sure that acceleration doesn't break while keeping level.
+
+                    auto relAccel = accel;
+                    const auto right = invTrans(glm::dvec3(1.0, 0.0, 0.0));
+                    const auto up = glm::normalize(relPlanet);
+                    const auto forward = glm::cross(right, up);
+
+                    accel = relAccel.x * right + up * relAccel.y + forward * relAccel.z;
+
+                    // - to do: also adjust current velocity when keeping level (in another place), to avoid "crashing into the planet" when going on extended voyages
+                }
+                else
+                {
+                    accel = invTrans(accel);
+                }
+
                 if (isSpeedLimited)
                 {
                     // - to do
@@ -312,7 +338,6 @@ namespace Mulen {
                 
 
                 //force *= glm::clamp(pow((dist - r) / r, 1.5), 1e-2, 1.0);
-                accel = Object::Position(glm::inverse(camera.GetViewMatrix()) * glm::dvec4(accel, 0.0f));
                 // - to do: only perpendicular to planet normal, if not flying
                 camera.Accelerate(glm::normalize(accel) * force);
             }
@@ -418,7 +443,7 @@ namespace Mulen {
 
         atmosphere.SetDownscaleFactor(downscaleFactor);
         atmosphere.Update(dt, atmUpdateParams, camera, light);
-        auto renderResolution = selectedResolution;
+        renderResolution = selectedResolution;
         if (renderResolution == glm::ivec2(0, 0)) renderResolution = size;
         atmosphere.Render(size, renderResolution, camera, light);
         if (takeScreenshot) // - maybe to do: enable including profiling data

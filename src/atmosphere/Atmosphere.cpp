@@ -337,6 +337,7 @@ namespace Mulen::Atmosphere {
         // Update GPU data:
         if (initUpdate && u.GetUpdateIteration().nodesToUpload.size())
         {
+            std::cout << "Update iteration is at " << (size_t)&u.GetUpdateIteration() << "\n";
             auto& it = u.GetUpdateIteration();
             initUpdate = false;
             std::cout << "Uploading " << it.nodesToUpload.size() << " node groups\n";
@@ -383,23 +384,6 @@ namespace Mulen::Atmosphere {
             updaterParams.planetRadius = planetRadius;
             updaterParams.doFrustumCulling = params.frustumCull;
             updaterParams.viewFrustum.FromMatrix(viewProjMat);
-
-            {
-                static unsigned int frame = 0u;
-                if (frame++ % 60u == 0u)
-                {
-                    auto& v = updaterParams.viewFrustum;
-                    std::cout << "View frustum: \n";
-                    for (auto i = 0u; i < 6u; ++i)
-                    {
-                        auto& pi = v.planes[i];
-                        //pi.w += glm::dot(glm::dvec3(pi), cameraPos);
-                        //pi = glm::normalize(pi);
-                        std::cout << "  (" << pi.x << ", " << pi.y << ", " << pi.z << ", " << pi.w << ")\n";
-                    }
-                    std::cout << std::endl;
-                }
-            }
 
             updater.OnFrame(*this, updaterParams, period);
         }
