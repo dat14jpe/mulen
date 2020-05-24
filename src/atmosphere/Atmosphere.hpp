@@ -20,10 +20,10 @@ namespace Mulen::Atmosphere {
     {
         friend class Updater;
 
-        double planetRadius = 6371e3, height = 50e3, cloudMaxHeight = 25e3;
         double scale = 1.1; // - should this also be configurable? Perhaps
 
-        // - to do: all of these managed by model instead (and maybe the dimensions above as well)
+        // - to do: all of these managed by model instead
+        double planetRadius = 6371e3, height = 50e3, cloudMaxHeight = 25e3;
         double HR = 8.0e3; // Rayleigh scale height
         glm::dvec3 betaR = { 5.8e-6, 1.35e-5, 3.31e-5 };
         double HM = 1.2e3; // Mie scale height
@@ -33,9 +33,8 @@ namespace Mulen::Atmosphere {
         glm::dvec3 absorptionExtinction = { 6.497e-7, 1.881e-6, 8.502e-8 };
         double absorptionMiddle = 25.0e3, absorptionExtent = 15.0e3;
 
-
-        Octree octree; // - to do: multiple octrees (2 or 3?) for multithreaded updates
-        NodeIndex rootGroupIndex;
+        //NodeIndex rootGroupIndex; // - should really be here; the octree should be usable for several atmospheres at once, ideally
+        Octree octree;
 
         // Render:
         Util::Buffer uniformBuffer;
@@ -56,7 +55,7 @@ namespace Mulen::Atmosphere {
         Util::Shader backdropShader, renderShader, resolveShader;
         glm::uvec3 texMap;
         Util::Texture octreeMap; // per-frame frustum-encompassing octree map
-        Object::Mat4 prevViewProjMat;
+        Object::Mat4 prevViewProjMat, viewProjMat;
         
         // Update:
         Util::Texture brickUploadTexture;
@@ -101,7 +100,7 @@ namespace Mulen::Atmosphere {
 
         struct UpdateParams
         {
-            bool update, animate, rotateLight;
+            bool update, animate, rotateLight, frustumCull;
             int depthLimit;
             bool useFeatureGenerator = false;
         };

@@ -7,6 +7,35 @@
 #include "Object.hpp"
 
 namespace Mulen {
+
+    struct Frustum
+    {
+        // Planes will be in the space before the space of the input matrix.
+        // (so pass the viewProjection matrix to get the frustum in world space, for example)
+        Frustum& FromMatrix(const glm::dmat4& inMat, bool normalize = true)
+        {
+            auto mat = glm::transpose(inMat);
+            planes[0] = mat[3] + mat[0]; // left
+            planes[1] = mat[3] - mat[0]; // right
+            planes[2] = mat[3] - mat[1]; // top
+            planes[3] = mat[3] + mat[1]; // bottom
+            planes[4] = mat[3] + mat[2]; // near
+            planes[5] = mat[3] - mat[2]; // far
+
+            if (normalize)
+            {
+                for (auto i = 0u; i < 6u; ++i)
+                {
+                    planes[i] = -glm::normalize(planes[i]);
+                }
+            }
+
+            return *this;
+        }
+        glm::dvec4 planes[6]; // normals pointing into frustum
+    };
+
+
     namespace Atmosphere {
         class Generator;
     }
@@ -54,15 +83,24 @@ namespace Mulen {
         Profiler_UpdateFilter = "Update::Filter"
         ;
 
+    struct Structure
+    {
+        Octree octree;
+        NodeIndex rootGroupIndex;
+    };
+
     struct UpdateIteration
     {
         struct Parameters
         {
             double time;
             Object::Position cameraPosition;
-            // - maybe also orientation and field of view, if trying frustum culling
+            bool doFrustumCulling;
+            Frustum viewFrustum;
             Object::Position lightDirection;
             unsigned depthLimit;
+
+            double scale, height, planetRadius; // atmosphere scale, height, and planet radius
 
             Atmosphere::Generator* generator; // - to do: don't use a raw pointer
         } params;

@@ -147,8 +147,8 @@ namespace Mulen::Atmosphere {
         auto t = timer.Begin("Initial atmosphere splits");
 
         // For this particular atmosphere:
-        rootGroupIndex = octree.RequestRoot();
-        updater.InitialSetup();
+        octree.rootGroupIndex = octree.RequestRoot();
+        updater.InitialSetup(*this);
 
         //std::cout << "glGetError:" << __LINE__ << ": " << glGetError() << "\n";
         return true;
@@ -203,7 +203,7 @@ namespace Mulen::Atmosphere {
         lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
         // - light rotation test:
         auto lightSpeed = 1.0 / 1000.0;
-        auto lightRot = glm::angleAxis(lightTime * 3.141592653589793 * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
+        auto lightRot = glm::angleAxis(lightTime * glm::pi<double>() * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
         lightDir = glm::rotate(lightRot, lightDir);
 
         const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position - camera.GetPosition());
@@ -211,9 +211,10 @@ namespace Mulen::Atmosphere {
         const auto projMat = camera.GetProjectionMatrix();
         const auto viewProjMat = projMat * viewMat;
         const auto invWorldMat = glm::inverse(worldMat);
-        const auto invViewProjMat = glm::inverse(projMat * viewMat);
+        const auto invViewProjMat = glm::inverse(viewProjMat);
         const auto prevViewProjMat = this->prevViewProjMat;
         this->prevViewProjMat = viewProjMat;
+        this->viewProjMat = projMat * viewMat;
 
         Uniforms uniforms = {};
 
@@ -228,7 +229,7 @@ namespace Mulen::Atmosphere {
         uniforms.animationAlpha = static_cast<float>(updater.GetUpdateFraction());
         uniforms.planetLocation = glm::vec4(GetPosition() - camera.GetPosition(), 0.0);
 
-        uniforms.rootGroupIndex = rootGroupIndex;
+        uniforms.rootGroupIndex = octree.rootGroupIndex;
         uniforms.stepSize = 1;
         uniforms.planetRadius = (float)planetRadius;
         uniforms.atmosphereRadius = (float)(planetRadius * scale);
@@ -244,8 +245,8 @@ namespace Mulen::Atmosphere {
         uniforms.betaMSca = (float)betaMSca;
         uniforms.mieG = (float)mieG;
         uniforms.absorptionExtinction = glm::vec4(absorptionExtinction, 0.0);
-        uniforms.absorptionMiddle = absorptionMiddle;
-        uniforms.absorptionExtent = absorptionExtent;
+        uniforms.absorptionMiddle = static_cast<float>(absorptionMiddle);
+        uniforms.absorptionExtent = static_cast<float>(absorptionExtent);
         uniforms.Rg = (float)planetRadius;
         uniforms.Rt = (float)(planetRadius + height * 2.0);
         uniforms.cloudRadius = (float)(planetRadius + cloudMaxHeight);
@@ -311,7 +312,7 @@ namespace Mulen::Atmosphere {
 
             {
                 auto t = timer.Begin("Transmittance");
-                u.SetShader(transmittanceShader);
+                u.SetShader(*this, transmittanceShader);
                 const glm::uvec3 workGroupSize{ 32u, 32u, 1u };
                 auto& tex = transmittanceTexture;
                 glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
@@ -321,7 +322,7 @@ namespace Mulen::Atmosphere {
             {
                 transmittanceTexture.Bind(5u);
                 auto t = timer.Begin("Inscatter");
-                u.SetShader(inscatterFirstShader);
+                u.SetShader(*this, inscatterFirstShader);
                 const glm::uvec3 workGroupSize{ 8u, 8u, 8u };
                 auto& tex = scatterTexture;
                 glBindImageTexture(0u, tex.GetId(), 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.GetFormat());
@@ -357,18 +358,18 @@ namespace Mulen::Atmosphere {
                 state.brickTexture.Bind(0u);
                 state.octreeMap.Bind(2u);
 
-                u.UpdateNodes(it.nodesToUpload.size());
-                u.UpdateMap(state.octreeMap);
-                u.GenerateBricks(state, defaultGenerator, 0u, it.bricksToUpload.size());
-                u.LightBricks(state, 0u, it.bricksToUpload.size(), lightDir, Util::Timer::DurationMeta{1.0});
-                u.FilterLighting(state, 0u, it.bricksToUpload.size());
+                u.UpdateNodes(*this, it.nodesToUpload.size());
+                u.UpdateMap(*this, state.octreeMap);
+                u.GenerateBricks(*this, state, defaultGenerator, 0u, it.bricksToUpload.size());
+                u.LightBricks(*this, state, 0u, it.bricksToUpload.size(), lightDir, Util::Timer::DurationMeta{1.0});
+                u.FilterLighting(*this, state, 0u, it.bricksToUpload.size());
             }
         }
 
         if (params.update) // are we doing continuous updates?
         {
             const auto period = 1.0; // - to do: make this configurable
-            auto cameraPos = camera.GetPosition() - GetPosition();
+            auto cameraPos = camera.GetPosition() - GetPosition(); // - to do: support orientation (so transform this into atmosphere space)
             cameraPos /= planetRadius * scale;
 
             UpdateIteration::Parameters updaterParams;
@@ -377,8 +378,30 @@ namespace Mulen::Atmosphere {
             updaterParams.lightDirection = lightDir;
             updaterParams.depthLimit = params.depthLimit;
             updaterParams.generator = params.useFeatureGenerator ? &updater.featureGenerator : &updater.generator;
+            updaterParams.scale = scale;
+            updaterParams.height = height;
+            updaterParams.planetRadius = planetRadius;
+            updaterParams.doFrustumCulling = params.frustumCull;
+            updaterParams.viewFrustum.FromMatrix(viewProjMat);
 
-            updater.OnFrame(updaterParams, period);
+            {
+                static unsigned int frame = 0u;
+                if (frame++ % 60u == 0u)
+                {
+                    auto& v = updaterParams.viewFrustum;
+                    std::cout << "View frustum: \n";
+                    for (auto i = 0u; i < 6u; ++i)
+                    {
+                        auto& pi = v.planes[i];
+                        //pi.w += glm::dot(glm::dvec3(pi), cameraPos);
+                        //pi = glm::normalize(pi);
+                        std::cout << "  (" << pi.x << ", " << pi.y << ", " << pi.z << ", " << pi.w << ")\n";
+                    }
+                    std::cout << std::endl;
+                }
+            }
+
+            updater.OnFrame(*this, updaterParams, period);
         }
     }
 
@@ -547,7 +570,7 @@ namespace Mulen::Atmosphere {
 
             mapPosition = mapMin;
             mapScale = mapMax - mapMin;
-            updater.UpdateMap(octreeMap, mapPosition, mapScale, exponent);
+            updater.UpdateMap(*this, octreeMap, mapPosition, mapScale, exponent);
 
 
             if (false)

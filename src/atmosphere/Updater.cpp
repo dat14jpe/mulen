@@ -12,24 +12,22 @@ namespace Mulen::Atmosphere {
     Updater::Updater(Atmosphere& atmosphere)
         : generator{ "generator" }
         , featureGenerator{ "feature_generator" }
-        , atmosphere { atmosphere }
         , thread(&Updater::UpdateLoop, this)
+        , octree{ atmosphere.octree }
     {
 
     }
 
     bool Updater::NodeInAtmosphere(const UpdateIteration& it, const glm::dvec4& childPos)
     {
-        auto& a = atmosphere;
-
         // - simple test to only split those in spherical atmosphere shell:
-        auto p = glm::dvec3(childPos) * a.scale;
-        const auto size = childPos.w * a.scale;
+        auto p = glm::dvec3(childPos) * it.params.scale;
+        const auto size = childPos.w * it.params.scale;
         const Object::Position sphereCenter{ 0.0 };
         const auto height = 0.005, radius = 1.0; // - to do: check/correct these values
         const auto atmRadius2 = (radius + height) * (radius + height);
         const auto innerRadius = radius 
-            - a.GetHeight() * 5e-4 / a.GetPlanetRadius() // - to do: tune this (to always avoid problems near the surface)
+            - it.params.height * 5e-4 / it.params.planetRadius // - to do: tune this (to always avoid problems near the surface)
             ;
 
         auto bmin = p - size, bmax = p + size;
@@ -49,9 +47,17 @@ namespace Mulen::Atmosphere {
         return false; // wholly inside planet
     }
 
-    void Updater::InitialSetup()
+    void Updater::InitialSetup(Atmosphere& atmosphere)
     {
-        auto& a = atmosphere;
+        // First we have to ensure no data races by waiting for the other thread.
+        std::unique_lock<std::mutex> lk{ mutex };
+        cv.wait(lk, [&] { return nextUpdateReady; });
+        lk.unlock();
+
+        std::cout << "Hello?\n";
+
+        // Then split to a predefined depth.
+        // - to do: enable splitting to a determined depth and location, especially for use in benchmarking)
         auto& it = GetUpdateIteration();
 
         // - test: "manual" splits, indiscriminately to a chosen level
@@ -68,11 +74,11 @@ namespace Mulen::Atmosphere {
                 childPos += (glm::dvec4(ci & 1u, (ci >> 1u) & 1u, (ci >> 2u) & 1u, 0.5) * 2.0 - 1.0)* childPos.w;
                 if (!NodeInAtmosphere(it, childPos)) continue;
 
-                if (!a.octree.nodes.GetNumFree()) return;
-                const auto& children = a.octree.GetNode(ni).children;
+                if (!atmosphere.octree.nodes.GetNumFree()) return;
+                const auto& children = atmosphere.octree.GetNode(ni).children;
                 if (InvalidIndex == children)
                 {
-                    a.octree.Split(ni);
+                    atmosphere.octree.Split(ni);
                     StageSplit(it, children, childPos);
                 }
                 testSplit(children, depth - 1u, childPos);
@@ -82,15 +88,15 @@ namespace Mulen::Atmosphere {
         {
             for (auto i = 1u; i <= depth; ++i)
             {
-                testSplit(a.rootGroupIndex, i, glm::dvec4{ 0, 0, 0, 1 });
+                testSplit(atmosphere.octree.rootGroupIndex, i, glm::dvec4{ 0, 0, 0, 1 });
             }
         };
 
-        StageSplit(it, a.rootGroupIndex, { 0.0, 0.0, 0.0, 1.0 });
+        StageSplit(it, atmosphere.octree.rootGroupIndex, { 0.0, 0.0, 0.0, 1.0 });
         const auto testDepth = 6u;
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
-        std::cout << "Voxel resolution: " << res << " (" << 2e-3 * a.planetRadius * a.scale / res << " km/voxel)\n";
+        std::cout << "Voxel resolution: " << res << " (" << 2e-3 * atmosphere.planetRadius * atmosphere.scale / res << " km/voxel)\n";
     }
 
     Updater::~Updater()
@@ -102,18 +108,16 @@ namespace Mulen::Atmosphere {
         thread.join();
     }
 
-    Util::Shader& Updater::SetShader(Util::Shader& shader)
+    Util::Shader& Updater::SetShader(Atmosphere& atmosphere, Util::Shader& shader)
     {
         shader.Bind();
         atmosphere.SetUniforms(shader);
-        shader.Uniform1f("time", glm::vec1{ (float)atmosphere.lightTime });
         return shader;
     }
 
-    void Updater::UpdateMap(Util::Texture& octreeMap, glm::vec3 pos, glm::vec3 scale, unsigned depthOffset)
+    void Updater::UpdateMap(Atmosphere& atmosphere, Util::Texture& octreeMap, glm::vec3 pos, glm::vec3 scale, unsigned depthOffset)
     {
-        //auto t = timer.Begin("Map");
-        auto& shader = SetShader(atmosphere.updateOctreeMapShader);
+        auto& shader = SetShader(atmosphere, atmosphere.updateOctreeMapShader);
         const glm::uvec3 resolution{ octreeMap.GetWidth(), octreeMap.GetHeight(), octreeMap.GetDepth() };
         shader.Uniform3f("resolution", glm::vec3(resolution));
         shader.Uniform3f("mapPosition", pos);
@@ -125,40 +129,39 @@ namespace Mulen::Atmosphere {
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
 
-    void Updater::UpdateNodes(uint64_t num)
+    void Updater::UpdateNodes(Atmosphere& atmosphere, uint64_t num)
     {
-        //auto t = timer.Begin("Nodes");
-        SetShader(atmosphere.updateShader);
+        SetShader(atmosphere, atmosphere.updateShader);
         glDispatchCompute((GLuint)num, 1u, 1u);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     }
 
-    void Updater::GenerateBricks(GpuState& state, Generator& gen, uint64_t first, uint64_t num)
+    void Updater::GenerateBricks(Atmosphere& atmosphere, GpuState& state, Generator& gen, uint64_t first, uint64_t num)
     {
         glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_READ_WRITE, BrickFormat);
         {
             //auto t = timer.Begin("Generation");
-            auto& shader = SetShader(gen.GetShader());
+            auto& shader = SetShader(atmosphere, gen.GetShader());
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
             glDispatchCompute((GLuint)num, 1u, 1u);
             glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }
         { // "optimisation" pass (compute constancy flags, possibly more)
-            auto& shader = SetShader(atmosphere.updateFlagsShader);
+            auto& shader = SetShader(atmosphere, atmosphere.updateFlagsShader);
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
             glDispatchCompute((GLuint)num, 1u, 1u);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
     }
 
-    void Updater::LightBricks(GpuState& state, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta& timerMeta)
+    void Updater::LightBricks(Atmosphere& atmosphere, GpuState& state, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta& timerMeta)
     {
         const auto numGroups = num / NodeArity; // - to do: num groups as parameter instead, to disallow incorrect use
         auto& groupsTex = atmosphere.brickLightPerGroupTexture;
 
         auto setShader = [&](Util::Shader& shader)
         {
-            SetShader(shader);
+            SetShader(atmosphere, shader);
             shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
 
             // Scale to cover the node group, translate outside it, and rotate to face the light.
@@ -202,19 +205,19 @@ namespace Mulen::Atmosphere {
         }
     }
 
-    void Updater::FilterLighting(GpuState& state, uint64_t first, uint64_t num)
+    void Updater::FilterLighting(Atmosphere& atmosphere, GpuState& state, uint64_t first, uint64_t num)
     {
         //auto t = timer.Begin("Light filter");
         //glBindImageTexture(0u, state.brickLightTexture.GetId(), 0, GL_TRUE, 0, GL_WRITE_ONLY, BrickLightFormat);
         glBindImageTexture(0u, state.brickTexture.GetId(), 0, GL_TRUE, 0, GL_READ_WRITE, BrickFormat);
-        auto& shader = SetShader(atmosphere.lightFilterShader);
+        auto& shader = SetShader(atmosphere, atmosphere.lightFilterShader);
         shader.Uniform1u("brickUploadOffset", glm::uvec1{ (unsigned)first });
         atmosphere.brickLightTextureTemp.Bind(1u);
         glDispatchCompute((GLuint)num, 1u, 1u);
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
     }
 
-    void Updater::OnFrame(const UpdateIteration::Parameters& params, double period)
+    void Updater::OnFrame(Atmosphere& atmosphere, const UpdateIteration::Parameters& params, double period)
     {
         auto& a = atmosphere;
         auto& timer = a.timer;
@@ -229,7 +232,6 @@ namespace Mulen::Atmosphere {
 
             stages.push_back({ Stage::Id::Init,         Profiler_UpdateInit, 0.1 });
             stages.push_back({ Stage::Id::Generate,     Profiler_UpdateGenerate, 40.0 });
-            //stages.push_back({ Stage::Id::SplitInit,    10.0 });
             stages.push_back({ Stage::Id::Map,          Profiler_UpdateMap, 1.0 });
             stages.push_back({ Stage::Id::Light,        Profiler_UpdateLight, 200.0 });
             stages.push_back({ Stage::Id::Filter,       Profiler_UpdateFilter, 15.0 });
@@ -341,7 +343,7 @@ namespace Mulen::Atmosphere {
 
                     atmosphere.gpuGenData.Upload(0, sizeof(NodeIndex) * priorSplitGroups.size(), priorSplitGroups.data());
                     atmosphere.gpuGenData.BindBase(GL_SHADER_STORAGE_BUFFER, 3u);
-                    auto& shader = SetShader(atmosphere.initSplitsShader);
+                    auto& shader = SetShader(atmosphere, atmosphere.initSplitsShader);
                     glDispatchCompute((GLuint)(priorSplitGroups.size() * NodeArity), 1u, 1u);
                     glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 
@@ -375,22 +377,16 @@ namespace Mulen::Atmosphere {
                     // - to do: use generator-specific shader for brick generation
 
                     a.gpuUploadNodes.Upload(0, sizeof(UploadNodeGroup) * numToDo, it.nodesToUpload.data() + last);
-                    UpdateNodes(numToDo);
+                    UpdateNodes(atmosphere, numToDo);
                     a.gpuUploadBricks.Upload(sizeof(UploadBrick) * bricksOffset, sizeof(UploadBrick) * numBricks, it.bricksToUpload.data() + bricksOffset);
-                    GenerateBricks(state, *params.generator, bricksOffset, numBricks);
+                    GenerateBricks(atmosphere, state, *params.generator, bricksOffset, numBricks);
                 }
-                break;
-            }
-            case Stage::Id::SplitInit:
-            {
-                totalItems = numToDo = 1u;
-                // - to do
                 break;
             }
             case Stage::Id::Map:
             {
                 auto t = timer.Begin(stage.str, timerMeta);
-                UpdateMap(state.octreeMap);
+                UpdateMap(atmosphere, state.octreeMap);
                 totalItems = numToDo = 1u;
                 break;
             }
@@ -400,7 +396,7 @@ namespace Mulen::Atmosphere {
                 if (numToDo)
                 {
                     auto t = timer.Begin(stage.str, timerMeta);
-                    LightBricks(state, last * NodeArity, numToDo * NodeArity, params.lightDirection, timerMeta);
+                    LightBricks(atmosphere, state, last * NodeArity, numToDo * NodeArity, params.lightDirection, timerMeta);
                 }
                 break;
             }
@@ -410,7 +406,7 @@ namespace Mulen::Atmosphere {
                 if (numToDo)
                 {
                     auto t = timer.Begin(stage.str, timerMeta);
-                    FilterLighting(state, last, numToDo);
+                    FilterLighting(atmosphere, state, last, numToDo);
                 }
                 break;
             }
@@ -438,7 +434,7 @@ namespace Mulen::Atmosphere {
         UploadNodeGroup upload{};
         upload.groupIndex = groupIndex;
         upload.genData = genData;
-        upload.nodeGroup = atmosphere.octree.GetGroup(groupIndex);
+        upload.nodeGroup = octree.GetGroup(groupIndex);
         it.nodesToUpload.push_back(upload);
     }
 
@@ -492,7 +488,6 @@ namespace Mulen::Atmosphere {
     {
         const auto startTime = Util::Timer::Clock::now();
 
-        auto& a = atmosphere;
         it.nodesToUpload.resize(0u);
         it.bricksToUpload.resize(0u);
         it.splitGroups.resize(0u);
@@ -514,7 +509,7 @@ namespace Mulen::Atmosphere {
         std::priority_queue<PriorityNode, std::vector<PriorityNode>, decltype(cmpMerge)> mergePrio(cmpMerge);
 
         const auto MaxDepth = it.params.depthLimit;
-        const auto camPos = it.params.cameraPosition * a.scale;
+        const auto camPos = it.params.cameraPosition * it.params.scale;
         const auto h = glm::length(camPos) - 1.0;
         const auto r = 1.0;
         const auto cloudTop = 0.005; // - to do: retrieve from somewhere else
@@ -524,7 +519,7 @@ namespace Mulen::Atmosphere {
             + sqrt(cloudTop * (cloudTop + 2.0 * r)) // distance to cloud horizon
             ;
 
-        // - to do: update octree (eventually in a separate copy so that the render thread may do intersections/lookups in its own copy)
+        // Update octree (eventually in a separate copy so that the render thread may do intersections/lookups in its own copy)
         // Traverse all, compute split and merge priorities:
         std::function<bool(NodeIndex, unsigned, glm::dvec4)> computePriority = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
         {
@@ -535,19 +530,63 @@ namespace Mulen::Atmosphere {
                 auto childPos = pos;
                 childPos.w *= 0.5;
                 childPos += (glm::dvec4(glm::uvec3(ci, ci >> 1u, ci >> 2u) & 1u, 0.5) * 2.0 - 1.0) * childPos.w;
-                const auto nodePos = Object::Position(childPos) * a.scale;
-                const auto nodeSize = childPos.w * a.scale;
+                const auto nodePos = Object::Position(childPos) * it.params.scale;
+                const auto nodeSize = childPos.w * it.params.scale;
                 const auto nodeMin = nodePos - nodeSize, nodeMax = nodePos + nodeSize;
                 if (!NodeInAtmosphere(it, childPos)) continue; // - do we also need to see if this can merge? To do
 
                 const auto ni = Octree::GroupAndChildToNode(gi, ci);
-                const auto children = a.octree.GetNode(ni).children;
+                const auto children = octree.GetNode(ni).children;
                 hasGrandchildren = hasGrandchildren || InvalidIndex != children;
                 //const auto insideNode = glm::all(glm::lessThan(glm::abs(camPos - nodePos) / nodeSize, glm::dvec3{ 1.0 }));
                 const auto distanceToNode = glm::length(glm::max(glm::dvec3(0.0), glm::max(nodeMin - camPos, camPos - nodeMax)));
                 const auto insideNode = distanceToNode == 0.0;
 
-                // - to do: check if inside (cloud) horizon
+                // Frustum culling (prototypical):
+                if (it.params.doFrustumCulling)
+                {
+                    // - to do: make sure not to cull potentially shadowing parts of the atmosphere
+
+                    auto scale = it.params.planetRadius;
+                    auto aabbPos = scale * (nodePos - camPos);
+                    auto aabbSize = nodeSize * scale;
+
+                    auto getNegativeVertex = [&](const glm::dvec3& normal)
+                    {
+                        auto pv = glm::dvec3(aabbSize);
+                        if (normal.x >= 0.0) pv.x *= -1.0;
+                        if (normal.y >= 0.0) pv.y *= -1.0;
+                        if (normal.z >= 0.0) pv.z *= -1.0;
+                        return aabbPos + pv;
+                    };
+                    auto insideFrustum = [&]()
+                    {
+                        for (auto i = 0u; i < 5u; ++i)
+                        {
+                            auto pi = it.params.viewFrustum.planes[i];
+                            auto pos = pi.w;
+                            auto normal = glm::dvec3(pi);
+
+                            if (glm::dot(normal, getNegativeVertex(normal)) + pos > 0.0) return false; // outside
+                            // - to do, possibly: can test for intersection (not necessarily wholly inside) with positive vertex
+                        }
+                        return true; // inside
+                    };
+
+                    // - prototypical:
+                    if (!insideNode && !insideFrustum())
+                    {
+                        // - to do: unify with cloud horizon check below
+                        if (InvalidIndex != children)
+                        {
+                            if (!computePriority(children, depth + 1u, childPos)) // - to let children insert themselves in the merge priority
+                                mergePrio.push({ ni, 0.0 }); // - experimental
+                        }
+                        continue;
+                    }
+                }
+
+                // Check if inside (cloud) horizon
                 // (which is true if either inside distance-to-ground-horizon or sufficiently low angle for nodes beyond)
                 const auto margin = sqrt(3 * (2 * nodeSize) * (2 * nodeSize));
                 if (!insideNode && distanceToNode - margin > horizonDist)
@@ -583,7 +622,7 @@ namespace Mulen::Atmosphere {
             }
             return hasGrandchildren;
         };
-        computePriority(a.rootGroupIndex, 0u, {0, 0, 0, 1});
+        computePriority(octree.rootGroupIndex, 0u, {0, 0, 0, 1});
 
         const auto maxSplits = 5000ull; // - testing (should be tuned, maybe made configurable?)
         auto numSplits = 0ull, numMerges = 0ull;
@@ -596,7 +635,7 @@ namespace Mulen::Atmosphere {
                 auto toSplit = splitPrio.top();
                 splitPrio.pop();
 
-                if (!a.octree.nodes.GetNumFree()) // are we out of octree memory?
+                if (!octree.nodes.GetNumFree()) // are we out of octree memory?
                 {
                     while (true)
                     {
@@ -606,10 +645,10 @@ namespace Mulen::Atmosphere {
                         mergePrio.pop();
 
                         auto hasGrandchildren = false;
-                        const auto children = a.octree.GetNode(toMerge.index).children;
+                        const auto children = octree.GetNode(toMerge.index).children;
                         for (auto ci = 0u; ci < NodeArity; ++ci)
                         {
-                            if (a.octree.GetNode(Octree::GroupAndChildToNode(children, ci)).children != InvalidIndex)
+                            if (octree.GetNode(Octree::GroupAndChildToNode(children, ci)).children != InvalidIndex)
                             {
                                 hasGrandchildren = true;
                                 break;
@@ -618,13 +657,13 @@ namespace Mulen::Atmosphere {
                         if (hasGrandchildren) continue; // this node can no longer be merged (because a child was split)
 
                         ++numMerges;
-                        a.octree.Merge(toMerge.index);
+                        octree.Merge(toMerge.index);
                         break;
                     }
                 }
                 
-                a.octree.Split(toSplit.index);
-                it.splitGroups.push_back(a.octree.GetNode(toSplit.index).children);
+                octree.Split(toSplit.index);
+                it.splitGroups.push_back(octree.GetNode(toSplit.index).children);
                 if (++numSplits >= maxSplits) break;
             }
         };
@@ -648,12 +687,12 @@ namespace Mulen::Atmosphere {
                 childPos.w *= 0.5;
                 childPos += (glm::dvec4(glm::uvec3(ci, ci >> 1u, ci >> 2u) & 1u, 0.5) * 2.0 - 1.0)* childPos.w;
                 const auto ni = Octree::GroupAndChildToNode(gi, ci);
-                const auto children = a.octree.GetNode(ni).children;
+                const auto children = octree.GetNode(ni).children;
                 if (InvalidIndex == children) continue;
                 stageGroup(children, depth + 1u, childPos);
             }
         };
-        stageGroup(a.rootGroupIndex, 0u, {0, 0, 0, 1});
+        stageGroup(octree.rootGroupIndex, 0u, {0, 0, 0, 1});
 
         // - to do: better way to time
         auto endTime = Util::Timer::Clock::now();

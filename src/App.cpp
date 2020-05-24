@@ -9,6 +9,8 @@ std::ostream& operator<<(std::ostream& os, const glm::vec4& m) {
 
 namespace Mulen {
 
+    static const double defaultFovy = 58.3 / 180.0 * glm::pi<double>();
+
     App::App(Window& window)
         : Window::App{ window }
         , atmosphere{ timer }
@@ -20,6 +22,7 @@ namespace Mulen {
         atmUpdateParams.animate = false;
         atmUpdateParams.rotateLight = false;
         atmUpdateParams.update = true;
+        atmUpdateParams.frustumCull = false;
 
         Reload();
         window.SetVSync(true);
@@ -29,6 +32,7 @@ namespace Mulen {
         light.intensity = 1e1; // - to do: make physically based
 
         InitializeAtmosphere();
+        camera.SetFovy(defaultFovy);
         camera.SetPosition(Object::Position(0, 0, atmosphere.GetPlanetRadius() * 2.25));
         camera.radius = glm::distance(camera.GetPosition(), atmosphere.GetPosition());
     }
@@ -55,9 +59,8 @@ namespace Mulen {
         lastTime = time;
         const auto size = glm::max(glm::ivec2(1), window.GetSize());
         const float aspect = float(size.x) / float(size.y); // - to do: depend on render resolution instead
-        const float fovy = 45.0f;
         const float near = 1.0f, far = 1e8f;
-        camera.SetPerspectiveProjection(fovy, aspect, near, far);
+        camera.SetPerspectiveProjection(camera.GetFovy(), aspect, near, far);
         glViewport(0, 0, size.x, size.y);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -149,6 +152,17 @@ namespace Mulen {
                 ImGui::Checkbox("Collision", &collision);
                 ImGui::Checkbox("Keep level", &keepLevel);
                 ImGui::Checkbox("Inertial", &inertial);
+
+                auto fovy = static_cast<float>(camera.GetFovy()) * 180.0f / glm::pi<float>();
+                ImGui::SliderFloat("Field of view", &fovy, 1.0, 179.0);
+                camera.SetFovy(fovy / 180.0 * glm::pi<float>());
+                auto lightTime = atmosphere.GetLightTime();
+                auto animationTime = atmosphere.GetAnimationTime();
+                ImGui::InputDouble("Light time", &lightTime);
+                ImGui::InputDouble("Animation time", &animationTime);
+                atmosphere.SetLightTime(lightTime);
+                atmosphere.SetAnimationTime(animationTime);
+                // - to do: also controls for the speed of time
             }
             ImGui::End();
 
@@ -156,6 +170,7 @@ namespace Mulen {
             {
                 ImGui::PushItemWidth(120.0);
                 ImGui::Checkbox("Update", &atmUpdateParams.update);
+                ImGui::Checkbox("Frustum culling", &atmUpdateParams.frustumCull);
                 ImGui::Checkbox("Rotate light", &atmUpdateParams.rotateLight);
                 ImGui::Checkbox("Animate", &atmUpdateParams.animate);
                 ImGui::Checkbox("Use feature generator", &atmUpdateParams.useFeatureGenerator);
@@ -257,6 +272,11 @@ namespace Mulen {
                 displayGpuTime("Update::LightPerGroup");
                 displayGpuTime("Update::LightPerVoxel");
                 displayGpuTime("Update::Filter");
+                ImGui::Spacing();
+                if (ImGui::Button("Benchmark"))
+                {
+                    std::cout << "Benchmark it is!" << std::endl;
+                }
             }
             ImGui::End();
         }
@@ -316,6 +336,7 @@ namespace Mulen {
                     else                return glm::dvec3{p, -sqrt(1.0 - length)};
                 };
                 auto c0 = glm::dvec2(0.0), c1 = cursorPos - lastCursorPos;
+                c1 *= camera.GetFovy() / defaultFovy; // - to do: improve curve
                 auto a0 = arcballPosition(c0), a1 = arcballPosition(c1);
                 auto cross = glm::cross(a0, a1);
                 const auto epsilon = 1e-5;

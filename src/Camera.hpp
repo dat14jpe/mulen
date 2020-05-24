@@ -4,6 +4,7 @@
 namespace Mulen {
     class Camera : public Object
     {
+        double fovy;
         Mat4 projectionMatrix;
         Position acceleration{ 0.0 }, velocity{ 0.0 };
         double maxSpeed = std::numeric_limits<double>::max(); // infinity means "distance-based" (but maybe it should be made explicit)
@@ -27,11 +28,14 @@ namespace Mulen {
 
         void SetPerspectiveProjection(double fovy, double aspect, double near, double far)
         {
+            this->fovy = fovy;
             projectionMatrix = glm::perspective(fovy, aspect, near, far);
         }
 
         void Accelerate(const Position&);
 
+        void SetFovy(double f) { fovy = f; }
+        double GetFovy() const { return fovy; }
         Mat4 GetViewMatrix() const;
         Mat4 GetProjectionMatrix() const { return projectionMatrix; }
 

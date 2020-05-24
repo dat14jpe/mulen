@@ -28,12 +28,12 @@ namespace Mulen::Atmosphere {
         void StageBrick(UpdateIteration&, UploadType, NodeIndex, const glm::vec4& nodePos, uint32_t genDataOffset, uint32_t genDataSize);
         void StageSplit(UpdateIteration&, NodeIndex gi, const glm::vec4& groupPos);
 
-        Util::Shader& SetShader(Util::Shader&);
-        void UpdateMap(Util::Texture&, glm::vec3 pos = glm::vec3(-1.0f), glm::vec3 scale = glm::vec3(2.0f), unsigned depthOffset = 0u);
-        void UpdateNodes(uint64_t num);
-        void GenerateBricks(GpuState&, Generator&, uint64_t first, uint64_t num);
-        void LightBricks(GpuState&, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta&);
-        void FilterLighting(GpuState&, uint64_t first, uint64_t num);
+        Util::Shader& SetShader(Atmosphere&, Util::Shader&);
+        void UpdateMap(Atmosphere&, Util::Texture&, glm::vec3 pos = glm::vec3(-1.0f), glm::vec3 scale = glm::vec3(2.0f), unsigned depthOffset = 0u);
+        void UpdateNodes(Atmosphere&, uint64_t num);
+        void GenerateBricks(Atmosphere&, GpuState&, Generator&, uint64_t first, uint64_t num);
+        void LightBricks(Atmosphere&, GpuState&, uint64_t first, uint64_t num, const Object::Position& lightDir, const Util::Timer::DurationMeta&);
+        void FilterLighting(Atmosphere&, GpuState&, uint64_t first, uint64_t num);
         void ComputeIteration(UpdateIteration&);
 
         bool NodeInAtmosphere(const UpdateIteration&, const glm::dvec4& nodePosAndScale);
@@ -47,7 +47,6 @@ namespace Mulen::Atmosphere {
             {
                 Init,       // begin a new generation pass
                 Generate,   // upload node and brick data, generate cloud density values
-                SplitInit,  // initialise previous data for newly split nodes (to avoid animation glitches from brick memory reuse)
                 Map,        // create octree traversal optimisation map
                 Light,      // cast shadow rays to compute lighting
                 Filter,     // filter lighting and combine with brick density values
@@ -73,11 +72,12 @@ namespace Mulen::Atmosphere {
             Finished
         } updateStage = UpdateStage::Finished;*/
 
-        Atmosphere& atmosphere;
         bool done = false;
         std::mutex mutex;
         std::condition_variable cv;
         std::thread thread;
+
+        Octree& octree; // - to do: a better setup than requiring references or pointers
 
 
     public:
@@ -85,8 +85,8 @@ namespace Mulen::Atmosphere {
         ~Updater();
         void UpdateLoop();
 
-        void InitialSetup();
-        void OnFrame(const UpdateIteration::Parameters&, double period);
+        void InitialSetup(Atmosphere&);
+        void OnFrame(Atmosphere&, const UpdateIteration::Parameters&, double period);
         double GetUpdateFraction() const { return updateFraction; }
     };
 }

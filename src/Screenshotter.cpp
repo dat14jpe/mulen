@@ -12,6 +12,14 @@
 namespace Mulen {
     static const auto keyPrefix = std::string("mulen_");
 
+    static const std::string
+        CameraPosition = "camera_position",
+        CameraOrientation = "camera_orientation",
+        CameraFovy = "camera_fovy",
+        CameraUpright = "camera_upright",
+        AnimationTime = "atmosphere_animation_time",
+        LightTime = "atmosphere_light_time";
+
     static std::string DetermineFileName()
     {
         const auto dir = u8"screenshots", id = u8"_Mulen_", extension = u8".png";
@@ -51,11 +59,12 @@ namespace Mulen {
         // - to do: add more important values (max allowed depth among them)
 
         Util::Screenshotter::KeyValuePairs keyValuePairs;
-        keyValuePairs[keyPrefix + "camera_position"] = positionStr;
-        keyValuePairs[keyPrefix + "camera_orientation"] = orientationStr;
-        keyValuePairs[keyPrefix + "camera_upright"] = std::to_string(camera.upright);
-        keyValuePairs[keyPrefix + "atmosphere_animation_time"] = std::to_string(atmosphere.GetAnimationTime());
-        keyValuePairs[keyPrefix + "atmosphere_light_time"] = std::to_string(atmosphere.GetLightTime());
+        keyValuePairs[keyPrefix + CameraPosition] = positionStr;
+        keyValuePairs[keyPrefix + CameraOrientation] = orientationStr;
+        keyValuePairs[keyPrefix + CameraFovy] = std::to_string(camera.GetFovy());
+        keyValuePairs[keyPrefix + CameraUpright] = std::to_string(camera.upright);
+        keyValuePairs[keyPrefix + AnimationTime] = std::to_string(atmosphere.GetAnimationTime());
+        keyValuePairs[keyPrefix + LightTime] = std::to_string(atmosphere.GetLightTime());
         screenshotter.TakeScreenshot(filename, resolution, std::move(keyValuePairs));
     }
 
@@ -87,32 +96,38 @@ namespace Mulen {
                 {
                     const auto k = key.substr(keyPrefix.length());
                     std::stringstream ss(str);
-                    if (k == "camera_position")
+                    if (k == CameraPosition)
                     {
                         Object::Position p;
                         ss >> p.x >> p.y >> p.z;
                         camera.SetPosition(p);
                         cameraWasUpdated = true;
                     }
-                    else if (k == "camera_orientation")
+                    else if (k == CameraOrientation)
                     {
                         Object::Orientation o;
                         ss >> o.x >> o.y >> o.z >> o.w;
                         camera.SetOrientation(o);
                         cameraWasUpdated = true;
                     }
-                    else if (k == "camera_upright")
+                    else if (k == CameraFovy)
+                    {
+                        double f;
+                        ss >> f;
+                        camera.SetFovy(f);
+                    }
+                    else if (k == CameraUpright)
                     {
                         ss >> camera.upright;
                         cameraWasUpdated = true;
                     }
-                    else if (k == "atmosphere_animation_time")
+                    else if (k == AnimationTime)
                     {
                         double t;
                         ss >> t;
                         atmosphere.SetAnimationTime(t);
                     }
-                    else if (k == "atmosphere_light_time")
+                    else if (k == LightTime)
                     {
                         double t;
                         ss >> t;
@@ -127,6 +142,7 @@ namespace Mulen {
 
             camera.FlagForUpdate();
             // - to do: maybe check if any values were missing
+            // - to do: default values for missing keys
         }
     }
 }
