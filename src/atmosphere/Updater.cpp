@@ -291,7 +291,7 @@ namespace Mulen::Atmosphere {
                         allStagesProfiled = false;
                         break;
                     }
-                }if (false)
+                }
                 if (allStagesProfiled)
                 {
                     //std::cout << "Profile data available on init." << std::endl;
