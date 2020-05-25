@@ -54,6 +54,7 @@ namespace Mulen {
 
         Index* GetNextFree(Index i)
         {
+            if (i >= data.size()) std::cout << "Out of bounds: " << i << " >= " << data.size() << std::endl;
             return reinterpret_cast<Index*>(&data[i]);
         }
         
@@ -85,7 +86,7 @@ namespace Mulen {
             firstFree = i;
             ++numFree;
         }
-        Index GetSize() const { return data.size(); }
+        Index GetSize() const { return static_cast<Index>(data.size()); }
         Index GetNumFree() const { return numFree; }
         Index GetNumUsed() const { return GetSize() - GetNumFree(); }
         Data& operator[](Index i) { return data[i]; }

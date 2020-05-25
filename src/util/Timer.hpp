@@ -20,15 +20,18 @@ namespace Util {
         struct Duration
         {
             double duration;
-            size_t frame;
+            int frame;
             DurationMeta meta;
         };
+
+        typedef std::vector<Duration>::size_type NameRef;
 
     private:
         struct Timings
         {
             class DurationVector
             {
+                friend class Timer;
                 std::vector<Duration> durations;
                 size_t nextIndex = 0u;
 
@@ -42,7 +45,8 @@ namespace Util {
 
                 const Duration& operator[](int i)
                 {
-                    return durations[(nextIndex + i + durations.size()) % durations.size()];
+                    const auto size = static_cast<int>(durations.size());
+                    return durations[(nextIndex + i + size - 1) % size];
                 }
 
                 double Average(size_t window)
@@ -65,7 +69,6 @@ namespace Util {
         size_t maxTimesStored = 128u; // - arbitrary (to do: make this configurable)
 
         std::vector<Timings> timings;
-        typedef decltype(timings)::size_type NameRef;
         std::unordered_map<std::string, NameRef> nameToRef;
         std::vector<std::string> refToName;
 
@@ -75,7 +78,7 @@ namespace Util {
         {
             NameRef nameRef;
             GpuQuery gpuQueries[2];
-            size_t frame;
+            int frame;
             DurationMeta meta;
         };
         std::queue<PendingGpuQuery> pendingGpuQueries;
@@ -84,13 +87,15 @@ namespace Util {
         GpuQuery AllocateGpuQuery();
         void FreeGpuQuery(GpuQuery&);
 
-        size_t frame = 0u;
+        int frame = 0;
 
 
     public:
         class ActiveTiming;
         void StartTiming(ActiveTiming&);
         void EndTiming(ActiveTiming&);
+
+        size_t GetFrame() const { return frame; }
 
         NameRef NameToRef(const std::string& name)
         {
@@ -102,6 +107,11 @@ namespace Util {
             nameToRef[name] = ref;
             return ref;
         }
+        const std::string& RefToName(NameRef ref)
+        {
+            return refToName[ref];
+        }
+        size_t GetNumNames() const { return refToName.size(); }
         Timings& GetTimings(NameRef ref)
         {
             return timings[ref];

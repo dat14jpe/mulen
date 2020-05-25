@@ -15,6 +15,8 @@ add_executable(${CMAKE_PROJECT_NAME}
     atmosphere/FeatureGenerator.cpp
     atmosphere/Octree.hpp
     atmosphere/Octree.cpp
+    Benchmarker.hpp
+    Benchmarker.cpp
     Camera.hpp
     Camera.cpp
     Object.hpp

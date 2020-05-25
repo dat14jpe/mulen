@@ -85,6 +85,8 @@ namespace Mulen::Atmosphere {
         ~Updater();
         void UpdateLoop();
 
+        void WaitForUpdateReady();
+
         void InitialSetup(Atmosphere&);
         void OnFrame(Atmosphere&, const UpdateIteration::Parameters&, double period);
         double GetUpdateFraction() const { return updateFraction; }

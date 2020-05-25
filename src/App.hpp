@@ -10,6 +10,7 @@
 #include "Camera.hpp"
 #include "util/Timer.hpp"
 #include "Screenshotter.hpp"
+#include "Benchmarker.hpp"
 #include "LightSource.hpp"
 
 namespace Mulen {
@@ -18,6 +19,7 @@ namespace Mulen {
         App(Window&);
 
         const std::string shaderPath = "shaders/";
+        Benchmarker benchmarker;
 
         bool showGui = true;
         float mouseSensitivity = 0.25f;
@@ -29,6 +31,7 @@ namespace Mulen {
         Atmosphere::Atmosphere atmosphere;
 
         bool takeScreenshot = false;
+        bool vsync = true;
         bool fpsMode = false;
         bool collision = true, keepLevel = false, inertial = false;
         Atmosphere::Atmosphere::UpdateParams atmUpdateParams;
@@ -49,5 +52,11 @@ namespace Mulen {
         bool draggingView = false;
 
         Screenshotter screenshotter;
+
+
+        double dt, aspect;
+        glm::ivec2 windowSize;
+
+        void HandleUserInterface(); // - to do: split up
     };
 }

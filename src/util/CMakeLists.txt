@@ -16,6 +16,7 @@ add_library(${LIB_NAME}
     Screenshotter.cpp
     lodepng.h
     lodepng.cpp
+    json.hpp
 )
 set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 17)
 

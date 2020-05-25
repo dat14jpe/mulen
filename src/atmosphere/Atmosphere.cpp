@@ -41,6 +41,7 @@ namespace Mulen::Atmosphere {
     bool Atmosphere::Init(const Atmosphere::Params& p)
     {
         // - to do: make sure to discard old/ongoing computations from the other thread
+        updater.WaitForUpdateReady(); // - is this enough? Be sure not to cause data races here...
 
         initUpdate = true;
         vao.Create();
@@ -203,7 +204,7 @@ namespace Mulen::Atmosphere {
         lightDir = glm::normalize(glm::dvec3(1, 0.6, 0.4));
         // - light rotation test:
         auto lightSpeed = 1.0 / 1000.0;
-        auto lightRot = glm::angleAxis(lightTime * glm::pi<double>() * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
+        auto lightRot = glm::angleAxis(GetLightTime() * glm::pi<double>() * 2.0 * lightSpeed, glm::dvec3(0, -1, 0));
         lightDir = glm::rotate(lightRot, lightDir);
 
         const auto worldMat = glm::translate(Object::Mat4{ 1.0 }, position - camera.GetPosition());
@@ -225,7 +226,7 @@ namespace Mulen::Atmosphere {
         uniforms.worldMat = worldMat;
         uniforms.prevViewProjMat = prevViewProjMat;
         uniforms.time = static_cast<float>(renderTime);
-        uniforms.animationTime = static_cast<float>(time);
+        uniforms.animationTime = static_cast<float>(GetAnimationTime());
         uniforms.animationAlpha = static_cast<float>(updater.GetUpdateFraction());
         uniforms.planetLocation = glm::vec4(GetPosition() - camera.GetPosition(), 0.0);
 

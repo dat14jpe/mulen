@@ -7,3 +7,5 @@ mulen.exe
 lib
 imgui.ini
 screenshots
+benchmark/record
+benchmark/results

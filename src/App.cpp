@@ -13,6 +13,7 @@ namespace Mulen {
 
     App::App(Window& window)
         : Window::App{ window }
+        , benchmarker{ *this }
         , atmosphere{ timer }
         , lastTime{ glfwGetTime() }
     {
@@ -50,32 +51,19 @@ namespace Mulen {
         return atmosphere.ReloadShaders(shaderPath);
     }
 
-    void App::OnFrame()
+    void App::HandleUserInterface()
     {
-        auto t = timer.Begin("App::OnFrame");
-
-        const auto time = glfwGetTime();
-        const auto dt = time - lastTime;//1.0f / ImGui::GetIO().Framerate;
-        lastTime = time;
-        const auto size = glm::max(glm::ivec2(1), window.GetSize());
-        const float aspect = float(renderResolution.x) / float(renderResolution.y); // - to do: depend on render resolution instead
-        const float near = 1.0f, far = 1e8f;
-        camera.SetPerspectiveProjection(camera.GetFovy(), aspect, near, far);
-        glViewport(0, 0, size.x, size.y);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-
         if (showGui)
         {
             if (ImGui::Begin("Camera"))
             {
-                ImGui::Text("Window resolution: %d*%d", size.x, size.y);
+                ImGui::Text("Window resolution: %d*%d", windowSize.x, windowSize.y);
                 {
                     struct
                     {
                         const char* name;
                         glm::ivec2 resolution;
-                    } static resChoices[] = 
+                    } static resChoices[] =
                     {
                         {"(window)", {0, 0}},
                         {"1280x720", {1280, 720}},
@@ -154,7 +142,7 @@ namespace Mulen {
                 ImGui::Checkbox("Inertial", &inertial);
 
                 auto fovy = static_cast<float>(camera.GetFovy()) * 180.0f / glm::pi<float>();
-                ImGui::SliderFloat("Field of view", &fovy, 0.1, 179.0);
+                ImGui::SliderFloat("Field of view", &fovy, 0.1f, 179.0f);
                 camera.SetFovy(fovy / 180.0 * glm::pi<float>());
                 auto lightTime = atmosphere.GetLightTime();
                 auto animationTime = atmosphere.GetAnimationTime();
@@ -188,7 +176,7 @@ namespace Mulen {
 
                 { // distance to planet or atmosphere cloud shell
                     auto cursorPos = glm::dvec2(window.GetCursorPosition());
-                    cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
+                    cursorPos = cursorPos / glm::dvec2(windowSize) * 2.0 - 1.0;
                     cursorPos.y = -cursorPos.y;
                     auto viewMat = camera.GetOrientationMatrix();
                     auto projMat = camera.GetProjectionMatrix();
@@ -229,54 +217,6 @@ namespace Mulen {
 
                 ImGui::Text("Max depth: %d", atmosphere.GetMaxDepth());
                 ImGui::Text("Smallest voxel size: %.0f m", atmosphere.ComputeVoxelSizeAtDepth(atmosphere.GetMaxDepth()));
-            }
-            ImGui::End();
-
-            // - to do: put profiler logic somewhere else
-            if (ImGui::Begin("Profiler"))
-            {
-                auto getGpuTime = [&](const std::string& name)
-                {
-                    auto& t = timer.GetTimings(timer.NameToRef(name)).gpuTimes;
-                    const auto averageWindow = 100ull; // number of samples to average over
-                    //return t.Average(averageWindow);
-
-                    const auto window = 100ull; // - to do: adjust
-                    const auto num = static_cast<int>(glm::min(window, t.Size()));
-                    auto sum = 0.0;
-                    for (auto i = 0; i < num; ++i)
-                    {
-                        sum += t[-i].duration / t[-i].meta.factor;
-                    }
-                    return sum / double(num);
-                };
-                auto displayGpuTime = [&](const char* nameLiteral)
-                {
-                    const std::string name{ nameLiteral };
-                    //ImGui::Text("%s: %.3f ms", nameLiteral, 1e3 * getGpuTime(name));
-                    ImGui::Text("%9.3f ms    %s", 1e3 * getGpuTime(name), nameLiteral);
-                };
-
-                ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
-                displayGpuTime("App::OnFrame");
-                displayGpuTime("Atmosphere::Render");
-                displayGpuTime("Atmosphere::Update");
-                // - to do: some sort of special handling for these, no? Possibly
-                ImGui::Spacing();
-                ImGui::Text("Update pass:");
-                displayGpuTime("Update::InitSplits");
-                displayGpuTime("Update::Generate");
-                displayGpuTime("Update::Map");
-                //displayGpuTime("Update::Light");
-                displayGpuTime("Update::LightPerGroup");
-                displayGpuTime("Update::LightPerVoxel");
-                displayGpuTime("Update::Filter");
-                ImGui::Spacing();
-                if (ImGui::Button("Benchmark"))
-                {
-                    std::cout << "Benchmark it is!" << std::endl;
-                }
             }
             ImGui::End();
         }
@@ -335,7 +275,7 @@ namespace Mulen {
                 {
                     force *= log(dist / r);
                 }
-                
+
 
                 //force *= glm::clamp(pow((dist - r) / r, 1.5), 1e-2, 1.0);
                 // - to do: only perpendicular to planet normal, if not flying
@@ -343,7 +283,7 @@ namespace Mulen {
             }
 
             auto cursorPos = glm::dvec2(window.GetCursorPosition());
-            cursorPos = cursorPos / glm::dvec2(size) * 2.0 - 1.0;
+            cursorPos = cursorPos / glm::dvec2(windowSize) * 2.0 - 1.0;
             cursorPos.x *= aspect;
             const bool
                 rotateView = window.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) || fpsMode,
@@ -357,8 +297,8 @@ namespace Mulen {
                     p *= mouseSensitivity;
                     auto length = glm::length(p);
                     p.y = -p.y;
-                    if (length >= 1.0f) return glm::dvec3{1.0 * p / sqrt(length), 0.0};
-                    else                return glm::dvec3{p, -sqrt(1.0 - length)};
+                    if (length >= 1.0f) return glm::dvec3{ 1.0 * p / sqrt(length), 0.0 };
+                    else                return glm::dvec3{ p, -sqrt(1.0 - length) };
                 };
                 auto c0 = glm::dvec2(0.0), c1 = cursorPos - lastCursorPos;
                 c1 *= camera.GetFovy() / defaultFovy; // - to do: improve curve
@@ -390,7 +330,7 @@ namespace Mulen {
                         auto camPos = ap + glm::normalize(Object::Position{ glm::rotate(q, glm::dvec4(cp - ap, 1.0)) }) * camera.radius;
 
                         camera.SetPosition(camPos); // rotate camera position around planet
-                        
+
                         auto planetVS1 = glm::normalize(Object::Position(camera.GetViewMatrix() * glm::dvec4(ap, 1.0f)));
 
                         auto p0 = planetVS1, p1 = planetVS0;
@@ -405,6 +345,11 @@ namespace Mulen {
             }
             lastCursorPos = cursorPos;
         }
+
+        if (vsync != window.GetVSync()) window.SetVSync(vsync);
+        atmosphere.SetDownscaleFactor(downscaleFactor);
+        renderResolution = selectedResolution;
+        if (renderResolution == glm::ivec2(0, 0)) renderResolution = windowSize;
 
         camera.SetInertial(inertial);
         camera.SetKeepLevel(keepLevel);
@@ -439,24 +384,109 @@ namespace Mulen {
             Object::Orientation q = glm::angleAxis(angle, Object::Position{ 0, 0, -1 });
             if (abs(angle) > 1e-3) camera.ApplyRotation(q);
         }
+    }
+
+    void App::OnFrame()
+    {
+        auto t = timer.Begin("App::OnFrame");
+
+        const auto time = glfwGetTime();
+        dt = time - lastTime;//1.0f / ImGui::GetIO().Framerate;
+        benchmarker.OnFrame(dt);
+        lastTime = time;
+        windowSize = glm::max(glm::ivec2(1), window.GetSize());
+        aspect = double(renderResolution.x) / double(renderResolution.y); // - to do: depend on render resolution instead
+        const float near = 1.0f, far = 1e8f;
+        camera.SetPerspectiveProjection(camera.GetFovy(), aspect, near, far);
+        glViewport(0, 0, windowSize.x, windowSize.y);
+        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        if (!benchmarker.IsBenchmarking())
+        {
+            HandleUserInterface();
+        }
+
+        // - to do: put profiler logic somewhere else
+        if (ImGui::Begin("Profiler"))
+        {
+            auto getGpuTime = [&](const std::string& name)
+            {
+                auto& t = timer.GetTimings(timer.NameToRef(name)).gpuTimes;
+                const auto averageWindow = 100ull; // number of samples to average over
+                //return t.Average(averageWindow);
+
+                const auto window = 100ull; // - to do: adjust
+                const auto num = static_cast<int>(glm::min(window, t.Size()));
+                auto sum = 0.0;
+                for (auto i = 0; i < num; ++i)
+                {
+                    sum += t[-i].duration / t[-i].meta.factor;
+                }
+                return sum / double(num);
+            };
+            auto displayGpuTime = [&](const char* nameLiteral)
+            {
+                const std::string name{ nameLiteral };
+                //ImGui::Text("%s: %.3f ms", nameLiteral, 1e3 * getGpuTime(name));
+                ImGui::Text("%9.3f ms    %s", 1e3 * getGpuTime(name), nameLiteral);
+            };
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+            displayGpuTime("App::OnFrame");
+            displayGpuTime("Atmosphere::Render");
+            displayGpuTime("Atmosphere::Update");
+            // - to do: some sort of special handling for these, no? Possibly
+            ImGui::Spacing();
+            ImGui::Text("Update pass:");
+            displayGpuTime("Update::InitSplits");
+            displayGpuTime("Update::Generate");
+            displayGpuTime("Update::Map");
+            //displayGpuTime("Update::Light");
+            displayGpuTime("Update::LightPerGroup");
+            displayGpuTime("Update::LightPerVoxel");
+            displayGpuTime("Update::Filter");
+            ImGui::Spacing();
+            if (benchmarker.IsInactive() && ImGui::Button("Record path"))
+            {
+                benchmarker.StartRecording();
+            }
+            if (benchmarker.IsRecording() && ImGui::Button("Stop recording"))
+            {
+                benchmarker.StopRecording();
+            }
+            if (benchmarker.IsInactive() && ImGui::Button("Benchmark"))
+            {
+                benchmarker.StartBenchmark();
+            }
+        }
+        ImGui::End();
 
 
-        atmosphere.SetDownscaleFactor(downscaleFactor);
+
         atmosphere.Update(dt, atmUpdateParams, camera, light);
-        renderResolution = selectedResolution;
-        if (renderResolution == glm::ivec2(0, 0)) renderResolution = size;
-        atmosphere.Render(size, renderResolution, camera, light);
+        atmosphere.Render(windowSize, renderResolution, camera, light);
         if (takeScreenshot) // - maybe to do: enable including profiling data
         {
             screenshotter.TakeScreenshot(window, renderResolution, camera, atmosphere);
             takeScreenshot = false;
         }
-        atmosphere.Finalise(size, renderResolution);
+        atmosphere.Finalise(windowSize, renderResolution);
     }
 
     void App::OnKey(int key, int scancode, int action, int mods)
     {
         // - to do: check for not being in GUI? Possibly, but maybe only for some keys
+
+        if (benchmarker.IsBenchmarking())
+        {
+            if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
+            {
+                benchmarker.StopBenchmark();
+            }
+            return;
+        }
 
         if (action != GLFW_PRESS) return;
         switch (key)
@@ -468,7 +498,7 @@ namespace Mulen {
             if (Reload()) std::cout << "Reloaded\n";
             break;
         case GLFW_KEY_F4:
-            window.SetVSync(!window.GetVSync());
+            vsync = !vsync;
             break;
         case GLFW_KEY_F11:
             //window.IsMaximized() ? window.Maximize() : window.Restore();

@@ -52,7 +52,6 @@ namespace Util {
 
     void Timer::EndFrame()
     {
-        auto num = 0u;
         while (!pendingGpuQueries.empty())
         {
             auto& q = pendingGpuQueries.front();
@@ -69,10 +68,10 @@ namespace Util {
             pendingGpuQueries.pop();
 
             //std::cout << "GPU query \"" << refToName[q.nameRef] << "\": " << gpuDuration * 1e3 << " ms (next index: " << timings[q.nameRef].nextGpuIndex << ")" << std::endl;
-            ++num;
         }
 
         // - testing:
         //std::cout << "Handled " << num << " queries. Pending queries: " << pendingGpuQueries.size() << std::endl;
+        ++frame;
     }
 }

@@ -47,12 +47,19 @@ namespace Mulen::Atmosphere {
         return false; // wholly inside planet
     }
 
-    void Updater::InitialSetup(Atmosphere& atmosphere)
+    void Updater::WaitForUpdateReady()
     {
-        // First we have to ensure no data races by waiting for the other thread.
+        std::cout << "Entering updater wait..." << std::endl;
+        // Ensure no data races by waiting for the other thread.
         std::unique_lock<std::mutex> lk{ mutex };
         cv.wait(lk, [&] { return nextUpdateReady; });
         lk.unlock();
+        std::cout << "Exiting updater wait." << std::endl;
+    }
+
+    void Updater::InitialSetup(Atmosphere& atmosphere)
+    {
+        WaitForUpdateReady();
 
         // Then split to a predefined depth.
         // - to do: enable splitting to a determined depth and location, especially for use in benchmarking)
@@ -284,7 +291,7 @@ namespace Mulen::Atmosphere {
                         allStagesProfiled = false;
                         break;
                     }
-                }
+                }if (false)
                 if (allStagesProfiled)
                 {
                     //std::cout << "Profile data available on init." << std::endl;
@@ -480,6 +487,7 @@ namespace Mulen::Atmosphere {
             {
                 std::unique_lock<std::mutex> lk{ mutex };
                 nextUpdateReady = true;
+                cv.notify_one();
             }
         }
     }
@@ -698,6 +706,6 @@ namespace Mulen::Atmosphere {
         auto endTime = Util::Timer::Clock::now();
         auto time = endTime - startTime;
         auto duration = time / std::chrono::milliseconds(1);
-        //std::cout << "Atmosphere update in " << duration << " ms\n";
+        //std::cout << "Atmosphere update in " << duration << " ms\n"; // - to do: record this time, somewhere
     }
 }
