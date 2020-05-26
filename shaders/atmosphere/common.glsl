@@ -2,6 +2,9 @@
 #include "flags.glsl"
 #include "../geometry.glsl"
 
+#ifndef ANIMATE_INTERPOLATION
+#define ANIMATE_INTERPOLATION false
+#endif
 
 const float PI = 3.14159265358979323846;
 
@@ -146,7 +149,7 @@ vec4 RetrieveAnimatedVoxelData(vec3 brickOffs, vec3 lc)
                 
     vec4 voxelData = texture(nextBrickTexture, tc);
                 
-    if (interpolateAnimation) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
+    if (ANIMATE_INTERPOLATION) voxelData = mix(texture(brickTexture, tc), voxelData, animationAlpha);
     
     return voxelData;
 }

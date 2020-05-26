@@ -1,4 +1,3 @@
-#version 450
 #include "common.glsl"
 #include "../noise.glsl"
 

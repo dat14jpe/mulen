@@ -193,7 +193,9 @@ namespace Mulen::Atmosphere {
         if (!loadShader(updateLightShader, "update_lighting", true)) return false;
         if (!loadShader(lightFilterShader, "filter_lighting", true)) return false;
         if (!loadShader(updateOctreeMapShader, "update_octree_map", true)) return false;
-        if (!loadShader(renderShader, "render", true)) return false;
+        //if (!loadShader(renderShader, "render", true)) return false;
+        if (!loadShader(renderInterpShader, "render_with_animation_interpolation", true)) return false;
+        if (!loadShader(renderNoInterpShader, "render_without_animation_interpolation", true)) return false;
         if (!loadShader(resolveShader, "resolve", true)) return false;
         return true;
     }
@@ -280,6 +282,7 @@ namespace Mulen::Atmosphere {
     {
         auto t = timer.Begin("Atmosphere::Update");
 
+        animate = params.animate;
         renderTime += dt;
         if (params.rotateLight) lightTime += dt;
         if (params.animate) time += dt;
@@ -599,7 +602,7 @@ namespace Mulen::Atmosphere {
 
         { // atmosphere
             //lightTexture.Bind(4u);
-            auto& shader = setUpShader(renderShader);
+            auto& shader = setUpShader(animate ? renderInterpShader : renderNoInterpShader);
             shader.Uniform3f("mapPosition", mapPosition);
             shader.Uniform3f("mapScale", mapScale);
             const glm::uvec3 workGroupSize{ 8u, 8u, 1u };

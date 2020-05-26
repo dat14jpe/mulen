@@ -52,7 +52,7 @@ namespace Mulen::Atmosphere {
         GpuState gpuStates[3];
         Util::Texture brickLightTextureTemp, brickLightPerGroupTexture;
         Util::VertexArray vao;
-        Util::Shader backdropShader, renderShader, resolveShader;
+        Util::Shader backdropShader, renderInterpShader, renderNoInterpShader, resolveShader;
         glm::uvec3 texMap;
         Util::Texture octreeMap; // per-frame frustum-encompassing octree map
         Object::Mat4 prevViewProjMat, viewProjMat;
@@ -74,6 +74,7 @@ namespace Mulen::Atmosphere {
 
         Util::Timer& timer;
 
+        bool animate = false;
         double renderTime = 0.0;
         double time = 0.0, lightTime = 0.0; // *animation* time and *light* time
 
