@@ -408,60 +408,63 @@ namespace Mulen {
         }
 
         // - to do: put profiler logic somewhere else
-        if (ImGui::Begin("Profiler"))
+        if (showGui || benchmarker.IsBenchmarking())
         {
-            auto getGpuTime = [&](const std::string& name)
+            if (ImGui::Begin("Profiler"))
             {
-                auto& t = timer.GetTimings(timer.NameToRef(name)).gpuTimes;
-                const auto averageWindow = 100ull; // number of samples to average over
-                //return t.Average(averageWindow);
-
-                const size_t window = 100ull; // - to do: adjust
-                const auto num = static_cast<int>(glm::min(window, t.Size()));
-                auto sum = 0.0;
-                for (auto i = 0; i < num; ++i)
+                auto getGpuTime = [&](const std::string& name)
                 {
-                    sum += t[-i].duration / t[-i].meta.factor;
+                    auto& t = timer.GetTimings(timer.NameToRef(name)).gpuTimes;
+                    const auto averageWindow = 100ull; // number of samples to average over
+                    //return t.Average(averageWindow);
+
+                    const size_t window = 100ull; // - to do: adjust
+                    const auto num = static_cast<int>(glm::min(window, t.Size()));
+                    auto sum = 0.0;
+                    for (auto i = 0; i < num; ++i)
+                    {
+                        sum += t[-i].duration / t[-i].meta.factor;
+                    }
+                    return sum / double(num);
+                };
+                auto displayGpuTime = [&](const char* nameLiteral)
+                {
+                    const std::string name{ nameLiteral };
+                    //ImGui::Text("%s: %.3f ms", nameLiteral, 1e3 * getGpuTime(name));
+                    ImGui::Text("%9.3f ms    %s", 1e3 * getGpuTime(name), nameLiteral);
+                };
+
+                ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+                displayGpuTime("App::OnFrame");
+                displayGpuTime("Atmosphere::Render");
+                displayGpuTime("Atmosphere::Update");
+                // - to do: some sort of special handling for these, no? Possibly
+                ImGui::Spacing();
+                ImGui::Text("Update pass:");
+                displayGpuTime("Update::InitSplits");
+                displayGpuTime("Update::Generate");
+                displayGpuTime("Update::Map");
+                //displayGpuTime("Update::Light");
+                displayGpuTime("Update::LightPerGroup");
+                displayGpuTime("Update::LightPerVoxel");
+                displayGpuTime("Update::Filter");
+                ImGui::Spacing();
+                if (benchmarker.IsInactive() && ImGui::Button("Record path"))
+                {
+                    benchmarker.StartRecording();
                 }
-                return sum / double(num);
-            };
-            auto displayGpuTime = [&](const char* nameLiteral)
-            {
-                const std::string name{ nameLiteral };
-                //ImGui::Text("%s: %.3f ms", nameLiteral, 1e3 * getGpuTime(name));
-                ImGui::Text("%9.3f ms    %s", 1e3 * getGpuTime(name), nameLiteral);
-            };
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
-            displayGpuTime("App::OnFrame");
-            displayGpuTime("Atmosphere::Render");
-            displayGpuTime("Atmosphere::Update");
-            // - to do: some sort of special handling for these, no? Possibly
-            ImGui::Spacing();
-            ImGui::Text("Update pass:");
-            displayGpuTime("Update::InitSplits");
-            displayGpuTime("Update::Generate");
-            displayGpuTime("Update::Map");
-            //displayGpuTime("Update::Light");
-            displayGpuTime("Update::LightPerGroup");
-            displayGpuTime("Update::LightPerVoxel");
-            displayGpuTime("Update::Filter");
-            ImGui::Spacing();
-            if (benchmarker.IsInactive() && ImGui::Button("Record path"))
-            {
-                benchmarker.StartRecording();
+                if (benchmarker.IsRecording() && ImGui::Button("Stop recording"))
+                {
+                    benchmarker.StopRecording();
+                }
+                if (benchmarker.IsInactive() && ImGui::Button("Benchmark"))
+                {
+                    benchmarker.StartBenchmark();
+                }
             }
-            if (benchmarker.IsRecording() && ImGui::Button("Stop recording"))
-            {
-                benchmarker.StopRecording();
-            }
-            if (benchmarker.IsInactive() && ImGui::Button("Benchmark"))
-            {
-                benchmarker.StartBenchmark();
-            }
+            ImGui::End();
         }
-        ImGui::End();
 
 
 
