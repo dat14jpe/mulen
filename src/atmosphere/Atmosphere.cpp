@@ -341,7 +341,6 @@ namespace Mulen::Atmosphere {
         // Update GPU data:
         if (initUpdate && u.GetUpdateIteration().nodesToUpload.size())
         {
-            std::cout << "Update iteration is at " << (size_t)&u.GetUpdateIteration() << "\n";
             auto& it = u.GetUpdateIteration();
             initUpdate = false;
             std::cout << "Uploading " << it.nodesToUpload.size() << " node groups\n";

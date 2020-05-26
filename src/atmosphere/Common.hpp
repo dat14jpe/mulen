@@ -113,5 +113,15 @@ namespace Mulen {
         unsigned maxDepth;
         // - to do: full depth distribution? Assuming 32 as max depth should be plenty
         // - to do: more stats
+
+
+        void Reset()
+        {
+            nodesToUpload.resize(0u);
+            bricksToUpload.resize(0u);
+            splitGroups.resize(0u);
+            genData.resize(0u);
+            maxDepth = 0u;
+        }
     };
 }

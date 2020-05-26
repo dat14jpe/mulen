@@ -49,12 +49,10 @@ namespace Mulen::Atmosphere {
 
     void Updater::WaitForUpdateReady()
     {
-        std::cout << "Entering updater wait..." << std::endl;
         // Ensure no data races by waiting for the other thread.
         std::unique_lock<std::mutex> lk{ mutex };
         cv.wait(lk, [&] { return nextUpdateReady; });
         lk.unlock();
-        std::cout << "Exiting updater wait." << std::endl;
     }
 
     void Updater::InitialSetup(Atmosphere& atmosphere)
@@ -64,6 +62,7 @@ namespace Mulen::Atmosphere {
         // Then split to a predefined depth.
         // - to do: enable splitting to a determined depth and location, especially for use in benchmarking)
         auto& it = GetUpdateIteration();
+        it.Reset();
         it.params.scale = atmosphere.scale;
         it.params.planetRadius = atmosphere.planetRadius;
 
@@ -103,7 +102,7 @@ namespace Mulen::Atmosphere {
         const auto testDepth = 6u;
         testSplitRoot(testDepth);
         const auto res = (2u << testDepth) * (BrickRes - 1u);
-        std::cout << "Voxel resolution: " << res << " (" << 2e-3 * atmosphere.planetRadius * atmosphere.scale / res << " km/voxel)\n";
+        //std::cout << "Voxel resolution: " << res << " (" << 2e-3 * atmosphere.planetRadius * atmosphere.scale / res << " km/voxel)\n";
     }
 
     Updater::~Updater()
@@ -496,11 +495,7 @@ namespace Mulen::Atmosphere {
     {
         const auto startTime = Util::Timer::Clock::now();
 
-        it.nodesToUpload.resize(0u);
-        it.bricksToUpload.resize(0u);
-        it.splitGroups.resize(0u);
-        it.genData.resize(0u);
-        it.maxDepth = 0u;
+        it.Reset();
 
         // - to do: reset generator-specific data? Or it can do that itself
         generator.Generate(it);
