@@ -1,7 +1,7 @@
 {
     "atmosphereUpdateParams": {
         "animate": true,
-        "depthLimit": 0,
+        "depthLimit": 12,
         "frustumCull": false,
         "rotateLight": false,
         "update": true,

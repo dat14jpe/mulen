@@ -50,7 +50,7 @@ namespace Mulen {
         if (currentFrame == 0 && warmUpFrame == 0u) // starting on a new config?
         {
             results.clear();
-            std::cout << " init frame of " << config.sequence.size() << std::endl;
+            //std::cout << " init frame of " << config.sequence.size() << std::endl;
             const auto needsReInit = app.gpuMemBudgetMiB != config.gpuMemBudgetMiB;
             app.gpuMemBudgetMiB = config.gpuMemBudgetMiB;
             if (needsReInit)
@@ -59,7 +59,7 @@ namespace Mulen {
             }
             // - to do: await updater thread iteration completion, if it's not idle already
             app.renderResolution = config.resolution;
-            app.atmUpdateParams = app.atmUpdateParams;
+            app.atmUpdateParams = config.atmUpdateParams;
         }
 
         const auto inWarmUp = warmUpFrame < config.warmUpFrames;
@@ -151,7 +151,7 @@ namespace Mulen {
     void Benchmarker::SaveResults(const std::string& fileName, Results& results)
     {
         // Testing:
-        std::cout << "Results: " << results.size() << " different timer sequences\n";
+        /*std::cout << "Results: " << results.size() << " different timer sequences\n";
         size_t numTimes = 0u;
         for (Util::Timer::NameRef i = 0u; i < results.size(); ++i)
         {
@@ -159,7 +159,7 @@ namespace Mulen {
             std::cout << " " << app.timer.RefToName(i) << ": " << r.durations.size() << " times\n";
             numTimes += r.durations.size();
         }
-        std::cout << "(for a total of " << numTimes << " times)\n";
+        std::cout << "(for a total of " << numTimes << " times)\n";*/
 
         // Saving:
 
