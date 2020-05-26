@@ -54,7 +54,6 @@ namespace Mulen {
 
         Index* GetNextFree(Index i)
         {
-            if (i >= data.size()) std::cout << "Out of bounds: " << i << " >= " << data.size() << std::endl;
             return reinterpret_cast<Index*>(&data[i]);
         }
         

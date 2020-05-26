@@ -416,7 +416,7 @@ namespace Mulen {
                 const auto averageWindow = 100ull; // number of samples to average over
                 //return t.Average(averageWindow);
 
-                const auto window = 100ull; // - to do: adjust
+                const size_t window = 100ull; // - to do: adjust
                 const auto num = static_cast<int>(glm::min(window, t.Size()));
                 auto sum = 0.0;
                 for (auto i = 0; i < num; ++i)
