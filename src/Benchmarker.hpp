@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <glad/glad.h>
 #include "Object.hpp"
 #include "atmosphere/Atmosphere.hpp"
 
@@ -16,14 +17,7 @@ namespace Mulen {
 
     class Benchmarker
     {
-        App& app;
-        enum class Mode
-        {
-            Inactive,
-            Recording,
-            Benchmarking,
-        } mode = Mode::Inactive;
-
+    public:
         struct Frame
         {
             Object::Position cameraPosition;
@@ -43,6 +37,16 @@ namespace Mulen {
             // - possible to do: more data
 
         };
+
+    private:
+        App& app;
+        enum class Mode
+        {
+            Inactive,
+            Recording,
+            Benchmarking,
+        } mode = Mode::Inactive;
+
         std::vector<Configuration> configs;
         size_t currentConfig = 0, currentFrame = 0, warmUpFrame = 0u;
         size_t profilerStartFrame = 0, lastProfilerFrame = 0;

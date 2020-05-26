@@ -1,4 +1,4 @@
-#include "Benchmarker.hpp"
+﻿#include "Benchmarker.hpp"
 #include "App.hpp"
 #include <filesystem>
 #include <util/json.hpp>
@@ -11,6 +11,31 @@ namespace Mulen {
         configPath  = basePath + "config/",
         recordPath  = basePath + "record/",
         resultsPath = basePath + "results/";
+
+
+    static void WriteConfigurationParameters(const Benchmarker::Configuration& config, json& j)
+    {
+        j["atmosphereUpdateParams"] =
+        {
+            {"update", config.atmUpdateParams.update},
+            {"animate", config.atmUpdateParams.animate},
+            {"rotateLight", config.atmUpdateParams.rotateLight},
+            {"frustumCull", config.atmUpdateParams.frustumCull},
+            {"depthLimit", config.atmUpdateParams.depthLimit},
+            {"useFeatureGenerator", config.atmUpdateParams.useFeatureGenerator}
+        };
+        j["config"] =
+        {
+            {"resolution", { config.resolution.x, config.resolution.y }},
+            {"warmUpFrames", config.warmUpFrames},
+            {"gpuMemBudgetMiB", config.gpuMemBudgetMiB}
+        };
+        j["device"] =
+        {
+            {"vendor", (const char*)glGetString(GL_VENDOR)},
+            {"renderer", (const char*)glGetString(GL_RENDERER)},
+        };
+    }
 
     Benchmarker::Benchmarker(App& app)
         : app{ app }
@@ -172,6 +197,7 @@ namespace Mulen {
         }
 
         json j;
+        WriteConfigurationParameters(configs[currentConfig], j);
         j["results"] = json::object();
         for (Util::Timer::NameRef ref = 0u; ref < results.size(); ++ref)
         {
@@ -236,21 +262,7 @@ namespace Mulen {
         }
 
         json j;
-        j["atmosphereUpdateParams"] = 
-        {
-            {"update", recording.atmUpdateParams.update},
-            {"animate", recording.atmUpdateParams.animate},
-            {"rotateLight", recording.atmUpdateParams.rotateLight},
-            {"frustumCull", recording.atmUpdateParams.frustumCull},
-            {"depthLimit", recording.atmUpdateParams.depthLimit},
-            {"useFeatureGenerator", recording.atmUpdateParams.useFeatureGenerator}
-        };
-        j["config"] =
-        {
-            {"resolution", { app.renderResolution.x, app.renderResolution.y }},
-            {"warmUpFrames", 0},
-            {"gpuMemBudgetMiB", app.gpuMemBudgetMiB}
-        };
+        WriteConfigurationParameters(recording, j);
 
         j["sequence"] = json::array();
         for (auto& frame : recording.sequence)
