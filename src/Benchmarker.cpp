@@ -318,7 +318,7 @@ namespace Mulen {
         size_t totalFrames = 0;
         for (auto& path : std::filesystem::directory_iterator(dirPath))
         {
-            std::ifstream file{ path };
+            std::ifstream file{ path.path() };
             if (!file.is_open())
             {
                 std::cerr << "Could not open benchmark configuration file " << path << ".\n";

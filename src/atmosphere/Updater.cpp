@@ -299,7 +299,7 @@ namespace Mulen::Atmosphere {
 
                     for (auto& stage : stages)
                     {
-                        const auto window = 50ull; // - to do: adjust
+                        const size_t window = 50ull; // - to do: adjust
                         auto& t = timer.GetTimings(stage.str).gpuTimes;
                         const auto num = static_cast<int>(glm::min(window, t.Size()));
                         auto sum = 0.0;
