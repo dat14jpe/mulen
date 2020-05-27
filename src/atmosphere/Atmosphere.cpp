@@ -455,8 +455,8 @@ namespace Mulen::Atmosphere {
 
         fbo.Bind();
         const auto numStates = std::extent<decltype(gpuStates)>::value;
-        auto& prevState = gpuStates[(u.updateStateIndex + 1u) % numStates];
-        auto& state = gpuStates[(u.updateStateIndex + 2u) % numStates];
+        auto& prevState = gpuStates[(u.progress.stateIndex + 1u) % numStates];
+        auto& state = gpuStates[(u.progress.stateIndex + 2u) % numStates];
         state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
         prevState.brickTexture.Bind(0u);
         state.brickTexture.Bind(1u);

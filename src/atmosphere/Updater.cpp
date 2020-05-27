@@ -58,6 +58,7 @@ namespace Mulen::Atmosphere {
     void Updater::InitialSetup(Atmosphere& atmosphere)
     {
         WaitForUpdateReady();
+        progress = {};
 
         // Then split to a predefined depth.
         // - to do: enable splitting to a determined depth and location, especially for use in benchmarking)
@@ -65,6 +66,7 @@ namespace Mulen::Atmosphere {
         it.Reset();
         it.params.scale = atmosphere.scale;
         it.params.planetRadius = atmosphere.planetRadius;
+        it.params.height = atmosphere.height;
 
         // - test: "manual" splits, indiscriminately to a chosen level
         std::function<void(NodeIndex, unsigned, glm::dvec4)> testSplit = [&](NodeIndex gi, unsigned depth, glm::dvec4 pos)
@@ -251,16 +253,16 @@ namespace Mulen::Atmosphere {
         while (frameCost < maxFrameCost)
         {
             auto& it = GetRenderIteration();
-            auto& state = a.gpuStates[updateStateIndex];
+            auto& state = a.gpuStates[progress.stateIndex];
             state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
             state.brickTexture.Bind(0u);
             state.octreeMap.Bind(2u);
 
-            auto& stage = stages[updateStage];
+            auto& stage = stages[progress.stage];
             const auto relativeStageCost = stage.cost / totalStagesTime;
             uint64_t totalItems = 0u, numToDo = 0u;
             const auto maxFraction = (maxFrameCost - frameCost) / relativeStageCost;
-            auto& last = updateStageIndex0;
+            auto& last = progress.stageIndex0;
 
             Util::Timer::DurationMeta timerMeta;
             timerMeta.factor = 1.0;
@@ -331,8 +333,8 @@ namespace Mulen::Atmosphere {
                     return; // nothing to do (update-wise) until the worker thread is done
                 }
 
-                updateStateIndex = (updateStateIndex + 1ull) % std::extent<decltype(a.gpuStates)>::value;
-                updateFraction = 0.0;
+                progress.stateIndex = (progress.stateIndex + 1ull) % std::extent<decltype(a.gpuStates)>::value;
+                progress.fraction = 0.0;
                 totalItems = numToDo = 1u;
 
                 // Interpolate old state for split nodes using their current parents.
@@ -340,8 +342,8 @@ namespace Mulen::Atmosphere {
                 {
                     auto t = timer.Begin(Profiler_UpdateInitSplits);
 
-                    auto& prevState = atmosphere.gpuStates[(updateStateIndex + 1u) % std::extent<decltype(atmosphere.gpuStates)>::value];
-                    auto& state = atmosphere.gpuStates[(updateStateIndex + 2u) % std::extent<decltype(atmosphere.gpuStates)>::value];
+                    auto& prevState = atmosphere.gpuStates[(progress.stateIndex + 1u) % std::extent<decltype(atmosphere.gpuStates)>::value];
+                    auto& state = atmosphere.gpuStates[(progress.stateIndex + 2u) % std::extent<decltype(atmosphere.gpuStates)>::value];
 
                     state.gpuNodes.BindBase(GL_SHADER_STORAGE_BUFFER, 0u);
                     prevState.brickTexture.Bind(0u);
@@ -422,14 +424,14 @@ namespace Mulen::Atmosphere {
 
             // Update stage state.
             const auto fraction = double(numToDo) / double(totalItems);
-            if (updateStageIndex0 >= totalItems) // are we done with this stage?
+            if (progress.stageIndex0 >= totalItems) // are we done with this stage?
             {
-                updateStage = (updateStage + 1) % stages.size();
-                updateStageIndex0 = updateStageIndex1 = 0;
+                progress.stage = (progress.stage + 1) % stages.size();
+                progress.stageIndex0 = progress.stageIndex1 = 0;
             }
             frameCost += fraction * relativeStageCost;
         }
-        updateFraction += maxFrameCost; // - to do: think this over
+        progress.fraction += maxFrameCost; // - to do: think this over
     }
 
     void Updater::StageNodeGroup(UpdateIteration& it, UploadType type, NodeIndex groupIndex)

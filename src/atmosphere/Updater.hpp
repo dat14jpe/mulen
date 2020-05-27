@@ -57,10 +57,13 @@ namespace Mulen::Atmosphere {
         std::vector<Stage> stages;
         double totalStagesTime = 0.0;
 
-        uint64_t updateStage = 0u;
-        double updateFraction = 0.0;
-        uint64_t updateStageIndex0 = 0u, updateStageIndex1 = 0u;
-        unsigned updateStateIndex = 0u;
+        struct Progress
+        {
+            uint64_t stage = 0u;
+            double fraction = 0.0;
+            uint64_t stageIndex0 = 0u, stageIndex1 = 0u;
+            unsigned stateIndex = 0u;
+        } progress;
 
         /*// - old
         enum class UpdateStage
@@ -89,6 +92,6 @@ namespace Mulen::Atmosphere {
 
         void InitialSetup(Atmosphere&);
         void OnFrame(Atmosphere&, const UpdateIteration::Parameters&, double period);
-        double GetUpdateFraction() const { return updateFraction; }
+        double GetUpdateFraction() const { return progress.fraction; }
     };
 }
