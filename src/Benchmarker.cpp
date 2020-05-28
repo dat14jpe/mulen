@@ -241,10 +241,11 @@ namespace Mulen {
         if (Mode::Inactive != mode) return;
         mode = Mode::Recording;
 
-        recording.atmUpdateParams = app.atmUpdateParams;
-
         // - maybe to do: don't just discard unconditionally (rather allow for pausing in recording)
         recording = Configuration{};
+        recording.atmUpdateParams = app.atmUpdateParams;
+        recording.resolution = app.renderResolution;
+        recording.gpuMemBudgetMiB = app.gpuMemBudgetMiB;
     }
 
     void Benchmarker::StopRecording()
